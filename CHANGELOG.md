@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.1.15-dev — 2026-05-19
+## v2.1.15 — 2026-05-19
 
 - Auto-detects and removes conflicting DNS modules and apps before install
 - Meta-module verification — aborts with clear instructions if missing
