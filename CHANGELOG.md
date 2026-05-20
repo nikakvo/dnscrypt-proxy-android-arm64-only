@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.1.15-r1 — 2026-05-20
+## v2.1.15-r1 — 2026-05-21
 
 Script-only revision. No binary update.
 
@@ -8,50 +8,81 @@ Script-only revision. No binary update.
 Added iptables rule to block UDP port 443 (QUIC protocol) in `post-fs-data.sh`.
 Chrome, YouTube and other Google apps use QUIC with built-in DoH that can bypass
 dnscrypt-proxy DNS policies. Browsers auto-fallback to TLS/TCP transparently with
-no user impact. Rule is cleanly removed on uninstall via `uninstall.sh`.
+no user impact. Rule uses `-C` check to prevent duplicates on reload.
+Cleanly removed on uninstall via `uninstall.sh`.
 
 ### 🔁 Watchdog — Port-Based Process Detection *(fix)*
 Replaced unreliable `pgrep -x dnscrypt-proxy` with `ss` port check in `service.sh`.
-`pgrep -x` in root shell context was matching the watchdog script itself (which
-contains the binary path in its commands), causing a spurious restart loop and
-`FATAL: bind: address already in use` errors in the log every 10 seconds.
-Now checks `ss -ulnp / ss -tlnp` for `dnscrypt-proxy` on port 5354 instead.
+`pgrep -x` in root shell context was matching the watchdog script itself,
+causing a spurious restart loop and `FATAL: bind: address already in use`
+errors in the log every 10 seconds.
 
-### 📊 Status — Accurate Port-Based Health Check *(fix)*
-Removed `nslookup` upstream health check from status reporting. `nslookup` is
-a Termux binary not available in `/system/bin/`, causing the status to always
-show `DNS Upstream Fail` even when the proxy was working perfectly. Status now
-uses the same reliable `ss` port check as the watchdog.
+### 🛡️ Watchdog — Duplicate iptables Prevention *(fix)*
+All `iptables -A` rules in `post-fs-data.sh` now use `-C || -A` pattern.
+Rules are only added if they don't already exist, preventing duplicates
+on module reload or kernel network events.
+
+### 📊 Status — Accurate Health Check *(fix)*
+Removed `nslookup` upstream check. `nslookup` is a Termux binary not available
+in `/system/bin/`, causing status to always show `DNS Upstream Fail` even when
+everything was working. Status now uses reliable `ss` port check.
+
+### ✍️ Status — Reduced Filesystem Writes *(fix)*
+`module.prop` is now only rewritten when status actually changes.
+Previously `sed -i` ran every 10 seconds regardless, causing unnecessary
+writes to the `/data` partition.
+
+### ⚡ Watchdog — CPU Priority *(new)*
+Added `renice -n 10` at startup of `service.sh`. The watchdog now runs
+at low CPU priority and does not compete with foreground apps.
+
+### 🔍 SELinux Logging *(new)*
+Added SELinux detection at watchdog startup. If SELinux is Enforcing,
+an INFO entry is written to the log to aid debugging on custom ROMs.
+
+### 🔧 ss Fallback to netstat *(new)*
+Added automatic fallback: if `ss` is not available on the ROM,
+the watchdog transparently uses `netstat` instead. Improves compatibility
+with stripped-down or older Android builds.
+
+### 🛠️ Installer — Safe getevent Cleanup *(fix)*
+Replaced `pkill -f "getevent"` with `pkill -P $$` in `customize.sh`.
+The old command could accidentally kill unrelated getevent processes
+(e.g. an active Termux session). Now only child processes of the
+installer itself are terminated.
 
 ---
 
 ## v2.1.15 — 2026-05-18
 
 ### 🔍 Conflict Detection & Auto-Removal *(new)*
-Installer automatically detects conflicting DNS modules and apps before installation.
-User is prompted via volume keys to remove them safely.
+Installer automatically detects conflicting DNS modules and apps before
+installation. User is prompted via volume keys to remove them safely.
 
 ### ✅ Meta-Module Verification *(new)*
-Installation aborts with clear instructions if no compatible meta-module is detected.
+Installation aborts with clear instructions if no compatible meta-module
+is detected.
 
 ### 🔒 Boot-Time DNS Leak Prevention *(new)*
-DNS is blocked at boot via iptables until dnscrypt-proxy is confirmed listening
-on port 5354. The startup leak window is now closed.
+DNS is blocked at boot via iptables until dnscrypt-proxy is confirmed
+listening on port 5354. The startup leak window is now closed.
 
-### 📵 Full IPv6 Kill *(improved)*
-IPv6 disabled at three levels simultaneously — Android system properties, kernel
-sysctl and ip6tables DROP policy. Re-enforced every 60 seconds by the watchdog.
+### 📵 Full IPv6 Kill *(new)*
+IPv6 disabled at three levels simultaneously — Android system properties,
+kernel sysctl and ip6tables DROP policy. Re-enforced every 60 seconds
+by the watchdog to survive network events.
 
-### 🔁 Self-Healing Watchdog *(improved)*
-Watchdog uses `ss` with `netstat` fallback for port detection, 30-second startup
-timeout with logging, and lifts the boot DNS block only after confirming
-dnscrypt is ready.
+### 🔁 Self-Healing Watchdog *(new)*
+Watchdog monitors the proxy and restarts it if it dies. Uses `ss` with
+`netstat` fallback for port detection. 30-second startup timeout with
+full logging.
 
-### 🛡️ Hardened Resolver List *(improved)*
-Removed servers with policy conflicts. Active list: Cloudflare, Quad9 (nofilter),
-Mullvad Base DoH.
+### 🛡️ Hardened Resolver List *(new)*
+Three no-log, DNSSEC-validating resolvers across three jurisdictions:
+Cloudflare (DoH), Quad9 nofilter (DNSCrypt), Mullvad Base (DoH).
+Fastest one is selected automatically.
 
-### ⚡ DNSCrypt-Proxy 2.1.15 Core *(upstream)*
+### ⚡ DNSCrypt-Proxy 2.1.15 *(upstream)*
 - Dynamic timeout reduction under high load
 - More accurate cache statistics
 - Enhanced monitoring UI
