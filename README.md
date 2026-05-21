@@ -299,4 +299,4 @@ Remove the module via SUkiSU / KernelSU / Magisk and reboot. The uninstaller aut
 
 ---
 
-*Built and maintained by Tears Burn*
+*Maintained by Tears Burn*
