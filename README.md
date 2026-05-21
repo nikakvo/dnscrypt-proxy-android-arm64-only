@@ -6,7 +6,7 @@
 
 ## What is this?
 
-A **always up-to-date** arm64 module that forces all DNS traffic on your device through an encrypted proxy — completely bypassing your ISP's DNS servers.
+**always up-to-date** arm64 module that forces all DNS traffic on your device through an encrypted proxy — completely bypassing your ISP's DNS servers.
 
 No ISP snooping. No DNS hijacking. No tracking. No ads.
 
