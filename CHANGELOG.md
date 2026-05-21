@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.1.15-r2 (2026-05-21)
+
+### Binary update
+- Upstream dnscrypt-proxy `4f151a5` — **xtransport: improve HTTP connection reuse**
+  - `MaxIdleConns` raised from 1 → 16: multi-resolver setups no longer re-handshake on every server rotation
+  - `IdleConnTimeout` decoupled from keepalive knob and fixed at 90 seconds — connections stay warm regardless of keepalive config
+  - HTTP/3 (QUIC) transport now correctly drains idle connections on rebuild, same as HTTP/2
+  - SNI fix for DoH stamps that connect via IP with a different cert name — TLS/QUIC no longer overrides SNI incorrectly
+
+### Module fix
+- `service.sh` — `lift_dns_block()` now uses `iptables -C` before `-D`; rules are only removed when they actually exist. Eliminates silent no-op iptables calls on every 10-second watchdog tick when the boot block is already gone.
+
+---
+
 ## v2.1.15-r1 — 2026-05-21
 
 Script-only revision. No binary update.
