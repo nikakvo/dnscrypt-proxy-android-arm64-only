@@ -10,7 +10,7 @@
 
 No ISP snooping. No DNS hijacking. No tracking. No ads.
 
-> **Always current.** Every time a new dnscrypt-proxy release drops upstream, the binary is rebuilt and the module is updated. You are never running an outdated or abandoned build.
+> **Always current.** Every time a new dnscrypt-proxy release drops upstream, the binary and the module is updated. You are never running an outdated or abandoned build.
 
 ---
 
