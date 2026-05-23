@@ -1,5 +1,19 @@
 # Changelog
 
+## Version v2.1.15-r4
+
+### Updated
+- Updated dnscrypt-proxy to latest upstream build
+
+### Fixed
+- Added upstream fix for malformed DNS responses
+- Improved validation of DNS reply question sections
+- Better handling of invalid/malformed DNS packets
+- Increased stability and parser safety in response pipeline
+
+### Security
+- Hardened DNS response validation against malformed packets
+
 ## v2.1.15-r3 — 2026-05-23
 
 ### 🖥️ Webroot UI — full redesign *(new)*
