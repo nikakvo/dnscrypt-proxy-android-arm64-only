@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.1.15-r3 — 2026-05-23
+
+### 🖥️ Webroot UI — full redesign *(new)*
+
+- `index.html` replaces the built-in dnscrypt-proxy dashboard at `127.0.0.1:5555`
+- Scrollable dashboard with 6 sections: Overview, Result Distribution, Resolvers, Query Types, Top Domains, Recent Queries
+- Live status banner with pulsing dot indicator
+- Built-in music player with visualizer bars, volume control and session restore across navigation
+- Quick-access buttons: DNS Test, Ads Test, Ads Test 2, My IP
+- Query log trimmed to 2000 lines for webroot copy — reduced I/O with no meaningful data loss
+- Original dnscrypt-proxy UI remains accessible directly at `http://127.0.0.1:5555`
+
 ## v2.1.15-r2 (2026-05-21)
 
 ### Binary update
