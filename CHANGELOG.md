@@ -1,5 +1,34 @@
 # Changelog
 
+---
+
+## [2.1.16] - 2026-05-24
+
+### 🔄 DNSCrypt-Proxy upstream (2.1.16)
+- Servers with temporarily high RTT now recover automatically and re-enter rotation — previously they could stay penalized forever
+- Servers are no longer penalized for slow responses when the reply is served from stale cache — fairer load balancing with `wp2`
+- `blocked-ips.txt` now officially supports full CIDR notation (e.g. `10.0.0.0/8`) in addition to prefix wildcards
+- Dashboard HTML pages are no longer cached — fixes stale UI after upgrades
+- `jsdelivr` added as additional mirror for resolver lists — more reliable startup fetching
+- HTTP/3 probing now uses a negative cache to avoid repeated probes against servers known not to support it
+- HTTP transport handles `Alt-Svc: clear` correctly and reuses connections more aggressively
+- Log entries now include the relay name when a query was sent through an anonymized DNS or ODoH relay
+- ODoH: 401 key-refresh path hardened against panics and races
+- `tls_cipher_suite` option is now a no-op — modern TLS stacks no longer expose cipher suite selection; option removed from config
+- New `tls_prefer_rsa` option available for systems without hardware AES (not needed on ARM64 with hardware AES)
+- `miekg/dns` library updated to v2 series
+- `-resolve` command now correctly reports incomplete DNSSEC support instead of treating partial signatures as success
+
+### 🛠️ Module changes
+- Updated binary to dnscrypt-proxy `2.1.16` arm64
+- Removed `tls_cipher_suite = [52392]` from `dnscrypt-proxy.toml` — option is now a no-op upstream
+- Fixed QUIC iptables rule in `post-fs-data.sh` — `--reject-with` flag was missing from `-D` causing the old rule to not be properly cleaned up on reload
+- Fixed watchdog loop in `service.sh` to check `:5354` port instead of process name — consistent with startup `READY` check and more reliable
+- Fixed status check in `service.sh` to use `:5354` port — avoids false positives if a process named `dnscrypt-proxy` exists but is not listening
+- Updated `blocked-ips.txt` with additional rebind protection ranges: link-local (`169.254.*`), full CGNAT range (`100.64-127.*`), documentation ranges (`192.0.2.*`, `198.51.100.*`, `203.0.113.*`), reserved ranges (`240-255.*`), and full IPv6 rebind protection (`::1`, `::`, `fc*`, `fd*`, `fe80*`, `2001:db8*`, `fec-fef*`)
+
+---
+
 ## Version v2.1.15-r4
 
 ### Updated
