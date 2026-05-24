@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.1.16-r1 — 2026-05-25
+
+### 🐛 Bug Fixes
+
+- **Fixed dashboard stats freezing** — previously after the query log reached its limit the dashboard would stop updating and show stale cumulative data regardless of restarts or reflashes
+- **Fixed "5000 cap" display issue** — total query count was always showing exactly 5000 when the log was full, making it impossible to tell real traffic from a truncated view
+
+### ✨ New Features
+
+- **2-hour rolling window** — the dashboard now shows only the last 2 hours of DNS traffic in real time; old entries automatically drop off, stats always reflect what's happening now
+- **awk-based timestamp filtering** — `webroot/query.log` is built by filtering `query.log` by real timestamp every 10 seconds, not by line count; if `awk` is unavailable on the device a safe `tail` fallback is used automatically
+
+### ⚙️ Changes
+
+- `query.log` rotation threshold raised from **2MB → 10MB** (keeps last 30,000 lines as full history buffer on storage)
+- `webroot/query.log` no longer uses a fixed `tail -n 5000`; replaced by `build_rolling_window()` which extracts the last 2 hours dynamically
+- Dashboard banner now shows `Live — N entries · last 2h`
+- Overview section shows `Window: rolling 2h` so the user always knows what time range is displayed
+- Footer updated to `2h window · auto-refresh 10s`
+
+### 📋 Technical Details
+
+- `service.sh` — replaced `rotate_query_log` threshold and added `build_rolling_window()` function with awk + fallback logic
+- `index.html` — updated `loadData()`, `renderStats()`, `buildCards()` and footer strings to reflect rolling window context
+
 ---
 
 ## [2.1.16] - 2026-05-24
