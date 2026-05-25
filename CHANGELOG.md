@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.16-r3
+
+### ✨ New Features
+
+- **Help documentation** — added `help.html` to webroot with 20 sections:
+  full explanation of how the module works, all config options with examples,
+  blocklist usage (incl. new CIDR support), IP encryption (ipcrypt algorithms),
+  resolver details, VPN combination guide, FAQ, and What's New in v2.1.16
+- **HELP button** — added to the dashboard header row alongside DNS Test,
+  Ads Test, Ads Test 2, My IP — opens help.html directly from the monitor
+
 v2.1.16-r2
 
 - Fix: query.log and webroot/query.log are now cleared on every
