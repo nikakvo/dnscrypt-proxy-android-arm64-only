@@ -1,5 +1,11 @@
 # Changelog
 
+v2.1.16-r2
+
+- Fix: query.log and webroot/query.log are now cleared on every
+  process (re)start — dashboard no longer shows stale data from
+  previous sessions
+
 ## 2.1.16-r1 — 2026-05-25
 
 ### 🐛 Bug Fixes
