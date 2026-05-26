@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.16-r4
+
+🔍 Smarter Meta-Module Detection
+Previously the installer only recognized three hardcoded meta-modules by name. Any fork, rename, or custom implementation would cause an unnecessary abort. The detection is now capability-based — the installer probes for actual mount capability using marker files, capability flags, and a live bind-mount test. Works with magic_mount_rs, hybrid_mount, meta-overlayfs, and any future or custom implementation that exposes real mount capability.
+🛡️ Blocklist Action — OISD Big List Integration
+Added an Action button in the module manager. Tap it to download and merge the latest OISD Big List — one of the most comprehensive and well-maintained blocklists available, covering ads, trackers, malware, and phishing domains. The updater merges new entries with your existing blocklist, removes duplicates, and hot-reloads dnscrypt-proxy without a reboot. Safe to run multiple times — never downgrades your existing list.
+
 ## 2.1.16-r3
 
 ### ✨ New Features
