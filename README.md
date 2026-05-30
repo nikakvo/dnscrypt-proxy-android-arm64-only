@@ -163,6 +163,9 @@ All three have publicly available privacy policies and have passed independent a
    - If no conflicts: installation completes in one flash
 5. Reboot
 
+<img width="300"  alt="dnscrypt" src="https://github.com/user-attachments/assets/4a414df4-dc85-447f-a1b1-0ebf2fe60d88" />
+
+
 ---
 
 ## Conflict Detection
