@@ -253,35 +253,6 @@ The self-healing watchdog detects the failure and restarts it automatically. DNS
 
 ---
 
-## What's New in v2.1.15
-
-### 🔍 Conflict Detection & Auto-Removal
-Installer now automatically detects conflicting DNS modules and apps before installation and prompts for safe removal via volume keys.
-
-### ✅ Meta-Module Verification
-Installation aborts with clear instructions if no compatible meta-module is detected.
-
-### 🔒 Boot-Time DNS Leak Prevention
-DNS is blocked at boot via iptables until dnscrypt-proxy is confirmed listening on port 5354. The startup leak window is fully closed.
-
-### 📵 Full IPv6 Kill
-IPv6 disabled simultaneously at three levels — Android system properties, kernel sysctl, and ip6tables DROP policy. Re-enforced every 60 seconds by the watchdog.
-
-### 🔁 Self-Healing Watchdog
-Uses `ss` with `netstat` fallback for port detection. 30-second startup timeout with logging. Lifts the boot DNS block only after confirming dnscrypt is ready.
-
-### 🛡️ Hardened Resolver List
-Removed servers with policy conflicts. Active resolvers: Cloudflare, Quad9 (nofilter), Mullvad Base DoH.
-
-### ⚡ DNSCrypt-Proxy 2.1.15 Core (upstream)
-- Dynamic timeout reduction under high load
-- More accurate cache statistics
-- Enhanced monitoring UI
-- Fixed IPv6 DoH stamp double-bracketing bug
-- Proxy hostname pre-resolution via bootstrap resolvers
-
----
-
 ## Uninstall
 
 Remove the module via SUkiSU / KernelSU / Magisk and reboot. The uninstaller automatically:
