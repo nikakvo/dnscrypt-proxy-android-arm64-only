@@ -4,6 +4,39 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
+## v2.1.16-r1
+
+### action.sh — Blocklist Updater
+- **Fixed:** Progress bar no longer spams hundreds of lines — now prints every 5% only
+- **Fixed:** OISD source URL updated from `domainswild` to `domainswild2` (current recommended format, ~700KB smaller, broader coverage)
+- **Fixed:** Blocklist file size now reflects real content (~13MB with domainswild2 vs ~7MB before)
+- **Fixed:** `EXPECTED` download size is now fetched dynamically via `Content-Length` header instead of hardcoded value — progress bar stays accurate regardless of list size
+- **Improved:** Merge step now lowercases all domains before sort+uniq — prevents duplicate entries caused by mixed case
+- **Improved:** `sort` fallback uses `-T /data/local/tmp` if default temp dir is not writable
+- **Improved:** Lock file guard prevents double-runs; stale locks (>10 min) are cleaned automatically
+
+### service.sh
+- **Fixed:** Stale watchdog kill now uses `pgrep -f` instead of `ps -ef | awk '{print $1}'` — avoids wrong PID column on Android busybox builds
+- **Improved:** Log rotation reduced from 500 to 300 lines
+- **Added:** `blocklist_domains` field injected into `metrics.json` on every fetch cycle (live domain count from `blocked-names.txt`)
+
+### customize.sh
+- **Fixed:** `set_perm_recursive` now uses `0644` for files instead of `0755` — only shell scripts and the binary are explicitly set executable
+
+### module.prop
+- **Fixed:** `versionCode` corrected from `1` to `21116` — auto-update detection now works properly
+
+### Dashboard (index.html)
+- **Fixed:** NXDOMAIN stat no longer shows `—` — now counted from `nxdomain_queries` field or derived from `recent_queries` as fallback
+- **Added:** NXDOMAIN percentage shown in Overview section
+- **Added:** Blocklist section showing live domain count loaded from `blocklist_domains`
+
+### uninstall.sh
+- **Added:** Cleans up `dnscrypt-update.log` on uninstall
+- **Added:** Comment clarifying that `.bak` backup files are removed intentionally on full uninstall
+
+---
+
 ## 2.1.16 — Initial public release
 
 ### Added
