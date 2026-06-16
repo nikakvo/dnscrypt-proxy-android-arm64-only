@@ -4,6 +4,23 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
+### Added
+- Web UI "Update Blocklist" button in `index.html` — triggers a blocklist update directly from the module's dashboard, with a live-scrolling log panel showing download/merge/dedupe progress and a final success/fail status.
+- `busybox httpd` CGI control server on `127.0.0.1:5556`, started by `service.sh`, exposing:
+  - `cgi-bin/update.sh` — starts the blocklist update (detached, survives Manager app close)
+  - `cgi-bin/log.sh` — returns the last 80 lines of the update log
+  - `cgi-bin/status.sh` — reports whether an update is currently running
+
+### Changed
+- `action.sh` renamed to `update-blocklist.sh`. It's no longer wired to a SukiSU/Magisk/KernelSU Action button — updates are now triggered exclusively from the Web UI.
+- Blocklist reload after update now uses `pkill -HUP` instead of a full process kill. dnscrypt-proxy reloads its config/blocklist in place (supported since 2.1.13) instead of restarting, so the `:5555` metrics API never goes down and the dashboard no longer shows a stats blackout after every update.
+- `uninstall.sh` now also kills the `busybox httpd` control server and any in-progress `update-blocklist.sh` run before removing files.
+
+### Fixed
+- `uninstall.sh` was deleting a log file named `dnscrypt-update.log`, which never existed — corrected to the actual filename, `dnscrypt-action.log`.
+
+---
+
 ## v2.1.16-r1
 
 ### action.sh — Blocklist Updater
