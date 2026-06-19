@@ -226,11 +226,6 @@ Remove via SukiSU / KernelSU / Magisk and reboot.
 
 ---
 
-## License
-
-MIT — see [LICENSE](LICENSE)
-
----
 
 <p align="center">
   Made by <a href="https://github.com/nikakvo">Tears Burn</a>
