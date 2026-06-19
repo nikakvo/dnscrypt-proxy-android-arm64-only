@@ -2,7 +2,6 @@
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
   <img src="https://img.shields.io/badge/dnscrypt--proxy-2.1.16-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/KernelSU%20%2F%20SukiSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
-  <img src="https://img.shields.io/github/license/nikakvo/dnscrypt-proxy-android-arm64-only?style=flat-square" />
 </p>
 
 <h1 align="center">DNSCrypt Proxy — Android ARM64</h1>
