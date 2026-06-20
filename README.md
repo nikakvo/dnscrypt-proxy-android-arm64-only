@@ -329,6 +329,7 @@ Remove the module via SUkiSU / KernelSU / Magisk and reboot. The uninstaller aut
 - On first install, config is written fresh. Existing config is backed up with a timestamp
 - IPv6 re-enforcement every ~60 seconds is intentional — some system events can restore IPv6 temporarily
 - The monitoring dashboard (`http://127.0.0.1:5556`) is loopback-only and serves only while the module is active
+- Built and tested against the Poco F6 Pro SukiSU kernel setup and SukiSU Ultra Manager used in this repository: [poco-f6-pro-sukisu-kernel-archive](https://github.com/nikakvo/poco-f6-pro-sukisu-kernel-archive)
 
 ---
 
