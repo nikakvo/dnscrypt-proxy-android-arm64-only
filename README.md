@@ -4,228 +4,332 @@
   <img src="https://img.shields.io/badge/KernelSU%20%2F%20SukiSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
 </p>
 
-<h1 align="center">DNSCrypt Proxy — Android ARM64</h1>
-<p align="center">Full DNS privacy stack for Android · zero-leak design · ad/tracker blocking · live monitoring dashboard</p>
+# DNSCrypt-Proxy Android — arm64
+
+### by Tears Burn | v2.1.16-r3 | SUkiSU Ultra · KernelSU · Magisk
 
 ---
 
-> **⚠ Aggressive module — read before installing.**
-> This module kills IPv6, blocks QUIC, and enforces DNS at the kernel level.
-> It is designed for maximum privacy and zero DNS leak tolerance. See [Known side effects](#known-side-effects) before proceeding.
+## What is this?
+
+An **always up-to-date arm64 module** that forces all DNS traffic on your device through an encrypted proxy — completely bypassing your ISP's DNS servers.
+
+No ISP snooping. No DNS hijacking. No tracking. No ads.
+
+> **Always current.** Every time a new dnscrypt-proxy release drops upstream, the binary and the module are updated. You are never running an outdated or abandoned build.
 
 ---
 
-## What It Does
+## Why this module over everything else?
 
-Forces **all** DNS traffic on your device through an encrypted proxy, completely bypassing your ISP's DNS servers.
+Most DNS privacy tools for Android are either abandoned, broken on newer root implementations, or rely on VPN slots that conflict with actual VPNs. This module does none of that.
 
-| Component | Description |
-|---|---|
-| **Encrypted DNS** | Runs `dnscrypt-proxy` 2.1.16 on `127.0.0.1:5354` |
-| **iptables redirect** | Redirects all DNS traffic (port 53 → 5354) via NAT |
-| **Boot DNS leak guard** | Blocks port 53 at early boot — DNS stays blocked until the proxy is confirmed ready |
-| **IPv6 kill** | Disables IPv6 at 3 independent levels: `resetprop` + kernel `sysctl` + `ip6tables` DROP policy |
-| **QUIC block** | Drops UDP port 443 — prevents Chrome/YouTube DoH bypass via QUIC |
-| **Blocklist updater** | Action button downloads and merges OISD Big List with your existing blocklist |
-| **Self-healing watchdog** | `service.sh` monitors `:5354` every 10s and restarts the daemon if needed |
-| **Live dashboard** | Metrics API → `webroot/metrics.json`, viewable in `index.html` |
+| Feature | This Module | InviZible Pro | AdAway | NextDNS Module |
+|---|---|---|---|---|
+| Self-built binary (latest upstream) | ✅ Always | ❌ Bundled | ❌ N/A | ❌ Bundled |
+| No VPN slot used | ✅ | ❌ Uses VPN | ✅ | ❌ Uses VPN |
+| Boot-time DNS leak prevention | ✅ | ❌ | ❌ | ❌ |
+| IPv6 killed at 3 levels | ✅ | ⚠️ Partial | ❌ | ❌ |
+| Self-healing watchdog | ✅ | ❌ | ❌ | ❌ |
+| Conflict detection & auto-removal | ✅ | ❌ | ❌ | ❌ |
+| SUkiSU Ultra / KernelSU / Magisk | ✅ All three | ⚠️ Partial | ⚠️ Partial | ⚠️ Partial |
+| Works alongside ProtonVPN WireGuard | ✅ | ❌ Conflicts | ✅ | ❌ Conflicts |
 
 ---
 
-## DNS Flow
+## ⚠️ Read Before Installing
+
+This is an **aggressive module with strict rules**. The following are intentional design decisions — not bugs.
+
+- **IPv6 is fully killed** at three independent levels simultaneously (system properties, kernel sysctl, ip6tables DROP). The watchdog re-enforces this every ~60 seconds. If VoWiFi / IMS on your carrier requires IPv6, test carefully.
+- **QUIC is blocked** (UDP port 443). Chrome, YouTube and other Google apps use QUIC with built-in DoH that bypasses dnscrypt-proxy. Blocking QUIC forces them back to TLS where the DNS redirect rules apply. Browsers fall back automatically.
+- **Private DNS must be OFF.** The installer disables it automatically, but verify it stays off: `Settings → Network & internet → Private DNS → Off`
+- **Browser Secure DNS must be OFF** in every browser (Chrome, Firefox, Brave, Samsung Internet). Browser-level DoH sends DNS directly to external resolvers over HTTPS, bypassing everything.
+- **`blocked-names.txt` is replaced on every update** — not merged with the old file. Your personal domains go in `gustum-blocked-names.txt` and are always preserved across updates.
+
+> If something breaks after installing — uninstall via your root manager and reboot. The uninstaller cleanly restores all iptables rules, IPv6 settings, and Private DNS to Android defaults.
+
+---
+
+## How it works
 
 ```
-App DNS query
-     │
-     ▼
-iptables NAT (port 53 → 5354)
-     │
-     ▼
-dnscrypt-proxy (127.0.0.1:5354)
-     │
-     ├─ blocked?  → NXDOMAIN (from blocklist)
-     │
-     └─ allowed?  → encrypted upstream resolver
-                          │
-                    Cloudflare / Quad9 / Mullvad
-                    (DNSCrypt or DoH, over TLS)
+App DNS request
+      ↓
+iptables redirect (port 53 → 127.0.0.1:5354)
+      ↓
+dnscrypt-proxy (encrypted + authenticated)
+      ↓
+Cloudflare / Quad9 / Mullvad  ← fastest resolver wins
 ```
 
-Your ISP sees only encrypted traffic — never your DNS queries.
+- ISP sees **encrypted traffic only** — not your DNS queries
+- Private DNS (Android 9+) is disabled on install to prevent bypass
+- IPv6 is killed at three simultaneous levels — system properties, kernel sysctl, ip6tables DROP policy
+- DNS is fully blocked at boot until the proxy is confirmed ready — zero startup leak window
+- Watchdog re-enforces IPv6 kill every ~60 seconds
+- Self-healing: if the proxy crashes, the watchdog detects it and restarts it automatically — DNS stays blocked via iptables during the restart window, no leaks
+
+---
+
+## DNS Resolvers
+
+Three resolvers across three jurisdictions. Load balanced automatically — fastest one wins.
+
+| Resolver | Type | No-Log | DNSSEC | Location |
+|---|---|---|---|---|
+| Cloudflare | DoH | ✅ | ✅ | Global anycast |
+| Quad9 (nofilter) | DoH | ✅ | ✅ | Switzerland 🇨🇭 |
+| Mullvad Base | DoH | ✅ | ✅ | Sweden 🇸🇪 |
+
+All three have publicly available privacy policies and have passed independent audits. Quad9 is a nonprofit organization. The `nofilter` variant of Quad9 is used deliberately — ad/tracker blocking is handled by the local blocklists, not by the resolver.
+
+---
+
+## Blocklist
+
+The module ships with a pre-built `blocked-names.txt` from the [OISD Big List](https://oisd.nl) — one of the most comprehensive and actively maintained blocklists available, covering ads, trackers, malware, phishing, telemetry, and coinminers. All entries use wildcard format (`*.domain.com`) to block entire subdomains with a single rule.
+
+### gustum-blocked-names.txt — your personal blocklist
+
+A dedicated file for domains you want blocked permanently, independent of the OISD list:
+
+```
+/storage/emulated/0/dnscrypt-proxy/gustum-blocked-names.txt
+```
+
+- One domain per line. Wildcard prefix (`*.`) is supported and recommended.
+- **Survives every update** — on each update run, your entries are automatically appended to the fresh OISD download before the final deduplication step.
+- Comments (`#`) and blank lines are stripped automatically.
+- If the file is empty or absent, the updater continues normally with no impact.
+
+```
+# gustum-blocked-names.txt example
+*.facebook.com
+*.instagram.com
+*.tiktok.com
+*.telemetry.example.com
+```
+
+### If a site or app stops working
+
+With 800,000+ domains in the blocklist, occasional false positives happen. To fix:
+
+1. Ask Claude or ChatGPT: *"What domains does [app/site] use?"*
+2. Search for those domains in `/storage/emulated/0/dnscrypt-proxy/blocked-names.txt` or `gustum-blocked-names.txt`
+3. Remove the matching lines — hot-reload applies the change instantly, no reboot needed
+4. For permanent exceptions, add the domain to `allowed-names.txt` — whitelisted domains are never blocked even if they appear in the blocklist
+
+---
+
+## Blocklist Updater
+
+The monitoring dashboard includes a one-tap blocklist updater. It downloads a fresh copy of the OISD Big List, merges it with your `gustum-blocked-names.txt`, deduplicates the result, and reloads dnscrypt-proxy — no reboot required.
+
+**How to use:**
+1. Open the dashboard at `http://127.0.0.1:5556`
+2. Scroll to **Update Blocklist** and tap **⬇ Update blocked-names.txt**
+3. The button locks immediately — do not tap again while it is running
+4. The entire dashboard auto-refresh pauses until the update completes
+5. When done, the log clears, the button unlocks, and the new blocklist loads automatically
+
+**What it does under the hood:**
+1. Downloads the latest OISD Big List with a live progress bar (falls back to hagezi pro.plus → hagezi ultimate if OISD is unreachable)
+2. Strips comments and blank lines; adds `*.` wildcard prefix to any domain that does not already have one
+3. Concatenates the cleaned download with your `gustum-blocked-names.txt` and pipes through `sort | uniq`
+4. Atomically replaces `blocked-names.txt` and sends `SIGHUP` to the running daemon — zero DNS downtime
+
+The **Latest Update** timestamp in the dashboard Blocklist section shows the exact date and time of the last successful update.
+
+---
+
+## Monitoring Dashboard
+
+A built-in web dashboard is served locally at:
+
+```
+http://127.0.0.1:5556
+```
+
+Open it in any browser on the device. It shows live metrics fetched directly from the dnscrypt-proxy API every 10 seconds: total queries, blocked queries, block rate, cache hit ratio, average RTT, uptime, resolver health, and blocklist domain count with last update timestamp.
+
+> The dashboard is served by busybox httpd on loopback only — not accessible from outside the device.
 
 ---
 
 ## Requirements
 
-| | |
-|---|---|
-| **Architecture** | ARM64 only |
-| **Root manager** | SukiSU Ultra / KernelSU / Magisk |
-| **Android** | 9+ |
-| **Meta-module** | `magic_mount_rs` (recommended) · `hybrid_mount` · `meta-overlayfs` |
+- arm64 device only
+- SUkiSU Ultra / KernelSU / Magisk with root
+- Android 9+
+- One of the following **meta-modules installed first:**
 
-> A meta-module is **required**. The installer aborts if none is detected. Install one first, reboot, then flash this module.
+| Meta-Module | Download |
+|---|---|
+| magic_mount_rs *(Recommended)* | [github.com/Tools-cx-app/meta-magic_mount-rs](https://github.com/Tools-cx-app/meta-magic_mount-rs/releases) |
+| hybrid_mount | [github.com/Hybrid-Mount/meta-hybrid_mount](https://github.com/Hybrid-Mount/meta-hybrid_mount/releases) |
+| meta-overlayfs | [github.com/KernelSU-Modules-Repo/meta-overlayfs](https://github.com/KernelSU-Modules-Repo/meta-overlayfs/releases) |
+
+> **The installer will abort if no meta-module is detected. Install one first, reboot, then flash this module.**
 
 ---
 
 ## Installation
 
-1. Install a compatible meta-module (`magic_mount_rs` recommended) and reboot
-2. Flash `dnscrypt-proxy-android-arm64.zip` via SukiSU / KernelSU / Magisk
-3. During install, use volume keys to respond to prompts:
-   - **VOL UP** — Yes / Continue
-   - **VOL DOWN** — No / Abort
-4. If conflicting modules or apps are detected, the installer lists them and asks to remove them. Press **VOL UP** to confirm, then **reboot and flash again** — the second flash completes cleanly
+1. Install a compatible meta-module (see above)
+2. Reboot your device
+3. Flash `dnscrypt-proxy-vX.X.X.zip` via SUkiSU / KernelSU / Magisk
+4. The installer automatically:
+   - Verifies meta-module is present
+   - Scans for conflicting DNS modules and apps
+   - Prompts you to remove conflicts if found *(VOL UP = yes / VOL DOWN = abort)*
+   - If conflicts were removed: reboot and flash again
+   - If no conflicts: installation completes in one flash
 5. Reboot
 
-Config files are placed in `/storage/emulated/0/dnscrypt-proxy/` for easy access without a root file manager.
+Module status in your root manager should show `Working 🌬🌬🌬`
 
-### Required: disable Private DNS
-
-Android Private DNS must be **Off**. If enabled, Android sends DNS queries directly to the configured DoT server — bypassing dnscrypt-proxy completely. The installer disables it automatically, but verify it stays off.
-
-- **Android 9–13:** Settings → Network & internet → Advanced → Private DNS → **Off**
-- **Android 14+:** Settings → Network & internet → Private DNS → **Off**
-
-### Required: disable Secure DNS in browsers
-
-Browser-level DoH sends queries directly to the browser's resolver over HTTPS, bypassing dnscrypt-proxy and your blocklists.
-
-- **Chrome:** Settings → Privacy and security → Security → Use secure DNS → **Off**
-- **Firefox:** Settings → General → Network Settings → Enable DNS over HTTPS → **Off**
-- **Brave:** Settings → Privacy and security → Security → Use secure DNS → **Off**
+<img width="300" alt="dnscrypt" src="https://github.com/user-attachments/assets/4a414df4-dc85-447f-a1b1-0ebf2fe60d88" />
 
 ---
 
-## Blocklist Updater (Action Button)
+## Conflict Detection
 
-Tap the **▶ Action** button in your root manager to download and merge the latest [OISD Big List](https://big.oisd.nl).
+The installer automatically detects and removes the following if found:
 
-**What it does:**
-1. Downloads from OISD Big → hagezi pro.plus → hagezi ultimate (fallback chain)
-2. Strips comments and empty lines
-3. Merges with your existing `blocked-names.txt`, sorts, removes duplicates
-4. Atomically replaces the blocklist and restarts `dnscrypt-proxy`
+**Conflicting modules:** BindHosts, AdAway, Energized Protection, Systemless Hosts, DNS66, InviZible Pro, NextDNS, RethinkDNS, Cloudflared, SmartDNS, Dnsmasq, AdGuard, PersonalDNSfilter, Blokada, Nebulo, ControlD
 
-**Non-destructive:** your existing entries are always preserved. Running it multiple times is safe.
+**Conflicting apps:** org.adaway, org.blokada, dnsfilter.android, com.frostnerd.smokescreen, com.controld.app, com.nextdns.nextdns, com.celzero.bravedns, com.rethinkdns.rethink and others
 
-> The Action window may close before the final step completes — this is normal. The `sort | uniq` step on 500,000+ domains takes 30–60 seconds. The merge continues in the background and `dnscrypt-proxy` reloads the updated list automatically.
+> You will be asked before anything is removed. VOL UP to confirm, VOL DOWN to abort.
 
 ---
 
-## Watchdog
+## The full privacy stack — DNSCrypt + ProtonVPN WireGuard
 
-A background loop runs every 10 seconds for the lifetime of the device session:
+DNSCrypt alone is already a major upgrade. Combined with **ProtonVPN WireGuard tunnels**, you get two independent protection layers that cover each other's blind spots.
 
-- **Process check** — verifies `dnscrypt-proxy` is listening on `:5354` (`ss` / `netstat` / `/proc/net/udp` fallback chain)
-- **Auto-restart** — if not listening, starts the daemon and waits up to 90s for confirmation before lifting the DNS block
-- **IPv6 re-enforcement** — re-applies all three IPv6 disable levels every ~60s (Android can restore IPv6 on network changes)
-- **Status update** — writes `Working 🌬🌬🌬` or `Not Working 📵❌📵` to `module.prop`, visible in your root manager
-- **Log rotation** — keeps the daemon log at 500 lines
+| Protection | VPN Only | DNSCrypt Only | VPN + DNSCrypt |
+|---|---|---|---|
+| ISP can see visited websites | ✅ Hidden | ✅ Hidden | ✅ Hidden |
+| ISP can see your real IP | ✅ Hidden | ❌ Visible | ✅ Hidden |
+| DNS requests encrypted | ❌ Depends | ✅ Always | ✅ Always |
+| DNS leak protection | ❌ Risky | ✅ | ✅ Full |
+| Ad & tracker blocking | ❌ | ✅ | ✅ |
+| IPv6 leak protection | ❌ | ✅ | ✅ Full |
+| Works without VPN active | ❌ | ✅ | ✅ |
 
----
-
-## File Structure
+### Real data flow with both active
 
 ```
-dnscrypt-proxy-vX.X.X/
-├── customize.sh          — installer: meta-module check, conflict detection, setup
-├── post-fs-data.sh       — early boot: IPv6 kill, iptables DNS block
-├── service.sh            — watchdog: starts proxy, enforces IPv6, updates status
-├── action.sh             — blocklist updater (Action button)
-├── uninstall.sh          — removes all rules, kills process, restores defaults
-├── module.prop           — metadata, version, live status
-├── binary/
-│   └── dnscrypt-proxy-arm64    — upstream ARM64 binary
-├── config/
-│   ├── dnscrypt-proxy.toml     — main configuration
-│   ├── blocked-names.txt       — domain blocklist
-│   ├── blocked-ips.txt         — IP blocklist (CIDR supported)
-│   ├── allowed-names.txt       — domain whitelist
-│   ├── allowed-ips.txt         — IP whitelist
-│   ├── public-resolvers.md     — resolver list
-│   └── relays.md               — anonymized DNS relay list
-└── webroot/
-    ├── index.html              — monitoring dashboard
-    └── help.html               — full documentation
+Your Device
+     │
+     ▼
+DNSCrypt Proxy (port 5354)
+ • Encrypts DNS requests
+ • Blocks ads and trackers
+ • Eliminates IPv6 leak vectors
+     │
+     ▼
+WireGuard Tunnel (ProtonVPN)
+ • Encrypts all traffic
+ • Hides your real IP
+ • Exits through ProtonVPN servers (NL / CH / CA...)
+     │
+     ▼
+  Internet
+(Websites only see the ProtonVPN IP — your ISP sees only encrypted noise)
 ```
 
-After install, config is copied to `/storage/emulated/0/dnscrypt-proxy/`.  
-**`blocked-names.txt` and `.bak` files are never overwritten on update** — your blocklist and config backups are preserved.
+### Setup with WireGuard
+
+1. Install **WireGuard** from the Play Store
+2. Import your `.conf` tunnel files (Add tunnel → Import from file)
+3. **Remove the `DNS =` line** from each tunnel config — DNSCrypt handles DNS and the two must not conflict
+4. Connect to your preferred server
+
+---
+
+## Configuration
+
+All user-facing config lives on internal storage — no root file manager needed:
+
+```
+/storage/emulated/0/dnscrypt-proxy/
+├── dnscrypt-proxy.toml        ← main config
+├── blocked-names.txt          ← domain blocklist (replaced on every update)
+├── gustum-blocked-names.txt   ← your personal domains (never touched by updater)
+├── blocked-ips.txt            ← IP blocklist
+├── allowed-names.txt          ← domain whitelist
+├── allowed-ips.txt            ← IP whitelist
+└── query.log                  ← live query log
+```
+
+Daemon log (errors, restarts, watchdog events):
+
+```
+/data/adb/dnscrypt-proxy.log
+```
+
+Hot-reload is supported — changes to blocklist files and most config settings take effect without a reboot.
 
 ---
 
 ## Verify It Works
 
-Open [dnsleaktest.com](https://dnsleaktest.com) and run the Extended Test.
+Open **dnsleaktest.com** and run the Extended Test.
 
-Correct result: only your configured resolver (Cloudflare / Quad9 / Mullvad) should appear — **no ISP DNS servers**.
-
----
-
-## VPN Combination
-
-DNSCrypt works independently but pairs well with a WireGuard VPN for two independent protection layers.
-
-> If using a WireGuard tunnel, **remove the `DNS =` line** from your `.conf` file. A tunnel-set DNS server will conflict with dnscrypt-proxy. With it removed, dnscrypt-proxy stays in full control.
+A correct result:
+- No entries from your ISP (Cosmote, Wind, Vodafone, etc.) ✅
+- You see Cloudflare, Quad9, or Mullvad entries ✅
+- No IPv6 address visible anywhere ✅
 
 ---
 
-## Known Side Effects
+## Frequently Asked Questions
 
-These are intentional design decisions, not bugs.
+**Will my internet become slower?**
+Only minimally. DNSCrypt adds ~30–50ms to DNS requests on average. Once a domain is cached — effectively zero delay. WireGuard is the fastest VPN protocol available and adds negligible overhead.
 
-| Side effect | Cause | Impact |
-|---|---|---|
-| **VoWiFi / IMS may fail** | IPv6 kill | Some carriers (T-Mobile, Jio, Deutsche Telekom, some Greek operators) run VoWiFi over IPv6. Test carefully if WiFi calling matters to you. |
-| **IPv6-only networks** | IPv6 kill | No internet on networks that are IPv6-only (rare, but exists in some enterprise/carrier configs). |
-| **HTTP/3 not available** | QUIC block (UDP 443) | Sites fall back to HTTP/2 over TLS automatically. All major sites support this — no broken connections, marginally slower first connection only. |
-| **Some P2P app features** | IPv6 kill | Apps that prefer IPv6 for peer-to-peer (some VoIP, gaming, video calls) may fall back to relay servers. |
+**⚠️ First Boot — Expected Delay**
+On first boot or after switching networks (enabling VPN, switching between WiFi and mobile data), you may notice 5–10 seconds before DNS resolves normally. DNSCrypt-Proxy benchmarks all three resolvers and picks the fastest one. Once cached, subsequent connections are instant.
 
-> **If something breaks after installing this module — uninstall it first.** Remove via SukiSU / KernelSU / Magisk and reboot. If the problem goes away, the module is the cause. The uninstaller cleanly restores all iptables rules, IPv6 settings, and Private DNS to Android defaults.
+**Does DNSCrypt work without a VPN?**
+Yes, completely independently. The VPN is an optional second layer. DNSCrypt alone already eliminates ISP DNS surveillance and blocks ads at the network level.
 
----
+**What happens if dnscrypt-proxy crashes?**
+The self-healing watchdog detects the failure and restarts it automatically. DNS remains blocked via iptables until the proxy is confirmed listening again — no traffic leaks to your ISP during the restart window.
 
-## Conflicts
+**Is it safe?**
+The binary is built directly from the official [dnscrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy) upstream source. No patches, no modifications to the core. Resolvers used — Cloudflare, Quad9, Mullvad — all have public no-log policies and independent audits.
 
-The installer **automatically detects and offers to remove** these before installation:
+**A site or app stopped working after installing.**
+It is most likely blocked by the blocklist. Ask Claude or ChatGPT what domains the app uses, search for them in `blocked-names.txt`, and remove the matching lines. Or add the domain to `allowed-names.txt` for a permanent whitelist exception.
 
-**Modules:** AdAway, BindHosts, Energized Protection, Systemless Hosts, DNS66, InviZible Pro, NextDNS, RethinkDNS, Cloudflared, SmartDNS, Dnsmasq, PersonalDNSfilter, Blokada  
-**Apps:** AdGuard, Nebulo, ControlD  
-**Processes:** dnsmasq, smartdns, cloudflared, adguard (if running)
+**Will this work with my current VPN?**
+If your VPN uses a VPN slot (OpenVPN, IKEv2, most commercial apps) — yes, no conflict. If it uses WireGuard — remove the `DNS =` line from the tunnel config so DNSCrypt stays in control of DNS.
 
 ---
 
 ## Uninstall
 
-Remove via SukiSU / KernelSU / Magisk and reboot.
+Remove the module via SUkiSU / KernelSU / Magisk and reboot. The uninstaller automatically:
 
-`uninstall.sh` automatically cleans up:
-- Kills `dnscrypt-proxy`
-- Removes all iptables NAT redirect rules (port 53 → 5354)
-- Removes iptables DROP rules (port 53 + QUIC)
-- Restores ip6tables to default ACCEPT policy
-- Restores sysctl IPv6 settings
-- Deletes Android properties set by `resetprop`
-- Restores Android Private DNS to `opportunistic`
-- Removes `/storage/emulated/0/dnscrypt-proxy/` and the log file
+- Kills the dnscrypt-proxy process
+- Removes all iptables and ip6tables rules
+- Restores IPv6 to default
+- Restores Android Private DNS to default (opportunistic)
+- Removes config directory and log file
 
 ---
 
-## What's New in v2.1.16
+## Notes
 
-- ARM64 binary updated to dnscrypt-proxy 2.1.16 from official upstream source
-- `tls_cipher_suite` removed from config — now a no-op in upstream, delete it from any old config
-- QUIC iptables fix: missing `--reject-with` flag in `-D` rule in `post-fs-data.sh` caused the QUIC block rule not to be cleaned up properly on reload
-- Watchdog port check now consistently uses `:5354` detection — avoids false positives
-- `blocked-ips.txt` now supports full CIDR notation (e.g. `10.0.0.0/8`) in addition to single IPs
-- Dashboard stats reset on every process restart — always shows current session data only
-- Upstream: RTT recovery, stale cache fairness, HTTP/3 probing improvements, jsDelivr mirror added for resolver lists
-- Upstream: relay name now included in log entries for anonymized DNS queries
+- Module status updates every 10 seconds in your module manager
+- On first install, config is written fresh. Existing config is backed up with a timestamp
+- IPv6 re-enforcement every ~60 seconds is intentional — some system events can restore IPv6 temporarily
+- The monitoring dashboard (`http://127.0.0.1:5556`) is loopback-only and serves only while the module is active
 
 ---
 
-
-<p align="center">
-  Made by <a href="https://github.com/nikakvo">Tears Burn</a>
-</p>
+*Maintained by Tears Burn · [GitHub](https://github.com/nikakvo/dnscrypt-proxy-android-arm64-only)*
