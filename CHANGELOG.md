@@ -2,6 +2,28 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## v2.1.16-r4 — 2026-06-20
+
+## What's New
+
+* Updated to the latest dnscrypt-proxy upstream binary.
+* Added improved support for Post-Quantum DNSCrypt (X-Wing) certificate retrieval.
+* Enhanced compatibility with anonymized DNSCrypt relays.
+* Improved handling of large DNSCrypt certificate responses over UDP.
+* Includes all upstream stability, reliability and performance improvements.
+
+## Fixed
+
+* Fixed scenarios where Post-Quantum certificates could fail to be discovered through certain relay configurations.
+* Improved certificate probing behavior for large encrypted DNS responses.
+
+## Upgrade Notes
+
+* No user action required.
+* Existing configuration files remain fully compatible.
+* Simply install the updated module version.
+
+
 ## v2.1.16-r3 — 2026-06-20
 
 Dashboard (index.html)
