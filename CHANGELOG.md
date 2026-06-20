@@ -2,9 +2,58 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## v2.1.16-r3 — 2026-06-20
+
+Dashboard (index.html)
+Blocklist Updater — button lock during update
+
+The ⬇ Update blocked-names.txt button now disables itself immediately on tap and shows ⏳ Updating… — cannot be tapped a second time while the operation is running
+The top banner switches to amber ⚙ Running command — blocklist update in progress… for the duration of the update
+All navigation buttons (DNS Test, Ads Test, My IP, Help) are locked during update — navigating away and returning no longer causes the UI to show a false "ready" state while the command is still running
+The auto-refresh cycle (every 10s) is fully paused while an update is in progress — no partial renders, no state resets
+The output log clears automatically 5 seconds after the update completes
+After completion, loadData() resumes normally and the dashboard returns to its live state
+
+Blocklist — Latest Update timestamp
+
+The Blocklist section now shows a Latest Update row with the exact date and time of the last successful blocked-names.txt update
+Timestamp is written by update-blocklist.sh at the moment of successful atomic replacement and read by status.sh on every poll — not derived from file mtime
+
+update-blocklist.sh
+gustum-blocked-names.txt support
+
+Introduced gustum-blocked-names.txt — a user-owned personal blocklist file located in /storage/emulated/0/dnscrypt-proxy/
+On every update: fresh OISD download + gustum-blocked-names.txt are concatenated and passed through a single sort | uniq — the result replaces blocked-names.txt
+The old blocked-names.txt is no longer merged — every update starts clean from the fresh download
+If gustum-blocked-names.txt is absent or empty, the updater continues normally with no changes to behavior
+Comments (#) and blank lines in gustum-blocked-names.txt are stripped automatically
+
+Wildcard prefix enforcement
+
+All domains in the downloaded list that do not already carry a *. prefix now receive one automatically via sed after the clean step
+Ensures consistent wildcard blocking across the entire list regardless of source format
+
+Timestamp on success
+
+On successful atomic replace, the exact timestamp is written to /storage/emulated/0/dnscrypt-proxy/.last_update
+Used by status.sh to expose last_update in the CGI response
+
+cgi-bin/status.sh
+
+Now returns last_update field alongside running in the JSON response
+Reads from .last_update file written by update-blocklist.sh — accurate to the second, not dependent on filesystem mtime
+
+help.html
+
+Warning section updated: replaced "Blocklist accumulates" notice with accurate description of the new replace-not-merge behavior and gustum-blocked-names.txt survivability guarantee; added "A site or app stopped working" guidance with instructions to ask Claude/GPT for domain lists and search both blocklist files
+Config Location updated: gustum-blocked-names.txt added to the directory tree with description
+Blocklist Updater section fully rewritten: documents the dashboard button workflow, the lock/pause mechanism, gustum-blocked-names.txt usage with example, step-by-step update flow reflecting the new logic, and "If a site or app stops working" troubleshooting guide
+File Structure section updated: full tree reflecting current layout including cgi-bin/ contents, update-blocklist.sh, gustum-blocked-names.txt, and META-INF/
+Blocklist Updater added to sidebar navigation (was missing)
+
 ---
 
-### Added
+### v2.1.16-r2 Added
 - Web UI "Update Blocklist" button in `index.html` — triggers a blocklist update directly from the module's dashboard, with a live-scrolling log panel showing download/merge/dedupe progress and a final success/fail status.
 - `busybox httpd` CGI control server on `127.0.0.1:5556`, started by `service.sh`, exposing:
   - `cgi-bin/update.sh` — starts the blocklist update (detached, survives Manager app close)
