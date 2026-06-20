@@ -189,7 +189,7 @@ Open it in any browser on the device. It shows live metrics fetched directly fro
 
 Module status in your root manager should show `Working 🌬🌬🌬`
 
-<img width="300" alt="dnscrypt" src="https://github.com/user-attachments/assets/4a414df4-dc85-447f-a1b1-0ebf2fe60d88" />
+<img width="300" alt="dnscrypt" src="https://raw.githubusercontent.com/nikakvo/dnscrypt-proxy-android-arm64-only/main/dnscrypt.jpg" />
 
 ---
 
