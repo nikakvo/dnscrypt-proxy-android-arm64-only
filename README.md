@@ -332,4 +332,4 @@ Remove the module via SUkiSU / KernelSU / Magisk and reboot. The uninstaller aut
 
 ---
 
-*Maintained by Tears Burn · [GitHub](https://github.com/nikakvo/dnscrypt-proxy-android-arm64-only)*
+*Maintained by Tears Burn · [GitHub](https://github.com/nikakvo)*
