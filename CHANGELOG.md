@@ -2,6 +2,20 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## What's New in v2.1.16-r5
+
+* Updated to latest upstream dnscrypt-proxy build
+* Added Post-Quantum DNSCrypt (PQDNSCrypt) support
+* Added CIRCL cryptography backend
+* Improved DoH3 / HTTP3 reliability
+* Automatic retry for temporary HTTP/3 failures
+* Fixed cloaking cycle detection
+* Fixed origin resolution issues
+* Upstream optimizations and bug fixes
+
+Full credit goes to the upstream dnscrypt-proxy project. This module packages the latest arm64 build for Android.
+
+
 ## v2.1.16-r4 — 2026-06-20
 
 ## What's New
