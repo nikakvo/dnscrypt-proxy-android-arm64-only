@@ -6,8 +6,6 @@
 
 # DNSCrypt-Proxy Android — arm64
 
-### by Tears Burn | v2.1.16 | SUkiSU Ultra · KernelSU · Magisk
-
 Encrypts all DNS traffic on your device. No ISP snooping. No DNS hijacking. No ads.
 
 ---
