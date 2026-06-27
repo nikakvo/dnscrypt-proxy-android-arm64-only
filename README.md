@@ -114,4 +114,10 @@ Remove via SUkiSU / KernelSU / Magisk and reboot. The uninstaller removes all ip
 
 ---
 
+## Notes
+
+- Built and tested against the Poco F6 Pro SukiSU kernel setup and SukiSU Ultra Manager used in this repository: [poco-f6-pro-sukisu-kernel-archive](https://github.com/nikakvo/poco-f6-pro-sukisu-kernel-archive) and [Xiaomi.eu ROM](https://xiaomi.eu/community/)
+
+---
+
 *Maintained by Tears Burn · [GitHub](https://github.com/nikakvo)*
