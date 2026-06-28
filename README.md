@@ -51,6 +51,8 @@ Cloudflare / Quad9 / Mullvad  ← fastest resolver wins
 
 Module status should show `Working 🌬🌬🌬` in your manager.
 
+<img width="300" alt="dnscrypt-proxy" src="https://raw.githubusercontent.com/nikakvo/dnscrypt-proxy-android-arm64-only/main/dnscrypt-proxy.jpg" />
+
 ---
 
 ## DNS Resolvers
