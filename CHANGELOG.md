@@ -2,6 +2,24 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## v2.1.16-r6
+
+### Fixed
+- **Permanent internet loss after reboot.** Under certain boot conditions (slow network bring-up, storage mounting late), `service.sh`'s watchdog could get stuck in a restart loop for 20+ minutes — `dnscrypt-proxy` would bind port `:5354` and immediately get treated as "ready," but then stall trying to fetch its resolver/source lists over HTTPS, give up, and restart from scratch. The DNS-block-until-ready safeguard in `post-fs-data.sh` had no way to recover from this on its own, leaving the device with no DNS at all until the module was manually reflashed.
+
+### Changed
+- **Real resolution check instead of port-only check.** The watchdog no longer lifts the boot-time DNS block just because `dnscrypt-proxy` is listening on `:5354`. It now also verifies the daemon can actually answer a query (`dnscrypt-proxy -resolve example.com`, using the existing config and binary — no extra process competing for the port) before unblocking traffic. If it's listening but not yet resolving, the watchdog keeps retrying on every tick instead of forcing a full restart, so it recovers as soon as the daemon catches up.
+- **Hardened stale-watchdog cleanup.** Previously relied solely on `pgrep -f`, which isn't guaranteed on every ROM/busybox build. Now falls back to scanning `/proc/*/cmdline` directly if `pgrep` is unavailable or returns nothing, preventing a leftover watchdog from a previous boot from racing the new one for port `:5354`.
+
+### Added
+- **Boot grace-period failsafe (3 minutes).** If `dnscrypt-proxy` still isn't up and resolving after a generous boot grace period — for any reason (storage never mounted, binary won't bind, crash-looping, etc.) — the DNS block is force-lifted so the device falls back to working (unencrypted) internet instead of staying stuck offline indefinitely. This only ever triggers well outside the normal startup window and never weakens the leak-prevention behavior during a healthy boot; it's purely a last-resort recovery path. A clear `FAILSAFE` line is written to `/data/adb/dnscrypt-proxy.log` whenever this fires, so it's obvious when it happened and that something needs investigating.
+
+### Notes
+- No changes to `customize.sh`, `post-fs-data.sh`, the `.toml` config, or `webroot/index.html` — only `service.sh` was touched.
+- If you ever see `WARNING - dnscrypt-proxy listening but not resolving after 60s` once or twice right after boot on a slow network, that's expected and should self-resolve within a tick or two. Repeated `FAILSAFE` lines across multiple reboots would indicate something else is wrong and worth investigating (network readiness, bootstrap resolvers, etc).
+
+---
+
 ## What's New in v2.1.16-r5
 
 * Updated to latest upstream dnscrypt-proxy build
