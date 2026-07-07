@@ -2,6 +2,61 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+---
+
+# dnscrypt-proxy-android (arm64 only) — Changelog
+
+## 2.1.16-r7 — 2026-07-07
+
+### Fixed
+- **Critical: DNS could be permanently black-holed if dnscrypt-proxy failed to start in time.**
+  The boot-time failsafe (`force_lift_dns_block_failsafe`, fires ~180s after boot if
+  dnscrypt-proxy isn't confirmed listening + resolving) only removed the `OUTPUT DROP`
+  rule on port 53. It never removed the `nat OUTPUT` DNAT rule redirecting all DNS
+  traffic to `127.0.0.1:5354`. If dnscrypt-proxy genuinely never came up, "lifting the
+  block" didn't restore DNS — it just changed an explicit block into a silent
+  black hole (DNS packets NATed to a dead local port, no response, no error).
+  To the user this was indistinguishable from "no internet," and it did not
+  self-heal on reboot, because whatever kept dnscrypt-proxy from starting
+  (e.g. stale/corrupted resolver cache on external storage) persisted across
+  reboots too. Only a full reflash — which resets `public-resolvers.md`,
+  `relays.md`, `allowed-*.txt`, `blocked-ips.txt` in `customize.sh` — happened
+  to clear the underlying cause and mask the real bug.
+
+### Added
+- `remove_dns_nat_redirect()` in `service.sh` — removes the port-53 DNAT
+  redirect. Called from the failsafe path so "lifting the block" actually
+  restores working (plaintext, temporarily) DNS instead of a black hole.
+- `restore_dns_nat_redirect()` in `service.sh` — re-adds the DNAT redirect if
+  dnscrypt-proxy catches up *after* the failsafe already fired, so DNS gets
+  routed back through the proxy again instead of staying in plaintext forever.
+
+### Changed
+- Watchdog catch-up check in the main loop now verifies both the DROP rule
+  *and* the NAT redirect state (not just the DROP rule), and restores
+  whichever is missing once `is_resolving()` confirms dnscrypt-proxy is
+  actually serving queries.
+
+### Binary
+- Refreshed arm64 `dnscrypt-proxy` binary to the latest upstream build
+  (pulled 2026-07-07). No functional dependency changes relevant to this
+  module — the only pending upstream change on that date
+  ([DNSCrypt/dnscrypt-proxy#3265](https://github.com/DNSCrypt/dnscrypt-proxy/pull/3265))
+  is an **unmerged** dependabot bump of `kardianos/service` (Windows/systemd
+  service-registration library), which isn't used on Android at all. Binary
+  refresh is a routine sync, not a fix carried in with this release.
+
+### Testing notes
+- Verified over 3 consecutive boots (1 reflash + 2 clean reboots) on device:
+  dnscrypt-proxy came up and confirmed resolving within 60–70s each time,
+  well under the 180s failsafe threshold. No FAILSAFE/FATAL/ERROR entries
+  logged. The actual failsafe/NAT-restore code path has not yet been
+  triggered live since the fix was applied — logs from a future occurrence
+  (if any) should be checked for the new `restoring NAT redirect` log line
+  to confirm the fix engages correctly.
+
+---
+
 ## v2.1.16-r6
 
 ### Fixed
