@@ -4,8 +4,6 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
-# dnscrypt-proxy-android (arm64 only) — Changelog
-
 ## 2.1.16-r7 — 2026-07-07
 
 ### Fixed
