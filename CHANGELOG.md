@@ -4,6 +4,17 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
+## 2.1.16-r8
+
+Updated to latest upstream dnscrypt-proxy binary.
+
+Upstream changes: DNS cache is now initialized once at plugin init
+(no more lazy init via sync.Once), simplifying cache setup and
+removing an unused sync dependency. Internal refactor only — no
+config or behavior changes for end users.
+
+---
+
 ## 2.1.16-r7 — 2026-07-07
 
 ### Fixed
