@@ -4,6 +4,18 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
+## 2.1.16-r9
+
+Updated to the latest upstream (DNSCrypt/dnscrypt-proxy @ f6baedb)
+
+Includes upstream fixes for:
+- local DoH response padding
+- DNS resolver fallback when partial results are returned
+- pattern matcher nil-check bug
+- SOCKS+relay routing fix
+
+---
+
 ## 2.1.16-r8
 
 Updated to latest upstream dnscrypt-proxy binary.
