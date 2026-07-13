@@ -4,6 +4,12 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
+## 2.1.16-r10
+
+Improve ODoH diagnostics
+
+---
+
 ## 2.1.16-r9
 
 Updated to the latest upstream (DNSCrypt/dnscrypt-proxy @ f6baedb)
