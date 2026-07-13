@@ -4,7 +4,7 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
-## 📦 Update: DNSCrypt-Proxy 2.1.17
+## 2.1.17
 
 Upstream **dnscrypt-proxy 2.1.17** has been released, and this module has been rebuilt against the new binaries.
 
