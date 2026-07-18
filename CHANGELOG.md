@@ -4,6 +4,17 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
+## 2.1.17-r1
+
+- Updated binary to dev build from master (commit `3c9e7bf`, 2026-07-18), building on top of 2.1.17
+- PQDNSCrypt fix: corrected certificate fallback on fragmented UDP paths (`a04d330`)
+- Updated `miekg/dns` dependency (`9601210`)
+- Personal customizations (ports, cache sizes, `server_names`, monitoring UI credentials) preserved unchanged
+
+⚠️ This is a **dev build** from master, not an official signed release (next tag after 2.1.17 hasn't been published yet) — no `.minisig` verification.
+
+---
+
 ## 2.1.17
 
 Upstream **dnscrypt-proxy 2.1.17** has been released, and this module has been rebuilt against the new binaries.
