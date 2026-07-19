@@ -4,6 +4,18 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
+## 2.1.18
+
+- Bumped upstream binary to **2.1.18** (official signed release, verified tag by jedisct1)
+- New forwarding rule prefix `$PROXY:` — routes selected plain DNS upstreams over DNS-over-TCP through the configured `proxy` setting
+- PQDNSCrypt certificate retrieval improved on paths where fragmented UDP is blocked, including when certs are fetched via Anonymized DNSCrypt relays
+- Resolver latency measurements no longer include setup/cert-transfer time — more accurate server selection and startup benchmarks
+- Personal customizations (ports, cache sizes, `server_names`, monitoring UI credentials) preserved unchanged
+
+✅ Official signed release — replaces previous dev build based on unreleased master commits.
+
+---
+
 ## 2.1.17-r1
 
 - Updated binary to dev build from master (commit `3c9e7bf`, 2026-07-18), building on top of 2.1.17
