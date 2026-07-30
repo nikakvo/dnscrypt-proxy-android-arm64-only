@@ -4,6 +4,12 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
 
+## 2.1.18-r1
+
+- Improve portable network change detection
+
+---
+
 ## 2.1.18
 
 - Bumped upstream binary to **2.1.18** (official signed release, verified tag by jedisct1)
