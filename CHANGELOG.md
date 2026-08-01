@@ -19,6 +19,9 @@ All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
   - `service.sh`: corrected an inline comment referencing `action.sh` as an example CONFIG_WAIT trigger.
 - No functional/behavioral changes from the cleanup — these were dead code and stale comments only; the boot failsafe, watchdog, and Web UI update flow are unaffected.
 
+### Fixed
+- **Custom/downloaded blocklists were being wiped on every reflash.** `customize.sh` copied the shipped `config/` templates onto the device with `cp -af`, which force-overwrites existing files — including `blocked-names.txt` (your merged OISD/hagezi list) and `gustum-blocked-names.txt` (your custom domains), despite an explicit comment claiming they were preserved. Both files are now stashed before the template copy and restored immediately after, so custom entries survive module updates as intended.
+
 ---
 
 ## 2.1.18-r1
