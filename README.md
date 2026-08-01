@@ -82,6 +82,28 @@ On update, existing config is backed up with a timestamp before replacement.
 
 ---
 
+## Custom Blocklist Domains
+
+Want to permanently block domains that aren't in the default OISD/hagezi lists — or that keep slipping back in after each list refresh?
+
+```
+/storage/emulated/0/dnscrypt-proxy/gustum-blocked-names.txt
+```
+
+One domain per line, in the same format `dnscrypt-proxy` expects for suffix rules:
+
+```
+*.example.com     # blocks the domain and all subdomains
+exact.example.com # blocks only this exact host
+# comment lines starting with # are ignored
+```
+
+Every time you tap **Update Blocklist** in the dashboard, `gustum-blocked-names.txt` is automatically merged into `blocked-names.txt` alongside the freshly downloaded OISD/hagezi list, deduplicated, and hot-reloaded into `dnscrypt-proxy` — no reboot needed.
+
+This file survives module updates and reflashes, so your custom entries are never lost.
+
+---
+
 ## Conflict Detection
 
 The installer auto-detects and removes conflicting modules and apps — you will be prompted before anything is removed.
