@@ -3,6 +3,23 @@
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
 ---
+## 2.1.18-r2 — 2026-08-01
+
+### Upstream (dnscrypt-proxy binary)
+- Updated binary to include upstream commit [`0de84ad`](https://github.com/DNSCrypt/dnscrypt-proxy/commit/0de84ad05b5b7bad8baa6cd682881977e207ebed) — **"Match suffix rules at label boundaries."**
+  - Fixes suffix-rule matching in `pattern_matcher.go` so the longest valid suffix is found in a single trie lookup, instead of the previous 2-lookup-max workaround.
+  - Prevents a shorter, correct blocklist/allowlist suffix rule from being hidden by a longer prefix that happened to end mid-label.
+  - No config changes required — drop-in binary replacement, `dnscrypt-proxy.toml` is fully compatible as-is.
+
+### Module cleanup
+- Removed a dead `set_perm` call in `customize.sh` targeting the old `action.sh`, which no longer ships with the module (blocklist updates are now handled entirely through the Web UI, not a SukiSU Manager Action button).
+- `customize.sh` now correctly sets executable permissions on `update-blocklist.sh` (the actual script the Web UI's `update.sh` CGI handler invokes).
+- Fixed stale `action.sh` references left over from the rename to `update-blocklist.sh`:
+  - `update.sh`: header comment and the `"action.sh not found"` JSON error message now correctly say `update-blocklist.sh`.
+  - `service.sh`: corrected an inline comment referencing `action.sh` as an example CONFIG_WAIT trigger.
+- No functional/behavioral changes from the cleanup — these were dead code and stale comments only; the boot failsafe, watchdog, and Web UI update flow are unaffected.
+
+---
 
 ## 2.1.18-r1
 
