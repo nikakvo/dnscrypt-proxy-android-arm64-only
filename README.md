@@ -140,7 +140,7 @@ Remove via SUkiSU / KernelSU / Magisk and reboot. The uninstaller removes all ip
 
 ## Notes
 
-- Built and tested against the Poco F6 Pro SukiSU kernel setup and SukiSU Ultra Manager used in this repository: [GKI Kernel SukiSU (40856) and SUSFS v2.2.0](https://github.com/nikakvo/GKI_KernelSU_SUSFS/releases/tag/v40856-r1) and [Xiaomi.eu ROM](https://xiaomi.eu/community/)
+- Built and tested against the Poco F6 Pro SukiSU kernel setup and SukiSU Ultra Manager used in this repository: [GKI KernelSU SUSFS](https://github.com/nikakvo/GKI_KernelSU_SUSFS) and [Xiaomi.eu ROM](https://xiaomi.eu/community/)
 
 ---
 
