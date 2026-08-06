@@ -2,6 +2,14 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## 2.1.18-r3
+
+Updated dnscrypt-proxy binary.
+
+Upstream change:
+- Removed interface enumeration to reduce idle CPU usage.
+- Client key rotation after network changes is now checked less frequently.
+
 ---
 ## 2.1.18-r2 — 2026-08-01
 
