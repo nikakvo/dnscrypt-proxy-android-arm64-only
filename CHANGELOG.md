@@ -2,6 +2,17 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## v2.1.18-r4
+🔄 DNSCrypt-Proxy upstream
+
+Logger: restore original behavior
+
+Log file is now explicitly created before lumberjack opens it — errors during creation are no longer silently discarded, they're now logged (dlog.Errorf)
+Log file permissions restored to 0644 instead of lumberjack's 0600 — logs remain readable by non-root users when the server runs as root or a dedicated user
+Access control is left to the parent directory's permissions, not the log file itself
+
+---
+
 ## 2.1.18-r3
 
 Updated dnscrypt-proxy binary.
