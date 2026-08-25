@@ -2,7 +2,7 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
-## dnscrypt-proxy-android-arm64-only — v2.1.18-r4
+## dnscrypt-proxy-android-arm64-only — v2.1.18-r5
 
 ### Added
 - **Blocklist auto-update (24h toggle)** — next to the manual "Update Blocklist" button, a new toggle enables an automatic background refresh every 24 hours. Off by default; nothing runs on a schedule until enabled.
