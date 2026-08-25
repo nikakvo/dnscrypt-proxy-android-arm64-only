@@ -2,6 +2,26 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## dnscrypt-proxy-android-arm64-only — v2.1.18-r4
+
+### Added
+- **Blocklist auto-update (24h toggle)** — next to the manual "Update Blocklist" button, a new toggle enables an automatic background refresh every 24 hours. Off by default; nothing runs on a schedule until enabled.
+  - Runs as a detached background loop (`auto-update-loop.sh`), independent of whether the dashboard is open.
+  - Skips a scheduled run if a manual update is already in progress, instead of running two at once.
+  - Resumes automatically after a reboot if it was left on.
+  - **Live countdown** ("Next update in: 23h 59m 42s") next to the toggle, ticking in real time — persists correctly across page reloads and reboots, not just while the dashboard happens to be open.
+  - New CGI endpoints: `cgi-bin/autoupdate-on.sh`, `cgi-bin/autoupdate-off.sh`. `status.sh` now also reports `auto_update` and `next_update_epoch`.
+- **HELP button** (`?`) added next to "My IP" in the dashboard, linking to a fully rewritten `help.html`.
+- `webroot/help.html` rewritten from scratch — accurate section-by-section documentation (DNS flow, IPv6 handling, resolvers, blocklists, dashboard, VPN combination, and integration with the companion `ipset-arm64` module), with all version-specific "what's new" content removed (that belongs in release notes, not the help doc).
+
+### Fixed
+- **Stale PID across reboot** — the auto-update toggle's Disable action could fail to actually stop the background loop after a reboot, because the tracked PID from before the reboot no longer matched the resumed process. Both enable/disable now resolve live processes directly via `pgrep` instead of trusting a potentially stale PID file.
+- **Frozen toggle button** — `sleep` calls inside the CGI scripts were blocking the HTTP response itself (the busybox `httpd` server doesn't return anything until the script fully exits), which could exceed the client-side timeout under load. All blocking waits were removed from the synchronous CGI response path; PID bookkeeping now happens in a fully detached background step instead.
+- **Auto-update status not reflecting reality on page load** — the dashboard read the on/off state from `status.sh` *before* the toggle button existed in the DOM (it's created later, once dashboard data is parsed), so the update silently no-opped and the button showed the wrong state until the next 10-second refresh cycle. The status check now runs after the button is created, so it's correct from the very first load.
+- **"Latest Update" timestamp lagging by one refresh cycle** — same root cause as above, but for the Blocklist section's timestamp display, which was baked into the dashboard's HTML string before the real value had arrived. It now updates via a direct, decoupled DOM write as soon as the data is in, regardless of render timing.
+
+---
+
 ## v2.1.18-r4
 🔄 DNSCrypt-Proxy upstream
 
