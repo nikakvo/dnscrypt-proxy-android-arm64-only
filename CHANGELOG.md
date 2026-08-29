@@ -2,6 +2,13 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## dnscrypt-proxy-android-arm64-only — v2.1.18-r6
+
+### Fixed
+- Auto-update could silently die (killed by Android's battery optimizer) and get stuck on "due now" forever until reboot. Now self-heals within ~60s via service.sh's watchdog, whether or not the dashboard is open.
+
+---
+
 ## dnscrypt-proxy-android-arm64-only — v2.1.18-r5
 
 ### Added
