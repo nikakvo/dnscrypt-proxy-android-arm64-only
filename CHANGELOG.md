@@ -2,6 +2,23 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## v2.1.18-r7
+
+**⚠ Auto-update (24h) temporarily removed**
+
+The 24h background auto-update for the blocklist was causing device/ROM compatibility issues (the background loop wasn't reliably surviving Doze/battery optimization on some devices, leading to a stuck "due now" state). To avoid misleading users, this feature has been pulled from this release.
+
+- Removed the "Enable auto-update" toggle from the dashboard
+- Blocklist updates are manual-only again via the **Update blocked-names.txt** button — same as before, stable and predictable
+- No more background processes, flags, or schedule files tied to auto-update
+- Upgrading from an older version automatically cleans up any leftover loop process and state files
+
+Everything else (watchdog, IPv6 protection, boot leak prevention, live dashboard) is unchanged.
+
+Auto-update will return in a future release once the scheduling logic is reworked and verified to be reliable across devices and ROMs.
+
+---
+
 ## dnscrypt-proxy-android-arm64-only — v2.1.18-r6
 
 ### Fixed
