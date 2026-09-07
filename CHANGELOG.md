@@ -2,6 +2,21 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## v2.1.18-r8
+
+### Fixed
+
+- Updated `dnscrypt-proxy` ARM64 binary with upstream fixes.
+- Fixed IPv4-mapped IPv6 filtering for allowed/blocked IP rules.
+- Fixed incorrect line numbers in IP rule configuration errors.
+- Added upstream test coverage for IP rule parsing.
+
+### Upstream
+
+- DNSCrypt/dnscrypt-proxy commit [`9fd8201`](https://github.com/DNSCrypt/dnscrypt-proxy/commit/9fd82010162244e96a55a9e1e9cc11a120c478dd)
+
+---
+
 ## v2.1.18-r7
 
 **⚠ Auto-update (24h) temporarily removed**
