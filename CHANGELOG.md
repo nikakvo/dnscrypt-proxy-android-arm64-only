@@ -2,6 +2,46 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## v2.1.18-r9
+
+**Fixed**
+- IPv6 killswitch could permanently break connectivity on IPv6-only
+  carriers. IPv4 is carried inside IPv6 there (464XLAT), so blocking
+  IPv6 blocked everything — and a reboot re-applied it. The block is
+  still applied unconditionally at boot (fail-closed), but is now
+  lifted if DNS never resolves, and re-armed if lifting turns out not
+  to have been the cause.
+- Port detection matched the *remote* port in `/proc/net/{udp,tcp}`,
+  so an outbound connection to someone else's port 5354 read as
+  "our daemon is up" and the watchdog skipped restarting a dead one.
+- `blocklist_domains` was injected into every line of metrics.json
+  ending in `}`, duplicating the field inside nested objects. Valid
+  JSON, wrong data.
+- `pkill -f "busybox httpd"` killed the control server of *any* other
+  module using busybox httpd for its WebUI. Now scoped via pidfile.
+- Stale-watchdog cleanup matched any process mentioning "dnscrypt"
+  and "service.sh"; now matches this module's path only.
+
+**Changed**
+- `gustum-blocked-names.txt` → `custom-blocked-names.txt`. Existing
+  files are renamed automatically; the old name still works.
+- New settings file at `/data/adb/dnscrypt-proxy-android.conf` with
+  `IPV6_KILL` and `QUIC_BLOCK`. Both default to 1 — no behaviour
+  change. Survives module updates.
+- Metrics polling drops to ~60s while the screen is off (was every
+  10s around the clock).
+- Blocklist counter ignores comments and blank lines.
+- `cgi-bin/update.sh` requires POST.
+- Uninstall no longer kills other modules' httpd, and removes the
+  settings file and runtime state.
+- Help page documents the settings file and IPv6-only behaviour.
+
+**Updated**
+- dnscrypt-proxy binary rebuilt from upstream [`47ce24d`](https://github.com/DNSCrypt/dnscrypt-proxy/commit/47ce24df6e8686681bfed04d2c9c6300b611684c)
+
+
+---
+
 ## v2.1.18-r8
 
 ### Fixed
