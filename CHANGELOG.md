@@ -2,6 +2,28 @@
 
 All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
 
+## r10
+
+**Fixed**
+- The IPv6-only safety check added in r9 ran `dnscrypt-proxy -resolve`
+  on every 10-second tick. Each call issues around eleven real DNS
+  queries, so the daemon's own query log filled with `example.com` and
+  the WebUI's "Recent queries" panel showed almost none of the device's
+  actual traffic. It also cost battery and upstream requests for
+  nothing.
+
+  The check is now bounded: it runs at most once a minute, and switches
+  off permanently for the rest of the boot as soon as resolution is
+  confirmed working. In practice that is one call shortly after boot.
+  The failure it guards against — an IPv6-only network with the
+  killswitch on — only ever shows up at boot, so there is nothing to
+  gain from probing later.
+
+- Metrics-shape warning could fill the log on a healthy daemon; now
+  logged once per boot.
+
+---
+
 ## v2.1.18-r9
 
 **Fixed**
