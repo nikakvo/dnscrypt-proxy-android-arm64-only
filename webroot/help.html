@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#080b12">
+  <title>DNSCrypt Proxy — Help</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:          #080b12;
+      --bg2:         #0d1117;
+      --surface:     #111620;
+      --surface2:    #161d2e;
+      --border:      #1e2740;
+      --border2:     #273356;
+      --green:       #00ff88;
+      --green-glow:  #00ff8840;
+      --blue:        #3b82f6;
+      --blue-glow:   #3b82f650;
+      --cyan:        #22d3ee;
+      --cyan-glow:   #22d3ee40;
+      --amber:       #ffaa00;
+      --red:         #f87171;
+      --purple:      #a78bfa;
+      --text:        #b0ffcc;
+      --text-dim:    #3a5a4a;
+      --text-bright: #e8f0fd;
+      --mono: 'Space Mono', monospace;
+      --sans: 'Outfit', sans-serif;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html,body{height:100%;overflow:hidden;}
+    body{
+      background:var(--bg);
+      color:var(--text);
+      font-family:var(--sans);
+      font-size:14px;
+      line-height:1.7;
+      display:flex;
+      flex-direction:column;
+    }
+    body::before{
+      content:'';
+      position:fixed;inset:0;
+      background:repeating-linear-gradient(
+        0deg,transparent,transparent 2px,
+        rgba(0,255,136,0.008) 2px,rgba(0,255,136,0.008) 4px
+      );
+      pointer-events:none;z-index:9999;
+    }
+    .top-block{
+      flex-shrink:0;
+      background:var(--bg);
+      border-bottom:1px solid var(--border);
+      z-index:10;position:relative;
+    }
+    .top-block::after{
+      content:'';position:absolute;
+      bottom:-1px;left:0;right:0;height:1px;
+      background:linear-gradient(90deg,transparent,var(--green),var(--cyan),transparent);
+      opacity:0.5;
+    }
+    header{
+      display:flex;align-items:center;
+      justify-content:space-between;
+      padding:11px 16px;gap:12px;
+    }
+    .header-left{display:flex;align-items:center;gap:12px;min-width:0;}
+    .logo-wrap{width:38px;height:38px;flex-shrink:0;}
+    .logo-bg{
+      width:100%;height:100%;
+      border-radius:10px;
+      background:linear-gradient(135deg,#001a0d,#000d05);
+      border:1px solid var(--green);
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 0 14px var(--green-glow),inset 0 0 10px rgba(0,255,136,0.08);
+    }
+    .logo-bg svg{width:18px;height:18px;}
+    .header-title{
+      font-family:var(--mono);
+      font-size:13px;font-weight:700;
+      color:var(--green);
+      letter-spacing:1px;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+    .header-sub{
+      font-family:var(--mono);
+      font-size:8px;color:var(--text-dim);
+      letter-spacing:0.1em;text-transform:uppercase;
+      margin-top:2px;white-space:nowrap;
+    }
+    a.back-btn{
+      font-family:var(--mono);font-size:9px;
+      color:var(--text-dim);
+      border:1px solid var(--border2);
+      border-radius:3px;
+      padding:3px 9px;text-decoration:none;
+      letter-spacing:0.8px;text-transform:uppercase;
+      white-space:nowrap;flex-shrink:0;
+      transition:all 0.2s;
+    }
+    a.back-btn:hover{color:var(--green);border-color:var(--green);}
+
+    .mobile-nav{display:none;border-top:1px solid var(--border);}
+    .mnav-inner{
+      display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;
+      padding:0 8px;gap:2px;scrollbar-width:none;
+    }
+    .mnav-inner::-webkit-scrollbar{display:none;}
+    .mnav-btn{
+      display:flex;align-items:center;gap:5px;
+      padding:9px 12px;border:none;background:transparent;
+      color:var(--text-dim);font-family:var(--mono);
+      font-size:9px;font-weight:700;letter-spacing:0.06em;
+      text-transform:uppercase;white-space:nowrap;
+      cursor:pointer;border-bottom:2px solid transparent;
+      -webkit-tap-highlight-color:transparent;transition:color .15s;
+    }
+    .mnav-btn.active{color:var(--green);border-bottom-color:var(--green);}
+
+    .scroll-area{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
+    .layout{display:flex;min-height:100%;}
+
+    .sidebar{
+      width:200px;flex-shrink:0;
+      border-right:1px solid var(--border);
+      padding:18px 0;
+      position:sticky;top:0;height:100vh;
+      overflow-y:auto;background:var(--bg2);
+    }
+    .sidebar::-webkit-scrollbar{width:2px;}
+    .sidebar::-webkit-scrollbar-thumb{background:var(--border2);}
+    .nav-group{
+      font-family:var(--mono);font-size:8px;
+      text-transform:uppercase;letter-spacing:0.14em;
+      color:var(--text-dim);
+      padding:14px 16px 5px;display:flex;align-items:center;gap:6px;
+    }
+    .nav-group::before{content:'';width:12px;height:1px;background:var(--border2);}
+    .nav-item{
+      display:block;padding:6px 16px 6px 22px;
+      color:var(--text-dim);text-decoration:none;
+      font-family:var(--sans);font-size:12px;font-weight:400;
+      border-left:2px solid transparent;margin-left:-1px;
+      transition:all .15s;
+    }
+    .nav-item:hover{color:var(--text-bright);border-left-color:var(--border2);background:rgba(255,255,255,0.02);}
+    .nav-item.active{color:var(--green);border-left-color:var(--green);background:rgba(0,255,136,0.04);}
+
+    .drawer-overlay{
+      display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+      background:rgba(0,0,0,0.7);z-index:50;
+      opacity:0;transition:opacity .2s;
+    }
+    .drawer-overlay.open{opacity:1;pointer-events:all;}
+    .drawer{
+      position:fixed;bottom:0;left:0;right:0;max-height:72vh;
+      background:var(--surface);border-top:1px solid var(--border);
+      border-radius:16px 16px 0 0;z-index:51;
+      overflow-y:auto;-webkit-overflow-scrolling:touch;
+      transform:translateY(100%);
+      transition:transform .28s cubic-bezier(0.32,0.72,0,1);
+    }
+    .drawer.open{transform:translateY(0);}
+    .drawer-handle{width:32px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 4px;}
+    .drawer-title{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--green);padding:8px 18px 12px;border-bottom:1px solid var(--border);letter-spacing:1px;text-transform:uppercase;}
+    .drawer-sections{padding:6px 0 24px;}
+    .drawer-group{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-dim);padding:12px 18px 4px;}
+    .drawer-item{display:block;padding:11px 18px;color:var(--text-dim);text-decoration:none;font-size:13px;border-left:2px solid transparent;-webkit-tap-highlight-color:transparent;}
+    .drawer-item:active{color:var(--green);border-left-color:var(--green);background:rgba(0,255,136,0.04);}
+
+    main{flex:1;padding:36px 22px 56px;min-width:0;max-width:860px;}
+    section{margin-bottom:60px;}
+
+    .sec-hdr{
+      display:flex;align-items:center;gap:10px;
+      margin-bottom:22px;padding-bottom:14px;
+      border-bottom:1px solid var(--border);
+      position:relative;
+    }
+    .sec-hdr::after{
+      content:'';position:absolute;
+      bottom:-1px;left:0;width:60px;height:1px;
+      background:linear-gradient(90deg,var(--green),transparent);
+    }
+    .sec-num{
+      font-family:var(--mono);font-size:10px;
+      color:var(--green);font-weight:700;letter-spacing:0.12em;
+      background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);
+      padding:3px 8px;border-radius:4px;white-space:nowrap;
+    }
+    h2{font-family:var(--sans);font-size:20px;font-weight:700;color:var(--text-bright);}
+    h3{font-family:var(--sans);font-size:15px;font-weight:600;color:var(--text-bright);margin:20px 0 10px;}
+    p{color:var(--text);margin-bottom:12px;font-size:14px;}
+    strong{color:var(--text-bright);font-weight:600;}
+    code{
+      font-family:var(--mono);font-size:11px;
+      background:rgba(0,255,136,0.07);
+      border:1px solid rgba(0,255,136,0.15);
+      color:var(--green);padding:1px 6px;border-radius:3px;
+    }
+
+    .code-block{
+      position:relative;
+      background:var(--bg2);
+      border:1px solid var(--border);
+      border-radius:8px;
+      margin:14px 0;overflow:hidden;
+    }
+    .code-block pre{
+      font-family:var(--mono);font-size:11px;
+      color:#b0ffcc;padding:16px;
+      overflow-x:auto;line-height:1.6;
+      white-space:pre;
+    }
+    .copy-btn{
+      position:absolute;top:8px;right:8px;
+      background:rgba(0,255,136,0.08);
+      border:1px solid rgba(0,255,136,0.2);
+      color:var(--text-dim);
+      font-family:var(--mono);font-size:9px;
+      padding:4px 9px;border-radius:4px;
+      cursor:pointer;display:flex;align-items:center;gap:5px;
+      transition:all .15s;letter-spacing:0.05em;
+    }
+    .copy-btn svg{width:11px;height:11px;}
+    .copy-btn:hover{color:var(--green);border-color:var(--green);}
+    .copy-btn.copied{color:var(--green);border-color:var(--green);}
+
+    .tbl-wrap{overflow-x:auto;margin:14px 0;border-radius:8px;border:1px solid var(--border);}
+    table{width:100%;border-collapse:collapse;font-size:13px;}
+    th{
+      font-family:var(--mono);font-size:9px;font-weight:700;
+      text-transform:uppercase;letter-spacing:0.1em;
+      color:var(--text-dim);
+      background:var(--bg2);
+      padding:9px 14px;text-align:left;
+      border-bottom:1px solid var(--border);
+    }
+    td{padding:9px 14px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top;}
+    tr:last-child td{border-bottom:none;}
+    tr:hover td{background:rgba(0,255,136,0.02);}
+    td.yes{color:var(--green);}
+    td.no{color:var(--red);}
+    td.partial{color:var(--amber);}
+
+    .callout{
+      display:flex;gap:12px;
+      border-radius:8px;padding:14px 16px;
+      margin:14px 0;font-size:13px;
+    }
+    .callout.ok{background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.2);}
+    .callout.warn{background:rgba(255,170,0,0.07);border:1px solid rgba(255,170,0,0.25);}
+    .callout.info{background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.2);}
+    .callout.danger{background:rgba(248,113,113,0.07);border:1px solid rgba(248,113,113,0.25);}
+    .ci{font-size:15px;flex-shrink:0;margin-top:1px;}
+    .callout.ok .ci{color:var(--green);}
+    .callout.warn .ci{color:var(--amber);}
+    .callout.info .ci{color:var(--blue);}
+    .callout.danger .ci{color:var(--red);}
+    .ct{color:var(--text);}
+
+    .kv-list{margin:14px 0;}
+    .kv{
+      display:flex;gap:12px;
+      padding:7px 0;border-bottom:1px solid #0a1a10;
+      font-size:13px;
+    }
+    .kv:last-child{border-bottom:none;}
+    .kv-key{font-family:var(--mono);font-size:11px;color:var(--green);min-width:160px;flex-shrink:0;}
+    .kv-val{color:var(--text);}
+
+    .flow{
+      font-family:var(--mono);font-size:11px;
+      background:var(--bg2);border:1px solid var(--border);
+      border-radius:8px;padding:20px;
+      line-height:2;color:var(--text-dim);
+      overflow-x:auto;
+    }
+    .flow-node{
+      display:inline-block;
+      background:rgba(0,255,136,0.06);
+      border:1px solid rgba(0,255,136,0.2);
+      color:var(--green);
+      border-radius:4px;padding:2px 10px;
+      font-size:11px;
+    }
+    .flow-arrow{color:var(--text-dim);padding:0 6px;}
+
+    footer{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 22px;
+      border-top:1px solid var(--border);
+      font-family:var(--mono);font-size:10px;
+      color:var(--text-dim);gap:12px;flex-shrink:0;
+    }
+    .footer-dot{
+      display:inline-block;width:6px;height:6px;
+      border-radius:50%;background:var(--green);
+      margin-right:8px;
+      box-shadow:0 0 6px var(--green-glow);
+    }
+    footer a{color:var(--text-dim);text-decoration:none;}
+    footer a:hover{color:var(--green);}
+
+    @media(min-width:769px){
+      header{padding:12px 24px;}
+      main{padding:40px 48px 60px;}
+      footer{padding:18px 48px;}
+    }
+    @media(max-width:768px){
+      .sidebar{display:none;}
+      .mobile-nav{display:block;}
+      .drawer-overlay{display:block;pointer-events:none;}
+      main{padding:22px 15px 44px;}
+      h2{font-size:18px;}
+      footer{flex-direction:column;gap:6px;text-align:center;}
+    }
+  </style>
+</head>
+<body>
+
+<div class="top-block">
+  <header>
+    <div class="header-left">
+      <div class="logo-wrap">
+        <div class="logo-bg">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+      </div>
+      <div>
+        <div class="header-title">⬡ DNSCrypt Proxy</div>
+        <div class="header-sub">SUkiSU Ultra · KernelSU · Magisk · arm64</div>
+      </div>
+    </div>
+    <a href="index.html" class="back-btn">← Back</a>
+  </header>
+
+  <nav class="mobile-nav">
+    <div class="mnav-inner">
+      <button class="mnav-btn active" onclick="mnavClick(this,'all')">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        All
+      </button>
+      <button class="mnav-btn" onclick="mnavClick(this,'overview')">Overview</button>
+      <button class="mnav-btn" onclick="mnavClick(this,'how')">How It Works</button>
+      <button class="mnav-btn" onclick="mnavClick(this,'config')">Config</button>
+      <button class="mnav-btn" onclick="mnavClick(this,'usage')">Usage</button>
+      <button class="mnav-btn" onclick="mnavClick(this,'module')">Module</button>
+    </div>
+  </nav>
+</div>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-title" id="drawerTitle">Navigation</div>
+  <div class="drawer-sections" id="drawerSections"></div>
+</div>
+
+<div class="scroll-area" id="scrollArea">
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="nav-group">Overview</div>
+    <a class="nav-item active" href="#what">What Is This</a>
+    <a class="nav-item" href="#requirements">Requirements</a>
+
+    <div class="nav-group">How It Works</div>
+    <a class="nav-item" href="#flow">DNS Flow</a>
+    <a class="nav-item" href="#ipv6">IPv6 Handling</a>
+    <a class="nav-item" href="#boot">Boot Leak Prevention</a>
+    <a class="nav-item" href="#watchdog">Watchdog</a>
+    <a class="nav-item" href="#resolvers">Resolvers</a>
+
+    <div class="nav-group">Configuration</div>
+    <a class="nav-item" href="#config-location">Config Location</a>
+    <a class="nav-item" href="#blocklists">Blocklists</a>
+    <a class="nav-item" href="#ip-encryption">IP Encryption</a>
+    <a class="nav-item" href="#dashboard">Dashboard</a>
+
+    <div class="nav-group">Setup & Usage</div>
+    <a class="nav-item" href="#install">Installation</a>
+    <a class="nav-item" href="#conflicts">Conflict Detection</a>
+    <a class="nav-item" href="#verify">Verify It Works</a>
+    <a class="nav-item" href="#vpn">VPN Combination</a>
+    <a class="nav-item" href="#ipset-integration">+ ipset-arm64</a>
+
+    <div class="nav-group">Module</div>
+    <a class="nav-item" href="#faq">FAQ</a>
+    <a class="nav-item" href="#uninstall">Uninstall</a>
+  </aside>
+
+  <main>
+
+    <!-- 01 WHAT IS THIS -->
+    <section id="what">
+      <div class="sec-hdr"><span class="sec-num">01</span><h2>What Is This</h2></div>
+      <p>An <strong>arm64-only, systemless module</strong> (Magisk / KernelSU / SUkiSU Ultra) that routes all DNS traffic on the device through <a href="https://github.com/DNSCrypt/dnscrypt-proxy" target="_blank" style="color:var(--green)">dnscrypt-proxy</a>, the open-source DNSCrypt/DoH proxy project, packaged and configured for Android.</p>
+      <p>The result: your ISP can no longer see or hijack your plaintext DNS queries, and known ad/tracking domains are blocked before a connection to them is even attempted.</p>
+    </section>
+
+    <!-- 02 REQUIREMENTS -->
+    <section id="requirements">
+      <div class="sec-hdr"><span class="sec-num">02</span><h2>Requirements</h2></div>
+      <div class="kv-list">
+        <div class="kv"><span class="kv-key">Architecture</span><span class="kv-val">arm64 only</span></div>
+        <div class="kv"><span class="kv-key">Root manager</span><span class="kv-val">SUkiSU Ultra / KernelSU / Magisk</span></div>
+        <div class="kv"><span class="kv-key">Android version</span><span class="kv-val">Android 9+</span></div>
+      </div>
+    </section>
+
+    <!-- 03 DNS FLOW -->
+    <section id="flow">
+      <div class="sec-hdr"><span class="sec-num">03</span><h2>DNS Flow</h2></div>
+      <div class="flow">
+        <span class="flow-node">App DNS request</span><br>
+        <span class="flow-arrow">↓</span> iptables redirect (port 53 → 127.0.0.1:5354)<br>
+        <span class="flow-arrow">↓</span> <span class="flow-node">dnscrypt-proxy</span> (encrypted + authenticated)<br>
+        <span class="flow-arrow">↓</span> Cloudflare / Quad9 / Mullvad — fastest resolver wins
+      </div>
+      <p style="margin-top:14px">Every DNS query on the device is transparently redirected into dnscrypt-proxy via an iptables rule, encrypted, then sent to whichever of the three configured resolvers is currently fastest. Your ISP only ever sees encrypted traffic — never the plaintext domain you're resolving.</p>
+      <div class="callout info">
+        <span class="ci">ℹ</span>
+        <div class="ct">Android's built-in <strong>Private DNS</strong> setting is disabled automatically during install. If it stayed on, Android would send queries straight to that DoT server instead, bypassing this module's redirect entirely.</div>
+      </div>
+    </section>
+
+    <!-- 04 IPV6 -->
+    <section id="ipv6">
+      <div class="sec-hdr"><span class="sec-num">04</span><h2>IPv6 Handling</h2></div>
+      <p>IPv6 is disabled at three independent levels simultaneously: <strong>Android system properties</strong>, <strong>kernel sysctl</strong>, and an <strong>ip6tables</strong> policy. The watchdog re-applies this roughly every 60 seconds, so it can't drift back on.</p>
+      <div class="callout warn">
+        <span class="ci">⚠</span>
+        <div class="ct">Because IPv6 is disabled system-wide, anything that specifically depends on it won't function while this module is active.</div>
+      </div>
+
+      <h3>IPv6-only networks</h3>
+      <p>Some carriers no longer hand out IPv4 at all. On those networks IPv4 traffic is carried <em>inside</em> IPv6 (464XLAT/clat), so blocking IPv6 blocks everything — and rebooting doesn't help, because the block is re-applied on every boot.</p>
+      <p>The block is still applied unconditionally at boot: at that point the network doesn't exist yet, and guessing permissively is exactly the leak this module prevents. Once the network is up, the watchdog re-checks. If DNS never resolves at all, it lifts the IPv6 block and writes a line to the log explaining why. If resolution is <em>still</em> dead two minutes later, IPv6 wasn't the cause and the block is restored rather than left open.</p>
+      <p>On a normal IPv4 or dual-stack connection none of this fires — DNS resolves, so nothing is touched.</p>
+
+      <h3>Turning it off</h3>
+      <p>Settings live in a file that survives module updates:</p>
+      <pre>/data/adb/dnscrypt-proxy-android.conf</pre>
+      <div class="kv-list">
+        <div class="kv"><span class="kv-key">IPV6_KILL=1</span><span class="kv-val">Disable IPv6 entirely (default). Set to 0 to leave IPv6 alone.</span></div>
+        <div class="kv"><span class="kv-key">QUIC_BLOCK=1</span><span class="kv-val">Drop outbound UDP/443 so browsers can't bypass the proxy via QUIC's built-in DoH (default). Set to 0 if you need HTTP/3.</span></div>
+      </div>
+      <p>Edit, then reboot. Module updates never overwrite this file.</p>
+    </section>
+
+    <!-- 05 BOOT LEAK -->
+    <section id="boot">
+      <div class="sec-hdr"><span class="sec-num">05</span><h2>Boot Leak Prevention</h2></div>
+      <p>DNS is blocked at boot until dnscrypt-proxy is confirmed up and listening — there's no window during startup where a query could leak out to the ISP's default resolver before the redirect is in place.</p>
+    </section>
+
+    <!-- 06 WATCHDOG -->
+    <section id="watchdog">
+      <div class="sec-hdr"><span class="sec-num">06</span><h2>Watchdog</h2></div>
+      <p>A self-healing watchdog monitors dnscrypt-proxy and restarts it automatically if the process crashes or stops, without requiring a reboot or manual intervention.</p>
+    </section>
+
+    <!-- 07 RESOLVERS -->
+    <section id="resolvers">
+      <div class="sec-hdr"><span class="sec-num">07</span><h2>Resolvers</h2></div>
+      <div class="tbl-wrap">
+        <table>
+          <tr><th>Resolver</th><th>Type</th><th>No-Log</th><th>DNSSEC</th><th>Location</th></tr>
+          <tr><td>Cloudflare</td><td>DoH</td><td class="yes">✅</td><td class="yes">✅</td><td>Global anycast</td></tr>
+          <tr><td>Quad9 (nofilter)</td><td>DoH</td><td class="yes">✅</td><td class="yes">✅</td><td>Switzerland 🇨🇭</td></tr>
+          <tr><td>Mullvad Base</td><td>DoH</td><td class="yes">✅</td><td class="yes">✅</td><td>Sweden 🇸🇪</td></tr>
+        </table>
+      </div>
+      <p>All three are load balanced automatically — whichever responds fastest at any given moment handles the query.</p>
+    </section>
+
+    <!-- 08 CONFIG LOCATION -->
+    <section id="config-location">
+      <div class="sec-hdr"><span class="sec-num">08</span><h2>Config Location</h2></div>
+      <div class="tbl-wrap">
+        <table>
+          <tr><th>Path</th><th>Purpose</th></tr>
+          <tr><td><code>/storage/emulated/0/dnscrypt-proxy/dnscrypt-proxy.toml</code></td><td>Main config file</td></tr>
+          <tr><td><code>/data/adb/dnscrypt-proxy.log</code></td><td>Log file</td></tr>
+          <tr><td><code>http://127.0.0.1:5555</code></td><td>Monitoring dashboard</td></tr>
+          <tr><td><code>http://127.0.0.1:5556</code></td><td>Blocklist updater endpoint</td></tr>
+        </table>
+      </div>
+      <p>The config supports hot-reload via <code>SIGHUP</code> — editing resolver settings or blocklists doesn't require a reboot. On every module update, the existing config is backed up with a timestamp before it's replaced.</p>
+    </section>
+
+    <!-- 09 BLOCKLISTS -->
+    <section id="blocklists">
+      <div class="sec-hdr"><span class="sec-num">09</span><h2>Blocklists</h2></div>
+      <p>The dashboard's <strong>Update Blocklist</strong> button downloads a current OISD/hagezi-based domain list and loads it as <code>blocked-names.txt</code>.</p>
+
+      <h3>Adding your own domains</h3>
+      <p>To permanently block domains that aren't in the default list — or that keep reappearing after a refresh — edit:</p>
+      <div class="code-block">
+        <pre>/storage/emulated/0/dnscrypt-proxy/custom-blocked-names.txt</pre>
+      </div>
+      <p>One domain per line, in the suffix-rule format dnscrypt-proxy expects:</p>
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyCode(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>COPY</button>
+        <pre>*.example.com     # blocks the domain and all subdomains
+exact.example.com # blocks only this exact host
+# lines starting with # are ignored</pre>
+      </div>
+      <p>Every time you tap <strong>Update Blocklist</strong>, this file is automatically merged into the freshly downloaded list, deduplicated, and hot-reloaded — no reboot needed. It survives module updates and reflashes, so your custom entries are never lost.</p>
+    </section>
+
+    <!-- 10 IP ENCRYPTION -->
+    <section id="ip-encryption">
+      <div class="sec-hdr"><span class="sec-num">10</span><h2>IP Encryption (optional)</h2></div>
+      <p>The <code>[ip_encryption]</code> block in <code>dnscrypt-proxy.toml</code> is a dnscrypt-proxy config option that can encrypt client IP addresses in the query log, using the <strong>IPCrypt</strong> scheme.</p>
+      <p>On a phone, every query comes from the device itself — the logged IP is always <code>127.0.0.1</code> — so the default <code>algorithm = "none"</code> is correct and there is nothing meaningful to encrypt. This option only becomes relevant if you repurpose dnscrypt-proxy as a shared resolver for other devices on a network, where distinct client IPs would otherwise appear in the log.</p>
+    </section>
+
+    <!-- 11 DASHBOARD -->
+    <section id="dashboard">
+      <div class="sec-hdr"><span class="sec-num">11</span><h2>Dashboard</h2></div>
+      <p>The module's WebUI opens to a live monitoring dashboard, auto-refreshing every 10 seconds from a local metrics feed.</p>
+
+      <h3>Quick links</h3>
+      <div class="kv-list">
+        <div class="kv"><span class="kv-key">DNS Test</span><span class="kv-val">dnsleaktest.com — run after install to confirm no leaks</span></div>
+        <div class="kv"><span class="kv-key">Ads Test / Ads Test 2</span><span class="kv-val">superadblocktest.com and obfusgated.com's ad-block test — check blocklist effectiveness</span></div>
+        <div class="kv"><span class="kv-key">My IP</span><span class="kv-val">whatismyipaddress.com — check your visible public IP</span></div>
+      </div>
+
+      <h3>Live sections</h3>
+      <div class="kv-list">
+        <div class="kv"><span class="kv-key">Overview</span><span class="kv-val">Total / passed / blocked / NXDOMAIN queries, block rate, average response time, queries per second, cache hit ratio, uptime</span></div>
+        <div class="kv"><span class="kv-key">Blocklist</span><span class="kv-val">Domains currently loaded, and when the list was last updated</span></div>
+        <div class="kv"><span class="kv-key">Update Blocklist</span><span class="kv-val">One-tap refresh with a live, color-coded log of the download/merge/dedupe process</span></div>
+        <div class="kv"><span class="kv-key">Cache</span><span class="kv-val">Entries vs. capacity, fill %, hits, misses, min/max TTL</span></div>
+        <div class="kv"><span class="kv-key">Query Types</span><span class="kv-val">Breakdown by DNS record type (A, AAAA, HTTPS, etc.)</span></div>
+        <div class="kv"><span class="kv-key">Resolvers</span><span class="kv-val">Per-resolver query count, average response time, score, health</span></div>
+        <div class="kv"><span class="kv-key">Top Domains</span><span class="kv-val">Most-queried domains in the current session</span></div>
+        <div class="kv"><span class="kv-key">Recent Queries</span><span class="kv-val">A rolling live feed of the latest lookups and their result</span></div>
+      </div>
+      <div class="callout info">
+        <span class="ci">ℹ</span>
+        <div class="ct">While a blocklist update is running, the other dashboard buttons are temporarily disabled and a persistent status banner shows progress until it finishes.</div>
+      </div>
+    </section>
+
+    <!-- 12 INSTALLATION -->
+    <section id="install">
+      <div class="sec-hdr"><span class="sec-num">12</span><h2>Installation</h2></div>
+      <ol style="margin-left:18px;color:var(--text)">
+        <li style="margin-bottom:8px">Flash the release zip via SUkiSU / KernelSU / Magisk</li>
+        <li style="margin-bottom:8px">The installer automatically scans for conflicting DNS modules/apps and prompts to remove them if found (<strong>VOL UP</strong> = yes, <strong>VOL DOWN</strong> = abort)</li>
+        <li style="margin-bottom:8px">If conflicts were removed: reboot, then flash again. If none were found: installation completes in one flash</li>
+        <li>Reboot</li>
+      </ol>
+      <div class="callout ok">
+        <span class="ci">✓</span>
+        <div class="ct">Module status should show <code>Working 🌬🌬🌬</code> in your manager once it's running.</div>
+      </div>
+    </section>
+
+    <!-- 13 CONFLICT DETECTION -->
+    <section id="conflicts">
+      <div class="sec-hdr"><span class="sec-num">13</span><h2>Conflict Detection</h2></div>
+      <p>The installer checks for other modules and apps that also try to control DNS, and prompts before removing anything.</p>
+      <div class="kv-list">
+        <div class="kv"><span class="kv-key">Modules</span><span class="kv-val">BindHosts, AdAway, Energized, Systemless Hosts, DNS66, InviZible Pro, NextDNS, RethinkDNS, Cloudflared, SmartDNS, Dnsmasq, AdGuard, PersonalDNSfilter, Blokada, Nebulo, ControlD</span></div>
+        <div class="kv"><span class="kv-key">Apps</span><span class="kv-val">org.adaway, org.blokada, dnsfilter.android, com.frostnerd.smokescreen, com.controld.app, com.nextdns.nextdns, com.celzero.bravedns, com.rethinkdns.rethink, and others</span></div>
+      </div>
+    </section>
+
+    <!-- 14 VERIFY -->
+    <section id="verify">
+      <div class="sec-hdr"><span class="sec-num">14</span><h2>Verify It Works</h2></div>
+      <p>Run an extended test on <a href="https://www.dnsleaktest.com/" target="_blank" style="color:var(--green)">dnsleaktest.com</a> after install and check:</p>
+      <div class="kv-list">
+        <div class="kv"><span class="kv-key">No ISP entries</span><span class="kv-val">Your ISP's resolvers should not appear in the results</span></div>
+        <div class="kv"><span class="kv-key">Resolver visible</span><span class="kv-val">Cloudflare, Quad9, or Mullvad should show up instead</span></div>
+        <div class="kv"><span class="kv-key">No IPv6 address</span><span class="kv-val">No IPv6 address should be shown at all</span></div>
+      </div>
+    </section>
+
+    <!-- 15 VPN -->
+    <section id="vpn">
+      <div class="sec-hdr"><span class="sec-num">15</span><h2>VPN Combination</h2></div>
+      <p>DNSCrypt works independently but combines well with <strong>ProtonVPN WireGuard</strong> for two independent protection layers.</p>
+      <div class="tbl-wrap">
+        <table>
+          <tr><th>Protection</th><th>VPN Only</th><th>DNSCrypt Only</th><th>VPN + DNSCrypt</th></tr>
+          <tr><td>ISP can see visited websites</td><td class="yes">✅ Hidden</td><td class="yes">✅ Hidden</td><td class="yes">✅ Hidden</td></tr>
+          <tr><td>ISP can see your real IP</td><td class="yes">✅ Hidden</td><td class="no">❌ Visible</td><td class="yes">✅ Hidden</td></tr>
+          <tr><td>DNS requests encrypted</td><td class="no">❌ Depends</td><td class="yes">✅ Always</td><td class="yes">✅ Always</td></tr>
+          <tr><td>Ad &amp; tracker blocking</td><td class="no">❌</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+          <tr><td>IPv6 leak protection</td><td class="no">❌</td><td class="yes">✅</td><td class="yes">✅ Full</td></tr>
+          <tr><td>Works without VPN active</td><td class="no">❌</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+          <tr><td>Blocks apps that bypass DNS via a hardcoded IP</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
+        </table>
+      </div>
+      <div class="callout warn">
+        <span class="ci">⚠</span>
+        <div class="ct"><strong>WireGuard tunnel config:</strong> remove the <code>DNS =</code> line from your <code>.conf</code> file. A tunnel that sets its own DNS server will conflict with dnscrypt-proxy — with that line removed, dnscrypt-proxy stays in full control.</div>
+      </div>
+    </section>
+
+    <!-- 16 IPSET-ARM64 -->
+    <section id="ipset-integration">
+      <div class="sec-hdr"><span class="sec-num">16</span><h2>Closing the Gap: ipset-arm64</h2></div>
+      <p>Notice the last row in the table above — <strong>no combination of VPN and DNSCrypt catches an app that connects straight to a hardcoded IP address</strong>, skipping DNS resolution entirely. DNSCrypt can only block what it sees a DNS request for; if an app never asks "what's the IP for this domain?" because the IP is baked into its code, DNSCrypt has nothing to intercept.</p>
+      <p>This is exactly the gap <a href="https://github.com/nikakvo/ipset-arm64" target="_blank" style="color:var(--green)">ipset-arm64</a> — a companion module by the same author — is built to close, using a different mechanism entirely.</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <tr><th></th><th>DNSCrypt (this module)</th><th>ipset-arm64</th></tr>
+          <tr><td>Operates at</td><td>DNS layer</td><td>IP / packet layer</td></tr>
+          <tr><td>Blocks by</td><td>domain name</td><td>IP address / CIDR range</td></tr>
+          <tr><td>Stops the connection</td><td>before an IP is even resolved</td><td>after an IP is known, at the firewall</td></tr>
+          <tr><td>Blind spot</td><td>apps with a hardcoded IP, or their own DoH that skips this device's resolver</td><td>doesn't know domain names, only addresses — can't tell one hostname on a shared IP from another</td></tr>
+        </table>
+      </div>
+
+      <p>Running both gives layered coverage: DNSCrypt blocks known-bad domains cheaply and broadly, before a lookup even happens. ipset-arm64 catches what DNS-level filtering structurally cannot — traffic that never goes through DNS at all.</p>
+
+      <div class="callout ok">
+        <span class="ci">✓</span>
+        <div class="ct">No conflict between the two modules — DNSCrypt only touches DNS traffic (port 53/853), ipset-arm64 only touches whatever firewall chain/rule you configure in its own WebUI. They don't compete for the same packets.</div>
+      </div>
+    </section>
+
+    <!-- 17 FAQ -->
+    <section id="faq">
+      <div class="sec-hdr"><span class="sec-num">17</span><h2>FAQ</h2></div>
+
+      <h3>Does it work without a VPN?</h3>
+      <p>Yes, completely independently. The VPN is an optional second layer — DNSCrypt alone already stops ISP DNS surveillance and blocks known ad/tracker domains.</p>
+
+      <h3>What happens if dnscrypt-proxy crashes?</h3>
+      <p>The self-healing watchdog detects it and restarts the process automatically, without a reboot.</p>
+
+      <h3>Can I use a custom resolver?</h3>
+      <p>Yes. Edit <code>server_names</code> in <code>dnscrypt-proxy.toml</code> and add any resolver from dnscrypt-proxy's public resolver list. Config changes hot-reload without a reboot.</p>
+    </section>
+
+    <!-- 18 UNINSTALL -->
+    <section id="uninstall">
+      <div class="sec-hdr"><span class="sec-num">18</span><h2>Uninstall</h2></div>
+      <div class="callout ok">
+        <span class="ci">✓</span>
+        <div class="ct">Remove via SUkiSU / KernelSU / Magisk and reboot. The uninstaller removes all iptables rules, restores IPv6 and Android Private DNS to their defaults, and cleans up config and logs.</div>
+      </div>
+    </section>
+
+    <footer>
+      <div><span class="footer-dot"></span>DNSCrypt Proxy · Tears Burn</div>
+      <a href="https://github.com/nikakvo/dnscrypt-proxy-android-arm64-only" target="_blank">GitHub →</a>
+    </footer>
+
+  </main>
+</div>
+</div>
+
+<script>
+  function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    const text = pre.innerText || pre.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.classList.add('copied');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>COPIED';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>COPY';
+      }, 2000);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';ta.style.opacity = '0';
+      document.body.appendChild(ta);ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.classList.add('copied');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>COPIED';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>COPY';
+      }, 2000);
+    });
+  }
+
+  const navData = [
+    { group: 'Overview', items: [
+      { href: '#what',         label: 'What Is This' },
+      { href: '#requirements', label: 'Requirements' },
+    ]},
+    { group: 'How It Works', items: [
+      { href: '#flow',      label: 'DNS Flow' },
+      { href: '#ipv6',      label: 'IPv6 Handling' },
+      { href: '#boot',      label: 'Boot Leak Prevention' },
+      { href: '#watchdog',  label: 'Watchdog' },
+      { href: '#resolvers', label: 'Resolvers' },
+    ]},
+    { group: 'Configuration', items: [
+      { href: '#config-location', label: 'Config Location' },
+      { href: '#blocklists',      label: 'Blocklists' },
+      { href: '#ip-encryption',   label: 'IP Encryption' },
+      { href: '#dashboard',       label: 'Dashboard' },
+    ]},
+    { group: 'Setup & Usage', items: [
+      { href: '#install',   label: 'Installation' },
+      { href: '#conflicts', label: 'Conflict Detection' },
+      { href: '#verify',    label: 'Verify It Works' },
+      { href: '#vpn',       label: 'VPN Combination' },
+      { href: '#ipset-integration', label: '+ ipset-arm64' },
+    ]},
+    { group: 'Module', items: [
+      { href: '#faq',       label: 'FAQ' },
+      { href: '#uninstall', label: 'Uninstall' },
+    ]},
+  ];
+
+  const groupMap = {
+    overview: ['Overview'],
+    how:      ['How It Works'],
+    config:   ['Configuration'],
+    usage:    ['Setup & Usage'],
+    module:   ['Module'],
+    all:      null
+  };
+
+  function mnavClick(btn, filter) {
+    document.querySelectorAll('.mnav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (filter === 'all') {
+      document.getElementById('scrollArea').scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      openDrawer(filter);
+    }
+  }
+
+  function renderDrawer(filter) {
+    const groups = groupMap[filter];
+    document.getElementById('drawerTitle').textContent =
+      filter === 'all' ? 'Navigation' : filter.charAt(0).toUpperCase() + filter.slice(1);
+    document.getElementById('drawerSections').innerHTML = navData
+      .filter(g => !groups || groups.includes(g.group))
+      .map(g => `
+        <div class="drawer-group">${g.group}</div>
+        ${g.items.map(i => `<a class="drawer-item" href="${i.href}" onclick="closeDrawer();scrollToId('${i.href.slice(1)}')">${i.label}</a>`).join('')}
+      `).join('');
+  }
+
+  function openDrawer(filter) {
+    renderDrawer(filter || 'all');
+    document.getElementById('drawerOverlay').classList.add('open');
+    document.getElementById('drawer').classList.add('open');
+  }
+
+  function closeDrawer() {
+    document.getElementById('drawerOverlay').classList.remove('open');
+    document.getElementById('drawer').classList.remove('open');
+  }
+
+  function scrollToId(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const sa = document.getElementById('scrollArea');
+    setTimeout(() => sa.scrollTo({ top: el.offsetTop - 14, behavior: 'smooth' }), 60);
+  }
+
+  const sections = document.querySelectorAll('section[id]');
+  const navItems = document.querySelectorAll('.sidebar .nav-item');
+  const scrollArea = document.getElementById('scrollArea');
+
+  scrollArea.addEventListener('scroll', function() {
+    const top = scrollArea.scrollTop + 90;
+    let active = null;
+    sections.forEach(s => { if (s.offsetTop <= top) active = s.id; });
+    navItems.forEach(n => n.classList.toggle('active', n.getAttribute('href') === '#' + active));
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+id=dnscrypt-proxy-android
+name=DNSCrypt Proxy Arm64
+version=2.1.18-r10
+versionCode=25
+author=Tears Burn
+description=Encrypted DNS proxy with iptables redirect, boot-time DNS leak prevention, IPv6 kill, QUIC block, ad/tracker blocking via blocklists, live monitoring dashboard, and hot-reload config. Status: Init
+updateJson=https://raw.githubusercontent.com/nikakvo/dnscrypt-proxy-android-arm64-only/main/update.json

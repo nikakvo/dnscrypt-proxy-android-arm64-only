@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>DNSCrypt Monitor</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+    :root {
+      --green:  #00ff88;
+      --amber:  #ffaa00;
+      --red:    #ff4455;
+      --blue:   #00aaff;
+      --purple: #cc88ff;
+      --border: #0d2a1a;
+      --muted:  #3a5a4a;
+      --text:   #b0ffcc;
+      --dim:    #050505;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #000;
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0,255,136,0.012) 2px, rgba(0,255,136,0.012) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ── HEADER ── */
+    header {
+      padding: 6px 8px;
+      background: #060606;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    /* Row 1: title + clock */
+    .hdr-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .htitle {
+      flex: 1;
+      font-size: clamp(11px, 3vw, 14px);
+      color: var(--green);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    #clock { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+    /* Row 2: test buttons */
+    .btn-row {
+      display: flex;
+      gap: 5px;
+    }
+    a.button {
+      padding: 8px 0;
+      background: transparent;
+      color: var(--green);
+      border: 1px solid var(--green);
+      border-radius: 3px;
+      text-decoration: none;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(9px, 3vw, 12px);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      flex: 1;
+      text-align: center;
+      min-width: 0;
+    }
+    a.help-btn {
+      flex: 0 0 30px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    a.button:hover { background: var(--green); color: #000; box-shadow: 0 0 12px rgba(0,255,136,0.4); }
+    a.button.disabled { opacity: 0.35; pointer-events: none; cursor: not-allowed; border-color: var(--muted); color: var(--muted); }
+
+    /* ── STATUS BANNER ── */
+    #banner {
+      padding: 4px 12px;
+      font-size: 10px;
+      letter-spacing: 0.4px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .b-live  { background: #001a08; color: var(--green); }
+    .b-error { background: #1a0005; color: var(--red); }
+    .b-running { background: #1a1000; color: var(--amber); }
+
+    .live-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      margin-right: 6px;
+      vertical-align: middle;
+      animation: livePulse 1.4s ease-in-out infinite;
+    }
+    .b-error .live-dot { background: var(--red); animation: none; }
+    .b-running .live-dot { background: var(--amber); animation: livePulse 0.8s ease-in-out infinite; }
+    @keyframes livePulse {
+      0%,100% { opacity: 1;   box-shadow: 0 0 0   0   rgba(0,255,136,0.6); }
+      50%      { opacity: 0.4; box-shadow: 0 0 6px 3px rgba(0,255,136,0.0); }
+    }
+
+    /* ── STATS BAR ── */
+    .stats {
+      display: flex; gap: 1px;
+      background: var(--border);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sc {
+      flex: 1; padding: 6px 8px;
+      background: var(--dim);
+      display: flex; flex-direction: column; gap: 1px;
+      min-width: 0;
+    }
+    .sc .lbl { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sc .val { font-size: clamp(13px, 3.5vw, 20px); color: var(--green); }
+    .sc .val.r { color: var(--red); }
+    .sc .val.a { color: var(--amber); }
+    .sc .val.b { color: var(--blue); }
+
+    /* ── SCROLL CONTENT ── */
+    .dash-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 0 52px 0;
+    }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); }
+
+    /* ── SECTION ── */
+    .section {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 14px 14px;
+    }
+    .section-title {
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.4px;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .section-title .s-accent {
+      display: inline-block;
+      width: 3px; height: 10px;
+      border-radius: 1px;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* reuse detail-title for sub-headers inside sections */
+    .detail-title {
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 10px;
+      margin-top: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* bar rows inside detail */
+    .d-bar-row {
+      display: flex; align-items: center;
+      gap: 8px; margin-bottom: 7px; font-size: 10px;
+    }
+    .d-bar-label { color: var(--text); min-width: 80px; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .d-bar-wrap  { flex: 1; height: 4px; background: #0d2a1a; border-radius: 2px; overflow: hidden; }
+    .d-bar-fill  { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+    .d-bar-count { color: var(--muted); min-width: 32px; text-align: right; font-size: 9px; }
+    .fill-g { background: var(--green); }
+    .fill-r { background: var(--red); }
+    .fill-a { background: var(--amber); }
+    .fill-b { background: var(--blue); }
+    .fill-p { background: var(--purple); }
+
+    /* stat rows inside detail */
+    .d-stat {
+      display: flex; justify-content: space-between;
+      padding: 5px 0; border-bottom: 1px solid #0a1a10;
+      font-size: 10px;
+    }
+    .d-stat:last-child { border-bottom: none; }
+    .d-stat .k { color: var(--muted); }
+    .d-stat .v { color: var(--green); }
+    .d-stat .v.r { color: var(--red); }
+    .d-stat .v.a { color: var(--amber); }
+    .d-stat .v.b { color: var(--blue); }
+
+    /* list rows inside detail (recent queries) */
+    .d-row {
+      padding: 5px 0;
+      border-bottom: 1px solid #0a1a10;
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 0 8px;
+      align-items: center;
+      font-size: 10px;
+    }
+    .d-row:last-child { border-bottom: none; }
+    .d-domain { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .d-qtype  { color: var(--purple); font-size: 8px; text-align: center; min-width: 28px; }
+    .d-status { font-size: 9px; text-align: right; min-width: 60px; }
+    .d-rtt    { color: var(--blue); text-align: right; min-width: 36px; font-size: 9px; }
+    .s-pass   { color: var(--green); }
+    .s-reject { color: var(--red); }
+    .s-nx     { color: var(--amber); }
+    .s-wait   { color: var(--blue); }
+    .s-cloak  { color: var(--purple); }
+
+    /* resolver rows inside detail */
+    .d-res {
+      padding: 6px 0;
+      border-bottom: 1px solid #0a1a10;
+    }
+    .d-res:last-child { border-bottom: none; }
+    .d-res-name { font-size: 11px; color: var(--green); margin-bottom: 2px; }
+    .d-res-sub  { font-size: 9px; color: var(--muted); }
+    .d-res-sub span { color: var(--text); }
+    .d-res-bar  { height: 2px; background: #0d2a1a; margin-top: 5px; border-radius: 1px; overflow: hidden; }
+    .d-res-fill { height: 100%; background: var(--green); transition: width 0.6s; }
+
+    /* ── FOOTER ── */
+    footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding: 4px 12px;
+      background: var(--dim);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 9px; color: var(--muted); gap: 6px;
+      z-index: 100;
+    }
+    footer button {
+      background: transparent; border: 1px solid var(--muted);
+      color: var(--muted); font-family: 'Share Tech Mono', monospace;
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 3px 7px; border-radius: 2px; cursor: pointer;
+      transition: all 0.2s; white-space: nowrap;
+    }
+    footer button:hover { color: var(--green); border-color: var(--green); }
+
+    .empty { padding: 20px 14px; text-align: center; color: var(--muted); font-size: 10px; }
+
+    .upd-btn {
+      display: block; width: 100%; padding: 10px;
+      background: transparent; border: 1px solid var(--green);
+      color: var(--green); font-family: 'Share Tech Mono', monospace;
+      font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+      cursor: pointer; border-radius: 3px; transition: all 0.2s; margin-bottom: 10px;
+    }
+    .upd-btn:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--muted); color: var(--muted); }
+    .upd-btn.running { border-color: var(--amber); color: var(--amber); animation: btnPulse 1.2s ease-in-out infinite; }
+    @keyframes btnPulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
+    #upd-log {
+      background: #030d06; border: 1px solid var(--border); border-radius: 3px;
+      padding: 8px 10px; font-size: 9px; color: var(--text);
+      height: 160px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+    }
+    #upd-log .log-ok   { color: var(--green); }
+    #upd-log .log-err  { color: var(--red); }
+    #upd-log .log-info { color: var(--muted); }
+
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-top">
+    <div class="htitle">⬡ DNSCrypt Monitor</div>
+    <div id="clock">--:--:--</div>
+  </div>
+  <div class="btn-row">
+    <a class="button" href="https://www.dnsleaktest.com/" target="_blank">DNS Test</a>
+    <a class="button" href="https://superadblocktest.com/" target="_blank">Ads Test</a>
+    <a class="button" href="https://obfusgated.com/tools/ad-block-test" target="_blank">Ads Test 2</a>
+    <a class="button" href="https://whatismyipaddress.com/" target="_blank">My IP</a>
+    <a class="button help-btn" href="help.html" title="Help">?</a>
+  </div>
+</header>
+
+
+<div id="banner" class="b-live"><span class="live-dot"></span>Connecting…</div>
+
+<!-- Quick stats bar -->
+<div class="stats">
+  <div class="sc"><div class="lbl">Total</div><div class="val" id="s-total">—</div></div>
+  <div class="sc"><div class="lbl">Passed</div><div class="val" id="s-pass">—</div></div>
+  <div class="sc"><div class="lbl">Rejected</div><div class="val r" id="s-reject">—</div></div>
+  <div class="sc"><div class="lbl">NXDomain</div><div class="val a" id="s-nx">—</div></div>
+  <div class="sc"><div class="lbl">Resolvers</div><div class="val b" id="s-resolvers">—</div></div>
+</div>
+
+<!-- Dashboard scroll — JS renders sections -->
+<div class="dash-scroll" id="dash-scroll"></div>
+
+<footer>
+  <span id="last-refresh">—</span>
+  <span id="src-info" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+  <button onclick="loadData()">↺ Refresh</button>
+</footer>
+
+<script>
+// ── Clock ──────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('clock').textContent = new Date().toTimeString().slice(0,8);
+}, 1000);
+
+// ── XSS escape ─────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function resultLabel(r) {
+  switch(r) {
+    case 'PASS':      return { text: '✓ pass',      cls: 's-pass' };
+    case 'REJECT':
+    case 'BLOCKED':   return { text: '✗ rejected',  cls: 's-reject' };
+    case 'NXDOMAIN':  return { text: '? nxdomain',  cls: 's-nx' };
+    case 'NOT_READY': return { text: '⏳ wait',      cls: 's-wait' };
+    case 'CLOAK':     return { text: '◈ cloaked',   cls: 's-cloak' };
+    case 'SYNTH':     return { text: '◈ synth',     cls: 's-cloak' };
+    case 'FORWARD':   return { text: '→ forward',   cls: 's-pass' };
+    default:          return { text: r,              cls: 's-pass' };
+  }
+}
+
+// ── Stats bar (from metrics) ───────────────────────────
+function renderStats(m) {
+  const total   = m.total_queries || 0;
+  const blocked = m.blocked_queries || 0;
+  const pass    = total - blocked;
+  const srvs    = (m.resolver_health || []).filter(r => r.status === 'healthy').length;
+
+  // NXDOMAIN: use dedicated field if present, otherwise count from recent_queries
+  let nx = 0;
+  if (m.nxdomain_queries != null) {
+    nx = m.nxdomain_queries;
+  } else if (Array.isArray(m.recent_queries) && m.recent_queries.length) {
+    nx = m.recent_queries.filter(q =>
+      (q.response_code || '').toUpperCase() === 'NXDOMAIN'
+    ).length;
+  }
+
+  document.getElementById('s-total').textContent     = total.toLocaleString();
+  document.getElementById('s-pass').textContent      = pass.toLocaleString();
+  document.getElementById('s-reject').textContent    = blocked.toLocaleString();
+  document.getElementById('s-nx').textContent        = nx > 0 ? nx.toLocaleString() : '0';
+  document.getElementById('s-resolvers').textContent = srvs;
+}
+
+// ── Helpers ────────────────────────────────────────────
+function barHTML(label, count, total, colorClass) {
+  const pct = total ? Math.round(count / total * 100) : 0;
+  return `<div class="d-bar-row">
+    <span class="d-bar-label">${escapeHtml(label)}</span>
+    <div class="d-bar-wrap"><div class="d-bar-fill ${colorClass}" style="width:${pct}%"></div></div>
+    <span class="d-bar-count">${count}</span>
+  </div>`;
+}
+
+function sectionTitle(label, accentColor) {
+  return `<div class="section-title">
+    <span class="s-accent" style="background:${accentColor}"></span>${label}
+  </div>`;
+}
+
+function fmtUptime(sec) {
+  if (!sec || sec < 1) return '—';
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+// ── Build scroll sections from metrics JSON ────────────
+function buildCards(m) {
+  const wrap    = document.getElementById('dash-scroll');
+  const total   = m.total_queries || 1;
+  const blocked = m.blocked_queries || 0;
+  const passed  = total - blocked;
+  const blockPct = Math.round(blocked / total * 100);
+  const avgRtt  = Math.round(m.avg_response_time || 0);
+  const uptime  = fmtUptime(m.uptime_seconds);
+  const cs      = m.cache_stats || {};
+  // NXDOMAIN count: dedicated field or counted from recent_queries
+  const nx = m.nxdomain_queries != null
+    ? m.nxdomain_queries
+    : (m.recent_queries || []).filter(q => (q.response_code||'').toUpperCase() === 'NXDOMAIN').length;
+  const nxPct = total ? (nx / total * 100).toFixed(1) : '0.0';
+  const cacheHitRatio = cs.cache_hit_ratio != null
+    ? (cs.cache_hit_ratio * 100).toFixed(1) + '%'
+    : (m.cache_hit_ratio != null ? (m.cache_hit_ratio * 100).toFixed(1) + '%' : '—');
+  const genAt = m.generated_at
+    ? m.generated_at.replace('T', ' ').slice(0, 19) + ' UTC'
+    : '—';
+  const qps = m.queries_per_second != null
+    ? m.queries_per_second.toFixed(2)
+    : '—';
+
+  // ── Section: Overview ──
+  let html = `<div class="section">
+    ${sectionTitle('Overview', 'var(--green)')}
+    <div class="d-stat"><span class="k">Total Queries</span><span class="v">${total.toLocaleString()}</span></div>
+    <div class="d-stat"><span class="k">Passed</span><span class="v">${passed.toLocaleString()}</span></div>
+    <div class="d-stat"><span class="k">Blocked</span><span class="v r">${blocked.toLocaleString()}</span></div>
+    <div class="d-stat"><span class="k">NXDOMAIN</span><span class="v a">${nx.toLocaleString()} (${nxPct}%)</span></div>
+    <div class="d-stat"><span class="k">Block Rate</span><span class="v ${blockPct>30?'r':blockPct>10?'a':''}">${blockPct}%</span></div>
+    <div class="d-stat"><span class="k">Avg RTT</span><span class="v">${avgRtt}ms</span></div>
+    <div class="d-stat"><span class="k">Queries/sec</span><span class="v">${qps}</span></div>
+    <div class="d-stat"><span class="k">Cache Hit Ratio</span><span class="v">${cacheHitRatio}</span></div>
+    <div class="d-stat"><span class="k">Uptime</span><span class="v">${uptime}</span></div>
+    <div class="d-stat"><span class="k">Last Snapshot</span><span class="v" style="color:var(--muted)">${genAt}</span></div>
+  </div>`;
+
+  // ── Section: Blocklist ──
+  // blocklist_domains is injected by service.sh (blocked-names.txt,
+  // excluding comments and blank lines)
+  const blDomains = m.blocklist_domains != null
+    ? m.blocklist_domains.toLocaleString()
+    : '—';
+  html += `<div class="section">
+    ${sectionTitle('Blocklist', 'var(--red)')}
+    <div class="d-stat"><span class="k">Domains Loaded</span><span class="v r">${blDomains}</span></div>
+    <div class="d-stat"><span class="k">Latest Update</span><span class="v" id="latest-update-val" style="color:var(--muted)">${_lastUpdate}</span></div>
+  </div>`;
+
+  // ── Section: Update Blocklist ──
+  // If an update is already running, skip re-rendering this section
+  // so the button state, log output and status text are preserved.
+  if (!document.getElementById('section-update')) {
+    html += `<div class="section" id="section-update">
+      ${sectionTitle('Update Blocklist', 'var(--amber)')}
+      <div id="upd-status" style="color:var(--muted);font-size:9px;margin-bottom:8px">Ready — tap to fetch latest list</div>
+      <button class="upd-btn" id="upd-btn" onclick="startUpdate()">⬇ Update blocked-names.txt</button>
+      <div id="upd-log"><span class="log-info">// Output will appear here...</span></div>
+    </div>`;
+  }
+
+  // ── Section: Cache Stats ──
+  if (cs.capacity) {
+    const entries = cs.entries || 0;
+    const cap = cs.capacity || 1;
+    const fillPct = Math.round(entries / cap * 100);
+    html += `<div class="section">
+      ${sectionTitle('Cache', 'var(--blue)')}
+      <div class="d-stat"><span class="k">Entries / Capacity</span><span class="v">${entries.toLocaleString()} / ${cap.toLocaleString()}</span></div>
+      <div class="d-stat"><span class="k">Fill</span><span class="v">${fillPct}%</span></div>
+      <div class="d-stat"><span class="k">Hits</span><span class="v">${(cs.cache_hits||0).toLocaleString()}</span></div>
+      <div class="d-stat"><span class="k">Misses</span><span class="v">${(cs.cache_misses||0).toLocaleString()}</span></div>
+      <div class="d-stat"><span class="k">Min TTL</span><span class="v">${cs.min_ttl||'—'}s</span></div>
+      <div class="d-stat"><span class="k">Max TTL</span><span class="v">${cs.max_ttl||'—'}s</span></div>
+    </div>`;
+  }
+
+  // ── Section: Query Types ──
+  const qtypes = m.query_types || [];
+  if (qtypes.length) {
+    const colorMap = { A:'fill-g', AAAA:'fill-b', HTTPS:'fill-p', MX:'fill-a', TXT:'fill-a' };
+    html += `<div class="section">
+      ${sectionTitle('Query Types', 'var(--purple)')}
+      ${qtypes.sort((a,b)=>b.count-a.count).map(q =>
+        barHTML(q.type, q.count, total, colorMap[q.type]||'fill-p')
+      ).join('')}
+      <div style="margin-top:10px">
+      ${qtypes.map(q => {
+        const pct = (q.count/total*100).toFixed(1);
+        return `<div class="d-stat"><span class="k">${escapeHtml(q.type)}</span><span class="v" style="color:var(--purple)">${q.count.toLocaleString()} (${pct}%)</span></div>`;
+      }).join('')}
+      </div>
+    </div>`;
+  }
+
+  // ── Section: Resolvers ──
+  const resolvers = m.resolver_health || [];
+  html += `<div class="section">
+    ${sectionTitle('Resolvers', 'var(--blue)')}`;
+  if (!resolvers.length) {
+    html += `<div class="empty">No resolver data.</div>`;
+  } else {
+    const maxQ = Math.max(...resolvers.map(r => r.total_queries || 0)) || 1;
+    resolvers.sort((a,b) => (b.score||0)-(a.score||0)).forEach(r => {
+      const pct  = Math.round((r.total_queries||0) / maxQ * 100);
+      const score = r.score != null ? (r.score * 100).toFixed(1) : '—';
+      const avgR  = r.avg_response_ms != null ? Math.round(r.avg_response_ms) : '—';
+      const ok    = r.status === 'healthy';
+      html += `<div class="d-res">
+        <div class="d-res-name">${escapeHtml(r.name)} <span style="font-size:10px;color:var(--muted)">${escapeHtml(r.proto||'')}</span></div>
+        <div class="d-res-sub">${(r.total_queries||0).toLocaleString()} queries · avg <span>${avgR}ms</span> · score <span>${score}%</span> · <span class="${ok?'':'r'}">${r.status||'—'}</span></div>
+        <div class="d-res-bar"><div class="d-res-fill" style="width:${pct}%"></div></div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+
+  // ── Section: Top Domains ──
+  const topDoms = m.top_domains || [];
+  html += `<div class="section">
+    ${sectionTitle('Top Domains', 'var(--amber)')}`;
+  if (!topDoms.length) {
+    html += `<div class="empty">No domain data.</div>`;
+  } else {
+    const maxC = topDoms[0].count || 1;
+    topDoms.forEach(d => {
+      const pct = Math.round(d.count / maxC * 100);
+      html += `<div class="d-bar-row">
+        <span class="d-bar-label" title="${escapeHtml(d.domain)}">${escapeHtml(d.domain)}</span>
+        <div class="d-bar-wrap"><div class="d-bar-fill fill-a" style="width:${pct}%"></div></div>
+        <span class="d-bar-count">${d.count}×</span>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+
+  // ── Section: Recent Queries ──
+  const recent = (m.recent_queries || []).slice().reverse();
+  html += `<div class="section">
+    ${sectionTitle('Recent Queries', 'var(--muted)')}`;
+  if (!recent.length) {
+    html += `<div class="empty">No entries.</div>`;
+  } else {
+    recent.forEach(e => {
+      const rc = (e.response_code || 'PASS').toUpperCase();
+      const {text,cls} = resultLabel(rc);
+      const rttStr = rc === 'PASS' ? (e.response_time||0)+'ms' : '—';
+      const ts = (e.timestamp || '').slice(11, 19);
+      html += `<div class="d-row">
+        <div class="d-domain" title="${escapeHtml(e.domain)}">${escapeHtml(e.domain)}</div>
+        <div class="d-qtype">${escapeHtml(e.type||'A')}</div>
+        <div class="d-status ${cls}">${text}</div>
+        <div class="d-rtt">${rttStr}</div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+
+  // If an update section already exists (update in progress), save it before
+  // overwriting innerHTML, then re-insert it at the correct position so the
+  // button lock, log output and status text are never wiped by auto-refresh.
+  const liveUpdSection = document.getElementById('section-update');
+  const savedUpdSection = liveUpdSection ? liveUpdSection.cloneNode(true) : null;
+
+  wrap.innerHTML = html;
+
+  if (savedUpdSection) {
+    const placeholder = wrap.querySelector('#section-update');
+    if (placeholder) {
+      wrap.replaceChild(savedUpdSection, placeholder);
+    } else {
+      const sections = wrap.querySelectorAll('.section');
+      if (sections.length >= 2) {
+        sections[1].insertAdjacentElement('afterend', savedUpdSection);
+      } else {
+        wrap.appendChild(savedUpdSection);
+      }
+    }
+  }
+
+  requestAnimationFrame(() => {
+    wrap.querySelectorAll('.d-bar-fill, .d-res-fill').forEach(el => {
+      const w = el.style.width;
+      el.style.width = '0%';
+      requestAnimationFrame(() => { el.style.width = w; });
+    });
+  });
+}
+
+// ── Banner helper ──────────────────────────────────────
+function setBanner(cls, msg) {
+  // Don't overwrite the "running" banner while an update is in progress
+  if (_updPolling && cls !== 'b-running') return;
+  const banner = document.getElementById('banner');
+  banner.className = cls;
+  banner.innerHTML = '<span class="live-dot"></span>' + msg;
+}
+
+let _lastUpdate = '—';
+
+// ── Data loader ────────────────────────────────────────
+let _loading = false;
+async function loadData() {
+  if (_loading) return;
+  if (_updPolling) return;   // pause auto-refresh while update is running
+  _loading = true;
+  const srcInfo = document.getElementById('src-info');
+
+  try {
+    const resp = await fetch('metrics.json?_=' + Date.now(), { signal: AbortSignal.timeout(4000) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const m = await resp.json();
+    if (!m || typeof m.total_queries === 'undefined') throw new Error('invalid metrics JSON');
+
+    setBanner('b-live', `Live — ${(m.total_queries||0).toLocaleString()} total · ${(m.blocked_queries||0).toLocaleString()} blocked · uptime ${fmtUptime(m.uptime_seconds)}`);
+    srcInfo.textContent = 'source: /api/metrics → metrics.json · auto-refresh 10s';
+    renderStats(m);
+    buildCards(m);
+
+    // Fetch last_update from status.sh - done AFTER buildCards() so the
+    // update section already exists in the DOM on the very first load,
+    // instead of silently no-op'ing until the next 10s cycle.
+    try {
+      const sr = await fetch(CTL + '/cgi-bin/status.sh?_=' + Date.now(), { signal: AbortSignal.timeout(3000) });
+      const sj = await sr.json();
+      if (sj.last_update && sj.last_update !== '—') {
+        _lastUpdate = sj.last_update;
+        const lv = document.getElementById('latest-update-val');
+        if (lv) lv.textContent = _lastUpdate;
+      }
+    } catch(_) {}
+  } catch(err) {
+    setBanner('b-error', 'metrics.json: ' + err.message);
+    srcInfo.textContent = 'Check service.sh and reflash';
+  } finally {
+    _loading = false;
+  }
+
+  document.getElementById('last-refresh').textContent =
+    'Refreshed: ' + new Date().toTimeString().slice(0,8);
+}
+
+// ── Blocklist Updater ──────────────────────────────────
+const CTL = 'http://127.0.0.1:5556';
+let _updPolling = null;
+let _lastLogText = '';
+
+function colorLog(text) {
+  return text.split('\n').map(line => {
+    if (/ERROR|FAILED|failed/i.test(line)) return `<span class="log-err">${escapeHtml(line)}</span>`;
+    if (/Done|complete|success|restart/i.test(line)) return `<span class="log-ok">${escapeHtml(line)}</span>`;
+    if (/^\s*$/.test(line)) return '';
+    return `<span class="log-info">${escapeHtml(line)}</span>`;
+  }).filter(Boolean).join('\n');
+}
+
+function setUpdStatus(msg, color) {
+  const el = document.getElementById('upd-status');
+  if (el) { el.style.color = color || 'var(--muted)'; el.textContent = msg; }
+}
+
+function finishUpdate(logText) {
+  clearInterval(_updPolling);
+  _updPolling = null;
+  const btn = document.getElementById('upd-btn');
+  if (btn) { btn.disabled = false; btn.classList.remove('running'); btn.textContent = '⬇ Update blocked-names.txt'; }
+  setNavButtons(false);
+
+  const failed = /ALL SOURCES FAILED|ERROR: Result is empty/i.test(logText);
+  if (failed) {
+    setUpdStatus('✗ Blocked-names update failed — kept existing list', 'var(--red)');
+  } else {
+    setUpdStatus('✓ Blocked-names updated successfully', 'var(--green)');
+  }
+  // Force banner back to normal on next loadData (clear the running lock)
+  const banner = document.getElementById('banner');
+  if (banner) banner.className = '';
+  setTimeout(loadData, 2000);
+  // Clear the log box after 5s so it doesn't linger
+  setTimeout(() => {
+    const box = document.getElementById('upd-log');
+    if (box) box.innerHTML = '<span class="log-info">// Output will appear here...</span>';
+  }, 5000);
+}
+
+async function pollLog() {
+  let logText = _lastLogText;
+  try {
+    const r = await fetch(CTL + '/cgi-bin/log.sh?_=' + Date.now(), { signal: AbortSignal.timeout(4000) });
+    if (r.ok) {
+      const text = await r.text();
+      // Ignore empty/transient reads — never blank the box while running
+      if (text && text.trim().length > 0 && text !== _lastLogText) {
+        _lastLogText = text;
+        logText = text;
+        const box = document.getElementById('upd-log');
+        if (box) {
+          box.innerHTML = colorLog(text);
+          box.scrollTop = box.scrollHeight;
+        }
+      }
+    }
+  } catch(_) {}
+
+  try {
+    const rs = await fetch(CTL + '/cgi-bin/status.sh?_=' + Date.now(), { signal: AbortSignal.timeout(3000) });
+    const js = await rs.json();
+    if (!js.running) {
+      // One last log fetch to make sure we have the final lines before deciding
+      try {
+        const rf = await fetch(CTL + '/cgi-bin/log.sh?_=' + Date.now(), { signal: AbortSignal.timeout(4000) });
+        if (rf.ok) {
+          const finalText = await rf.text();
+          if (finalText && finalText.trim().length > 0) {
+            logText = finalText;
+            const box = document.getElementById('upd-log');
+            if (box) { box.innerHTML = colorLog(finalText); box.scrollTop = box.scrollHeight; }
+          }
+        }
+      } catch(_) {}
+      finishUpdate(logText);
+    }
+  } catch(_) {}
+}
+
+function setNavButtons(disabled) {
+  document.querySelectorAll('a.button').forEach(a => {
+    if (disabled) a.classList.add('disabled');
+    else a.classList.remove('disabled');
+  });
+}
+
+async function startUpdate() {
+  const btn = document.getElementById('upd-btn');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true; btn.classList.add('running'); btn.textContent = '⏳ Updating…';
+  setNavButtons(true);
+  _lastLogText = '';
+  setUpdStatus('Connecting…', 'var(--amber)');
+  const box = document.getElementById('upd-log');
+  if (box) box.innerHTML = '<span class="log-info">// Starting update...</span>';
+  try {
+    const r = await fetch(CTL + '/cgi-bin/update.sh', { method: 'POST', signal: AbortSignal.timeout(5000) });
+    const js = await r.json();
+    if (js.ok) {
+      setUpdStatus('⚙ Running — downloading & deduplicating…', 'var(--amber)');
+      _updPolling = setInterval(pollLog, 2000);
+      // Show persistent "running" banner
+      const banner = document.getElementById('banner');
+      banner.className = 'b-running';
+      banner.innerHTML = '<span class="live-dot"></span>⚙ Running command — blocklist update in progress…';
+    } else {
+      throw new Error(js.msg || 'Server error');
+    }
+  } catch(err) {
+    btn.disabled = false; btn.classList.remove('running'); btn.textContent = '⬇ Update blocked-names.txt';
+    setUpdStatus('✗ ' + err.message, 'var(--red)');
+  }
+}
+
+loadData();
+setInterval(loadData, 10000);
+</script>
+</body>
+</html>
