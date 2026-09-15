@@ -383,7 +383,14 @@ ignore_system_dns = true
 ## Use 0 to not test for connectivity at all (not recommended),
 ## and -1 to wait as much as possible.
 
-netprobe_timeout = 60
+## MODULE NOTE (r11): set to 0 on purpose.
+## The module redirects all port-53 traffic to 127.0.0.1:5354 via iptables.
+## netprobe_address below is a port-53 address, so the probe packet was being
+## redirected into dnscrypt-proxy itself before it had even started listening.
+## Result: a guaranteed 60-second stall on every single boot.
+## service.sh already waits for the network and retries, so this probe is
+## redundant as well as harmful.
+netprobe_timeout = 0
 
 ## Address and port to try initializing a connection to, just to check
 ## if the network is up. It can be any address and any port, even if
@@ -784,33 +791,50 @@ allowed_ips_file = 'allowed-ips.txt'
 
 [sources]
 
+## MODULE NOTE (r11): the remote source lists are DISABLED on purpose.
+##
+## Why: fetching them needs HTTPS, which needs DNS, which needs the
+## bootstrap_resolvers on port 53 - which this module redirects straight back
+## into dnscrypt-proxy itself. That deadlock is what made the daemon hang at
+## boot, retry, and eventually corrupt its own public-resolvers.md / .minisig
+## pair, after which it refused to start at all until the module was reflashed.
+##
+## The three servers in `server_names` are pinned as [static] entries at the
+## bottom of this file instead. Their stamps already contain the resolver IP,
+## so the daemon needs no source list, no bootstrap DNS and no network at all
+## to start. It comes up in about a second, offline included.
+##
+## To go back to dynamic source lists, uncomment the two blocks below and
+## remove the [static.*] entries at the end of the file. The cache files are
+## still shipped, so it will work - it is just slower and more fragile.
+
 ### An example of a remote source from https://github.com/DNSCrypt/dnscrypt-resolvers
 
-[sources.public-resolvers]
-urls = [
-  'https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md',
-  'https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md',
-  'https://cdn.jsdelivr.net/gh/DNSCrypt/dnscrypt-resolvers@master/v3/public-resolvers.md',
-]
-cache_file = 'public-resolvers.md'
-minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
-refresh_delay = 73
-cache_ttl = 168
-prefix = ''
+# [sources.public-resolvers]
+# urls = [
+#   'https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md',
+#   'https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md',
+#   'https://cdn.jsdelivr.net/gh/DNSCrypt/dnscrypt-resolvers@master/v3/public-resolvers.md',
+# ]
+# cache_file = 'public-resolvers.md'
+# minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+# refresh_delay = 73
+# cache_ttl = 168
+# prefix = ''
 
 ### Anonymized DNS relays
 
-[sources.relays]
-urls = [
-  'https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/relays.md',
-  'https://download.dnscrypt.info/resolvers-list/v3/relays.md',
-  'https://cdn.jsdelivr.net/gh/DNSCrypt/dnscrypt-resolvers@master/v3/relays.md',
-]
-cache_file = 'relays.md'
-minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
-refresh_delay = 73
-cache_ttl = 168
-prefix = ''
+# [sources.relays]
+# urls = [
+#   'https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/relays.md',
+#   'https://download.dnscrypt.info/resolvers-list/v3/relays.md',
+#   'https://cdn.jsdelivr.net/gh/DNSCrypt/dnscrypt-resolvers@master/v3/relays.md',
+# ]
+# cache_file = 'relays.md'
+# minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+# refresh_delay = 73
+# cache_ttl = 168
+# prefix = ''
 
 ### ODoH (Oblivious DoH) servers and relays
 
@@ -1079,6 +1103,21 @@ privacy_level = 1
 
 ## Optional, local, static list of additional servers
 ## Mostly useful for testing your own servers.
+
+## MODULE NOTE (r11): the three servers listed in `server_names` at the top of
+## this file are pinned here so the daemon never has to download a source list
+## to find them. Stamps taken verbatim from the shipped public-resolvers.md.
+## If you change `server_names`, add the matching stamp here too, or re-enable
+## the [sources] blocks above.
+
+[static.'cloudflare']
+stamp = 'sdns://AgcAAAAAAAAABzEuMC4wLjEAEmRucy5jbG91ZGZsYXJlLmNvbQovZG5zLXF1ZXJ5'
+
+[static.'quad9-dnscrypt-ip4-nofilter-pri']
+stamp = 'sdns://AQYAAAAAAAAADTkuOS45LjEwOjg0NDMgZ8hHuMh1jNEgJFVDvnVnRt803x2EwAuMRwNo34Idhj4ZMi5kbnNjcnlwdC1jZXJ0LnF1YWQ5Lm5ldA'
+
+[static.'mullvad-base-doh']
+stamp = 'sdns://AgMAAAAAAAAACzE5NC4yNDIuMi40ABRiYXNlLmRucy5tdWxsdmFkLm5ldAovZG5zLXF1ZXJ5'
 
 # [static.myserver]
 #   stamp = 'sdns://AQcAAAAAAAAAAAAQMi5kbnNjcnlwdC1jZXJ0Lg'

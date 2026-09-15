@@ -5,7 +5,8 @@ printf 'Content-Type: application/json\r\n'
 printf 'Access-Control-Allow-Origin: *\r\n'
 printf '\r\n'
 
-LAST_UPDATE_FILE="/storage/emulated/0/dnscrypt-proxy/.last_update"
+# r11: runtime files moved off the sdcard to /data/adb/dnscrypt-proxy
+LAST_UPDATE_FILE="/data/adb/dnscrypt-proxy/.last_update"
 
 if pgrep -f "update-blocklist\.sh" >/dev/null 2>&1; then
   RUNNING="true"

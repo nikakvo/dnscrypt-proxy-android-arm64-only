@@ -487,7 +487,7 @@
       <div class="tbl-wrap">
         <table>
           <tr><th>Path</th><th>Purpose</th></tr>
-          <tr><td><code>/storage/emulated/0/dnscrypt-proxy/dnscrypt-proxy.toml</code></td><td>Main config file</td></tr>
+          <tr><td><code>/data/adb/dnscrypt-proxy/dnscrypt-proxy.toml</code> <br><small>(edit the mirror at <code>/storage/emulated/0/dnscrypt-proxy/dnscrypt-proxy.toml</code> &mdash; changes are picked up within a minute)</small></td><td>Main config file</td></tr>
           <tr><td><code>/data/adb/dnscrypt-proxy.log</code></td><td>Log file</td></tr>
           <tr><td><code>http://127.0.0.1:5555</code></td><td>Monitoring dashboard</td></tr>
           <tr><td><code>http://127.0.0.1:5556</code></td><td>Blocklist updater endpoint</td></tr>
@@ -505,6 +505,8 @@
       <p>To permanently block domains that aren't in the default list — or that keep reappearing after a refresh — edit:</p>
       <div class="code-block">
         <pre>/storage/emulated/0/dnscrypt-proxy/custom-blocked-names.txt</pre>
+      <p><small>Entries added there take effect within about a minute &mdash; the module merges them into <code>blocked-names.txt</code> and reloads the daemon, no re-download and no reboot. The next full Update Blocklist run rebuilds the list from the download plus your custom entries, so nothing is lost.</small></p>
+      <p><small>That path is an editable mirror. The daemon reads the copy in <code>/data/adb/dnscrypt-proxy/</code>, which the module syncs for you. The generated <code>blocked-names.txt</code> lives only there, since it is around 7.6&nbsp;MB.</small></p>
       </div>
       <p>One domain per line, in the suffix-rule format dnscrypt-proxy expects:</p>
       <div class="code-block">

@@ -10,11 +10,6 @@ MODDIR=${0%/*}
 #   IPV6_KILL=1   disable IPv6 entirely (leak prevention)
 #   QUIC_BLOCK=1  drop outbound UDP/443 so browsers can't
 #                 bypass this proxy via QUIC's built-in DoH
-#
-# Both default to 1 - that is what this module is for. They
-# exist so a device that genuinely needs IPv6 or HTTP/3 can
-# turn one off without editing scripts that get overwritten
-# on every update.
 # -----------------------------------------------
 CONF="/data/adb/dnscrypt-proxy-android.conf"
 IPV6_KILL=1
@@ -22,12 +17,24 @@ QUIC_BLOCK=1
 [ -f "$CONF" ] && . "$CONF"
 
 STATE_DIR="/data/adb/dnscrypt-proxy-state"
-mkdir -p "$STATE_DIR"
+DATA_DIR="/data/adb/dnscrypt-proxy"
+LOG="/data/adb/dnscrypt-proxy.log"
 
-# Cleared on every boot: service.sh sets this if it has to
-# undo the IPv6 killswitch because the device turned out to
-# have no IPv4 connectivity at all.
-rm -f "$STATE_DIR/ipv6_killswitch_lifted" "$STATE_DIR/ipv6_lift_confirmed" "$STATE_DIR/metrics_shape_warned" "$STATE_DIR/ipv6_check_done" "$STATE_DIR/ipv6_lift_confirmed"
+mkdir -p "$STATE_DIR" "$DATA_DIR"
+
+# Cleared on every boot. The xt_owner probe result is per-boot too:
+# caching it across reboots would pin a wrong answer forever if the
+# probe happened to run before the netfilter modules were loaded.
+rm -f "$STATE_DIR/ipv6_killswitch_lifted" \
+      "$STATE_DIR/ipv6_lift_confirmed" \
+      "$STATE_DIR/metrics_shape_warned" \
+      "$STATE_DIR/ipv6_check_done" \
+      "$STATE_DIR/owner_match_unavailable" \
+      "$STATE_DIR/failsafe_fired" \
+      "$STATE_DIR/probe_method"
+
+# shellcheck source=/dev/null
+[ -f "$MODDIR/rules.sh" ] && . "$MODDIR/rules.sh"
 
 # -----------------------------------------------
 # Disable IPv6 - kernel + sysctl + ip6tables.
@@ -38,8 +45,7 @@ rm -f "$STATE_DIR/ipv6_killswitch_lifted" "$STATE_DIR/ipv6_lift_confirmed" "$STA
 # the permissive direction is exactly the leak this
 # module exists to prevent. Fail closed now; service.sh
 # re-evaluates once the network is actually up and lifts
-# this if the device turns out to be IPv6-only (see
-# check_ipv4_reachable there).
+# this if the device turns out to be IPv6-only.
 # -----------------------------------------------
 if [ "$IPV6_KILL" = "1" ]; then
   resetprop net.ipv6.conf.all.disable_ipv6 1
@@ -61,38 +67,21 @@ if [ "$IPV6_KILL" = "1" ]; then
 fi
 
 # -----------------------------------------------
-# Clean up any existing DNS redirect rules
-# (prevents duplicates on reboot / module reload)
+# Install the DNS rules.
+#
+# Everything about how and why lives in rules.sh - including why the
+# old `filter OUTPUT --dport 53 -j DROP` rule is gone (it could never
+# match, because nat OUTPUT rewrites the port before filter OUTPUT
+# ever sees the packet) and why the redirect is now inserted at the
+# top of the chain rather than appended after netd's own rules.
+#
+# Flush first so a reload never stacks duplicates, and so rules left
+# behind by r10 are cleaned up on upgrade.
 # -----------------------------------------------
-iptables -t nat -D OUTPUT -p tcp --dport 53 -j DNAT --to-destination 127.0.0.1:5354 2>/dev/null
-iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination 127.0.0.1:5354 2>/dev/null
-
-iptables -D OUTPUT -p udp --dport 53 -j DROP 2>/dev/null
-iptables -D OUTPUT -p tcp --dport 53 -j DROP 2>/dev/null
-
-# -----------------------------------------------
-# DNS leak prevention during boot:
-# Block DNS until dnscrypt is up (service.sh lifts this,
-# and force-lifts it if dnscrypt never comes up at all).
-# -----------------------------------------------
-iptables -C OUTPUT -p udp --dport 53 -j DROP 2>/dev/null || iptables -A OUTPUT -p udp --dport 53 -j DROP
-iptables -C OUTPUT -p tcp --dport 53 -j DROP 2>/dev/null || iptables -A OUTPUT -p tcp --dport 53 -j DROP
-
-# -----------------------------------------------
-# Redirect all DNS to dnscrypt-proxy on :5354
-# -----------------------------------------------
-iptables -t nat -C OUTPUT -p tcp --dport 53 -j DNAT --to-destination 127.0.0.1:5354 2>/dev/null || iptables -t nat -A OUTPUT -p tcp --dport 53 -j DNAT --to-destination 127.0.0.1:5354
-iptables -t nat -C OUTPUT -p udp --dport 53 -j DNAT --to-destination 127.0.0.1:5354 2>/dev/null || iptables -t nat -A OUTPUT -p udp --dport 53 -j DNAT --to-destination 127.0.0.1:5354
-
-# -----------------------------------------------
-# Block QUIC (UDP 443) to prevent DNS policy bypass.
-# Chrome, YouTube and other Google apps carry their own
-# DoH over QUIC, which would sidestep this proxy entirely.
-# Browsers fall back to TLS/TCP transparently; a handful of
-# QUIC-only apps will not, which is why QUIC_BLOCK exists.
-# -D first ensures no duplicate on reload/reboot.
-# -----------------------------------------------
-iptables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null
-if [ "$QUIC_BLOCK" = "1" ]; then
-  iptables -A OUTPUT -p udp --dport 443 -j DROP
+if command -v rules_install_dns >/dev/null 2>&1; then
+  rules_flush_all
+  rules_install_dns
+  [ "$QUIC_BLOCK" = "1" ] && rules_install_quic
+else
+  echo "$(date): ERROR - rules.sh missing, DNS redirect NOT installed" >> "$LOG"
 fi

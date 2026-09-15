@@ -1,34 +1,46 @@
 #!/system/bin/sh
 # update-blocklist.sh - Blocklist updater
-# Triggered by the "Update Blocklist" button in the module's Web UI (index.html)
+# Triggered by the "Update Blocklist" button in the module's Web UI
 # via the busybox httpd CGI server (webroot/cgi-bin/update.sh)
-# Renamed from action.sh so it no longer shows as a SukiSU Manager Action button —
-# update is now controlled entirely through the Web UI.
 
-DNSCRYPT_DIR="/storage/emulated/0/dnscrypt-proxy"
-BLOCKLIST="$DNSCRYPT_DIR/blocked-names.txt"
-# Was misspelled "gustum-blocked-names.txt" in every release up to
-# r8. The name is user-facing - people type the obvious spelling,
-# their file is never read, and nothing tells them why. Renamed, with
-# the old name still honoured (and migrated on install by
-# customize.sh) so nobody's existing list silently stops working.
-CUSTOM="$DNSCRYPT_DIR/custom-blocked-names.txt"
-CUSTOM_LEGACY="$DNSCRYPT_DIR/gustum-blocked-names.txt"
-if [ ! -f "$CUSTOM" ] && [ -f "$CUSTOM_LEGACY" ]; then
-  mv -f "$CUSTOM_LEGACY" "$CUSTOM" 2>/dev/null && \
-    echo "* Renamed gustum-blocked-names.txt -> custom-blocked-names.txt"
-fi
-LAST_UPDATE_FILE="$DNSCRYPT_DIR/.last_update"
-TMP="$DNSCRYPT_DIR/blocklist.tmp"
+# -----------------------------------------------
+# r11: the blocklist now lives on /data, not the sdcard.
+# It is 7.6 MB and the daemon reads it on every start and every SIGHUP;
+# doing that across FUSE was slow, and doing it from a filesystem that
+# may not be mounted yet at boot was the reason the daemon sometimes
+# never came up at all.
+#
+# custom-blocked-names.txt is still edited on the sdcard, so take
+# whichever copy is newer.
+# -----------------------------------------------
+DATA_DIR="/data/adb/dnscrypt-proxy"
+SD_DIR="/storage/emulated/0/dnscrypt-proxy"
+BLOCKLIST="$DATA_DIR/blocked-names.txt"
+CUSTOM="$DATA_DIR/custom-blocked-names.txt"
+LAST_UPDATE_FILE="$DATA_DIR/.last_update"
+TMP="$DATA_DIR/blocklist.tmp"
 LOG="/data/adb/dnscrypt-proxy.log"
 URL_1="https://big.oisd.nl/domainswild2"
 URL_2="https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro.plus-onlydomains.txt"
 URL_3="https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate-onlydomains.txt"
-UPDATE_FLAG="$DNSCRYPT_DIR/.update_ok"
+UPDATE_FLAG="$DATA_DIR/.update_ok"
 
-# -----------------------------------------------
-# Cleanup trap - runs on exit, interrupt or kill
-# -----------------------------------------------
+mtime_of() { stat -c %Y "$1" 2>/dev/null || echo 0; }
+
+# Pull in a newer sdcard copy of the custom list before merging.
+# Also honours the old misspelling from r8 and earlier.
+if [ -d "$SD_DIR" ]; then
+  if [ -f "$SD_DIR/gustum-blocked-names.txt" ] && [ ! -f "$SD_DIR/custom-blocked-names.txt" ]; then
+    mv -f "$SD_DIR/gustum-blocked-names.txt" "$SD_DIR/custom-blocked-names.txt" 2>/dev/null
+  fi
+  if [ -f "$SD_DIR/custom-blocked-names.txt" ]; then
+    if [ ! -f "$CUSTOM" ] || [ "$(mtime_of "$SD_DIR/custom-blocked-names.txt")" -gt "$(mtime_of "$CUSTOM")" ]; then
+      cp -f "$SD_DIR/custom-blocked-names.txt" "$CUSTOM" 2>/dev/null
+      echo "* Picked up newer custom-blocked-names.txt from sdcard"
+    fi
+  fi
+fi
+
 cleanup() {
   kill $CURL_PID 2>/dev/null
   rm -f "$TMP" 2>/dev/null
@@ -37,20 +49,15 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# -----------------------------------------------
-# Progress bar helper
-# SukiSU terminal does not support \r overwrites,
-# so we print a new line only when % actually changes
-# -----------------------------------------------
 progress_bar() {
-  local current=$1
-  local total=$2
-  local width=38
+  current=$1
+  total=$2
+  width=38
   [ "$total" -eq 0 ] && total=1
-  local pct=$(( current * 100 / total ))
+  pct=$(( current * 100 / total ))
   [ "$pct" -gt 99 ] && pct=99
-  local filled=$(( pct * width / 100 ))
-  local bar="" i=0
+  filled=$(( pct * width / 100 ))
+  bar="" ; i=0
   while [ $i -lt $filled ]; do bar="${bar}█"; i=$(( i + 1 )); done
   while [ $i -lt $width  ]; do bar="${bar}░"; i=$(( i + 1 )); done
   echo "  [${bar}] ${pct}%"
@@ -59,40 +66,25 @@ progress_bar() {
 echo " "
 echo "************************************"
 echo "*   DNSCrypt Blocklist Updater     *"
-echo "*        OISD Big List             *"
 echo "************************************"
 echo " "
 
-# -----------------------------------------------
-# Check storage is accessible
-# -----------------------------------------------
-if [ ! -d "$DNSCRYPT_DIR" ]; then
-  echo "! ERROR: DNSCrypt directory not found!"
-  echo "! Path: $DNSCRYPT_DIR"
+if [ ! -d "$DATA_DIR" ]; then
+  echo "! ERROR: runtime directory not found: $DATA_DIR"
   echo "! Is the module installed and rebooted?"
   exit 1
 fi
 
-# -----------------------------------------------
-# Count existing domains before anything
-# -----------------------------------------------
 OLD_COUNT=0
-if [ -f "$BLOCKLIST" ]; then
-  OLD_COUNT=$(wc -l < "$BLOCKLIST" 2>/dev/null || echo 0)
-fi
+[ -f "$BLOCKLIST" ] && OLD_COUNT=$(wc -l < "$BLOCKLIST" 2>/dev/null || echo 0)
 
 echo "-----------------------------------------------"
 echo "  Current blocklist: $OLD_COUNT domains"
 echo "-----------------------------------------------"
 echo " "
 
-# -----------------------------------------------
-# Get Content-Length for accurate progress bar
-# Falls back to 20MB if HEAD fails
-# -----------------------------------------------
 get_expected() {
-  local url="$1"
-  local len
+  url="$1"
   len=$(curl -sI --max-time 10 --connect-timeout 8 "$url" 2>/dev/null \
         | grep -i "^content-length:" | tail -1 \
         | tr -d '[:space:]\r' | cut -d: -f2)
@@ -100,13 +92,9 @@ get_expected() {
     && echo "$len" || echo "20971520"
 }
 
-# -----------------------------------------------
-# Download with fallback sources
-# 1. OISD Big  2. hagezi pro.plus  3. hagezi ultimate
-# -----------------------------------------------
 download_list() {
-  local url="$1"
-  local label="$2"
+  url="$1"
+  label="$2"
   echo "* Trying: $label"
   echo " "
 
@@ -121,7 +109,6 @@ download_list() {
       SIZE=$(wc -c < "$TMP" 2>/dev/null || echo 0)
       PCT=$(( SIZE * 100 / EXPECTED ))
       [ "$PCT" -gt 99 ] && PCT=99
-      # Print only on every 5% change to reduce output lines
       PCT5=$(( PCT / 5 * 5 ))
       PREV5=$(( PREV_PCT / 5 * 5 ))
       if [ "$PCT5" -ne "$PREV5" ] || [ "$PREV_PCT" -eq -1 ]; then
@@ -132,7 +119,7 @@ download_list() {
     sleep 1
   done
   wait $CURL_PID
-  local ret=$?
+  ret=$?
   if [ $ret -eq 0 ] && [ -s "$TMP" ]; then
     return 0
   fi
@@ -159,16 +146,10 @@ echo "  Downloaded : $DL_COUNT domains"
 echo "  Existing   : $OLD_COUNT domains"
 echo " "
 
-# -----------------------------------------------
-# Merge: strip comments + empty lines, then combine
-# existing blocked-names.txt + new download,
-# sort, remove duplicates
-# -----------------------------------------------
 echo "-----------------------------------------------"
 echo "* Step 1/2 - Cleaning downloaded list..."
 echo "-----------------------------------------------"
 sed -i '/^#/d;/^$/d' "$TMP"
-# Add *. prefix to lines that don't already have it
 sed -i 's|^\([^*]\)|\*.\1|' "$TMP"
 echo "* Done."
 echo " "
@@ -180,10 +161,7 @@ echo "-----------------------------------------------"
 if [ -f "$CUSTOM" ] && [ -s "$CUSTOM" ]; then
   CUSTOM_COUNT=$(grep -cv '^#\|^$' "$CUSTOM" 2>/dev/null || echo 0)
   echo "* custom-blocked-names.txt found: $CUSTOM_COUNT domains — merging..."
-  # Normalize custom entries to the same *. wildcard format as the
-  # downloaded list, so entries typed without the prefix still block
-  # subdomains consistently instead of silently mismatching at runtime.
-  CUSTOM_NORM="$DNSCRYPT_DIR/custom.tmp"
+  CUSTOM_NORM="$DATA_DIR/custom.tmp"
   sed '/^#/d;/^$/d' "$CUSTOM" | sed 's|^\([^*]\)|\*.\1|' > "$CUSTOM_NORM"
   { cat "$TMP"; cat "$CUSTOM_NORM"; } | sort | uniq > "${BLOCKLIST}.new"
   rm -f "$CUSTOM_NORM"
@@ -195,24 +173,26 @@ rm -f "$TMP"
 echo "* Done."
 echo " "
 
-# -----------------------------------------------
-# Replace blocklist atomically
-# -----------------------------------------------
 NEW_COUNT=$(wc -l < "${BLOCKLIST}.new" 2>/dev/null || echo 0)
 ADDED=$(( NEW_COUNT - OLD_COUNT ))
 
-# 1000 is a sanity floor well below any real OISD/hagezi pull (which run
-# in the hundreds of thousands) - it only catches "basically nothing was
-# in the download" (truncated fetch, malformed upstream format, etc).
-# ">0" used to be the only guard here, which let a handful of garbage
-# lines silently overwrite a working blocklist of hundreds of thousands
-# of entries.
+# Sanity floor: a real OISD/hagezi pull runs in the hundreds of
+# thousands. This only catches a truncated fetch or a format change
+# that would otherwise silently replace a working list with garbage.
 MIN_SANE_COUNT=1000
 
 if [ "$NEW_COUNT" -ge "$MIN_SANE_COUNT" ]; then
   mv "${BLOCKLIST}.new" "$BLOCKLIST"
   touch "$UPDATE_FLAG"
-  # Write exact timestamp of this update
+  # Record what the custom list looked like at merge time. service.sh
+  # compares against this to work out which custom entries were deleted
+  # by hand; without refreshing it here, the next sync would see a stale
+  # snapshot and try to strip entries this run just added.
+  if [ -f "$CUSTOM" ]; then
+    sed '/^#/d;/^$/d' "$CUSTOM" 2>/dev/null | sed 's|^\([^*]\)|\*.\1|' | sort -u > "$DATA_DIR/.custom.merged"
+  else
+    : > "$DATA_DIR/.custom.merged"
+  fi
   date '+%Y-%m-%d %H:%M:%S' > "$LAST_UPDATE_FILE"
 
   CUSTOM_FINAL=0
@@ -237,7 +217,7 @@ if [ "$NEW_COUNT" -ge "$MIN_SANE_COUNT" ]; then
   while [ $WAIT -lt 15 ]; do
     if ss -ulnp 2>/dev/null | grep -q ":5354" || \
        netstat -ulnp 2>/dev/null | grep -q ":5354" || \
-       grep -qi "14EA" /proc/net/udp 2>/dev/null; then
+       awk 'NR>1 && $2 ~ /:14EA$/ {found=1; exit} END {exit !found}' /proc/net/udp 2>/dev/null; then
       echo "* dnscrypt-proxy reloaded successfully — no downtime!"
       break
     fi
@@ -245,10 +225,7 @@ if [ "$NEW_COUNT" -ge "$MIN_SANE_COUNT" ]; then
     WAIT=$((WAIT + 1))
   done
 
-  if [ "$WAIT" -ge 15 ]; then
-    echo "* dnscrypt-proxy will restart via watchdog shortly."
-  fi
-
+  [ "$WAIT" -ge 15 ] && echo "* dnscrypt-proxy will restart via watchdog shortly."
 else
   rm -f "${BLOCKLIST}.new"
   echo "! ERROR: Result has only $NEW_COUNT domains (expected hundreds of thousands) — keeping existing blocklist."
