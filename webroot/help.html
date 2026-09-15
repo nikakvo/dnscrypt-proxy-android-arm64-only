@@ -434,7 +434,8 @@
     <!-- 04 IPV6 -->
     <section id="ipv6">
       <div class="sec-hdr"><span class="sec-num">04</span><h2>IPv6 Handling</h2></div>
-      <p>IPv6 is disabled at three independent levels simultaneously: <strong>Android system properties</strong>, <strong>kernel sysctl</strong>, and an <strong>ip6tables</strong> policy. The watchdog re-applies this roughly every 60 seconds, so it can't drift back on.</p>
+      <p>IPv6 is stopped by an <strong>ip6tables</strong> DROP policy, set at boot and re-verified roughly every 60 seconds so it can't drift back on. Alongside it, <strong>kernel sysctl</strong> and <strong>Android system properties</strong> switch IPv6 off at boot, and <code>block_ipv6</code> in the proxy config means apps never receive an AAAA record to try in the first place.</p>
+      <p>The firewall policy is what actually guarantees nothing leaves the device, which is why the module does not keep forcing <code>disable_ipv6</code> back onto individual interfaces. On a phone the modem re-creates its <code>rmnet</code> data contexts on a timer, so that turns into a permanent tug-of-war that changes nothing and can break VoLTE or SMS where the carrier's IMS context is IPv6-only.</p>
       <div class="callout warn">
         <span class="ci">⚠</span>
         <div class="ct">Because IPv6 is disabled system-wide, anything that specifically depends on it won't function while this module is active.</div>
@@ -442,15 +443,19 @@
 
       <h3>IPv6-only networks</h3>
       <p>Some carriers no longer hand out IPv4 at all. On those networks IPv4 traffic is carried <em>inside</em> IPv6 (464XLAT/clat), so blocking IPv6 blocks everything — and rebooting doesn't help, because the block is re-applied on every boot.</p>
-      <p>The block is still applied unconditionally at boot: at that point the network doesn't exist yet, and guessing permissively is exactly the leak this module prevents. Once the network is up, the watchdog re-checks. If DNS never resolves at all, it lifts the IPv6 block and writes a line to the log explaining why. If resolution is <em>still</em> dead two minutes later, IPv6 wasn't the cause and the block is restored rather than left open.</p>
-      <p>On a normal IPv4 or dual-stack connection none of this fires — DNS resolves, so nothing is touched.</p>
+      <p>By default the module <strong>never lifts the block on its own</strong>. Killing IPv6 is the reason it exists, and &quot;DNS isn't resolving&quot; has many innocent causes — a captive portal, a VPN still connecting, an upstream outage. Disarming the core protection on a guess would be worse than failing loudly, so instead the watchdog writes one line to the log pointing at the setting below.</p>
+      <p>If you really are on an IPv6-only carrier, set <code>IPV6_AUTO_LIFT=1</code>. The watchdog will then lift the block when nothing resolves and say so in the log — and if resolution is <em>still</em> dead two minutes later, IPv6 wasn't the cause and the block is restored rather than left open.</p>
+      <p>On a normal IPv4 or dual-stack connection none of this matters — DNS resolves and nothing is touched.</p>
 
       <h3>Turning it off</h3>
       <p>Settings live in a file that survives module updates:</p>
       <pre>/data/adb/dnscrypt-proxy-android.conf</pre>
       <div class="kv-list">
         <div class="kv"><span class="kv-key">IPV6_KILL=1</span><span class="kv-val">Disable IPv6 entirely (default). Set to 0 to leave IPv6 alone.</span></div>
-        <div class="kv"><span class="kv-key">QUIC_BLOCK=1</span><span class="kv-val">Drop outbound UDP/443 so browsers can't bypass the proxy via QUIC's built-in DoH (default). Set to 0 if you need HTTP/3.</span></div>
+        <div class="kv"><span class="kv-key">IPV6_AUTO_LIFT=0</span><span class="kv-val">Let the module switch the killswitch off by itself on a suspected IPv6-only network. Off by default — the killswitch stays on no matter what.</span></div>
+        <div class="kv"><span class="kv-key">IPV6_PER_IFACE_ENFORCE=0</span><span class="kv-val">Keep forcing <code>disable_ipv6</code> back onto every interface. Off by default; the ip6tables policy already covers it and this only fights the modem.</span></div>
+        <div class="kv"><span class="kv-key">QUIC_BLOCK=1</span><span class="kv-val">Drop outbound UDP/443, on both IPv4 and IPv6, so browsers can't bypass the proxy via QUIC's built-in DoH (default). Set to 0 if you need HTTP/3.</span></div>
+        <div class="kv"><span class="kv-key">LOG_KEEP_LINES=1500</span><span class="kv-val">Lines of <code>/data/adb/dnscrypt-proxy.log</code> to keep. Rotation triggers at twice this.</span></div>
       </div>
       <p>Edit, then reboot. Module updates never overwrite this file.</p>
     </section>
@@ -458,13 +463,20 @@
     <!-- 05 BOOT LEAK -->
     <section id="boot">
       <div class="sec-hdr"><span class="sec-num">05</span><h2>Boot Leak Prevention</h2></div>
-      <p>DNS is blocked at boot until dnscrypt-proxy is confirmed up and listening — there's no window during startup where a query could leak out to the ISP's default resolver before the redirect is in place.</p>
+      <p>The redirect is installed at <code>post-fs-data</code>, before any app runs. Until dnscrypt-proxy binds its port, queries are therefore rewritten to a port nothing is listening on — they are dropped on loopback and never leave the device. There is no window during startup where a query could reach the ISP's resolver.</p>
+      <p>Backing that up, a <strong>leak guard</strong> drops any port-53 traffic that leaves on a real interface, which can only mean it escaped the redirect. The proxy's own encrypted traffic is unaffected: it goes to its resolvers on 443 and 8443, not 53.</p>
+      <div class="note warn">
+        <span class="note-ic">⚠</span>
+        <div class="ct">If dnscrypt-proxy still hasn't come up 90 seconds after boot, a failsafe removes the redirect so the device isn't left with no DNS at all. Queries then go out in plaintext until the proxy recovers, and the watchdog reinstates the rules the moment it does. This is a deliberate trade: a usable phone over a silently dead one.</div>
+      </div>
     </section>
 
     <!-- 06 WATCHDOG -->
     <section id="watchdog">
       <div class="sec-hdr"><span class="sec-num">06</span><h2>Watchdog</h2></div>
-      <p>A self-healing watchdog monitors dnscrypt-proxy and restarts it automatically if the process crashes or stops, without requiring a reboot or manual intervention.</p>
+      <p>A self-healing watchdog monitors dnscrypt-proxy and restarts it automatically if the process crashes or stops, without a reboot or any manual intervention.</p>
+      <p>It also watches the firewall rules themselves. Android's <code>netd</code> rebuilds these chains whenever connectivity changes — switching between Wi-Fi and mobile data, a VPN going up or down, tethering being toggled — which silently takes the redirect out from under the module. The watchdog notices within one cycle and puts it back.</p>
+      <p>Finally it syncs your edits: a changed file in the mirror folder is copied in within about a minute, restarting the daemon for a config change or reloading it in place for a list change.</p>
     </section>
 
     <!-- 07 RESOLVERS -->
@@ -474,11 +486,12 @@
         <table>
           <tr><th>Resolver</th><th>Type</th><th>No-Log</th><th>DNSSEC</th><th>Location</th></tr>
           <tr><td>Cloudflare</td><td>DoH</td><td class="yes">✅</td><td class="yes">✅</td><td>Global anycast</td></tr>
-          <tr><td>Quad9 (nofilter)</td><td>DoH</td><td class="yes">✅</td><td class="yes">✅</td><td>Switzerland 🇨🇭</td></tr>
+          <tr><td>Quad9 (nofilter)</td><td>DNSCrypt</td><td class="yes">✅</td><td class="yes">✅</td><td>Switzerland 🇨🇭</td></tr>
           <tr><td>Mullvad Base</td><td>DoH</td><td class="yes">✅</td><td class="yes">✅</td><td>Sweden 🇸🇪</td></tr>
         </table>
       </div>
       <p>All three are load balanced automatically — whichever responds fastest at any given moment handles the query.</p>
+      <p>Each one is pinned in the config as a <code>[static]</code> stamp containing the resolver's address, so the proxy needs no resolver list, no bootstrap DNS and no network at all in order to start. That is what lets it come up in about a second, offline included.</p>
     </section>
 
     <!-- 08 CONFIG LOCATION -->
@@ -488,12 +501,17 @@
         <table>
           <tr><th>Path</th><th>Purpose</th></tr>
           <tr><td><code>/data/adb/dnscrypt-proxy/dnscrypt-proxy.toml</code> <br><small>(edit the mirror at <code>/storage/emulated/0/dnscrypt-proxy/dnscrypt-proxy.toml</code> &mdash; changes are picked up within a minute)</small></td><td>Main config file</td></tr>
+          <tr><td><code>/data/adb/dnscrypt-proxy-android.conf</code></td><td>Module settings</td></tr>
           <tr><td><code>/data/adb/dnscrypt-proxy.log</code></td><td>Log file</td></tr>
           <tr><td><code>http://127.0.0.1:5555</code></td><td>Monitoring dashboard</td></tr>
           <tr><td><code>http://127.0.0.1:5556</code></td><td>Blocklist updater endpoint</td></tr>
         </table>
       </div>
-      <p>The config supports hot-reload via <code>SIGHUP</code> — editing resolver settings or blocklists doesn't require a reboot. On every module update, the existing config is backed up with a timestamp before it's replaced.</p>
+      <p>Nothing here needs a reboot. Editing a blocklist reloads it in place via <code>SIGHUP</code> with no downtime; editing <code>dnscrypt-proxy.toml</code> restarts the daemon, which takes about a second. On every module update the existing config is backed up with a timestamp before it's replaced.</p>
+      <div class="note">
+        <span class="note-ic">ℹ</span>
+        <div class="ct">The daemon runs out of <code>/data/adb</code> rather than internal storage on purpose. <code>/storage/emulated/0</code> is FUSE: it mounts late in boot and doesn't exist at all before the first unlock on an encrypted device — a daemon reading its config from there races the storage stack on every boot.</div>
+      </div>
     </section>
 
     <!-- 09 BLOCKLISTS -->
@@ -515,7 +533,8 @@
 exact.example.com # blocks only this exact host
 # lines starting with # are ignored</pre>
       </div>
-      <p>Every time you tap <strong>Update Blocklist</strong>, this file is automatically merged into the freshly downloaded list, deduplicated, and hot-reloaded — no reboot needed. It survives module updates and reflashes, so your custom entries are never lost.</p>
+      <p>Deleting a line works the same way — the entry is removed from the live list within a minute, rather than lingering until the next download. The file survives module updates and reflashes, so your custom entries are never lost.</p>
+      <p>To block a literal IP address rather than a name, use <code>blocked-ips.txt</code> in the same folder; the proxy reads it separately.</p>
     </section>
 
     <!-- 10 IP ENCRYPTION -->
@@ -647,7 +666,7 @@ exact.example.com # blocks only this exact host
       <p>The self-healing watchdog detects it and restarts the process automatically, without a reboot.</p>
 
       <h3>Can I use a custom resolver?</h3>
-      <p>Yes. Edit <code>server_names</code> in <code>dnscrypt-proxy.toml</code> and add any resolver from dnscrypt-proxy's public resolver list. Config changes hot-reload without a reboot.</p>
+      <p>Yes. Edit <code>server_names</code> in <code>dnscrypt-proxy.toml</code> and add any resolver from dnscrypt-proxy's public resolver list. Because the shipped resolvers are pinned as <code>[static]</code> stamps and the remote resolver lists are switched off, add the new resolver's stamp to the <code>[static]</code> section too — or re-enable the <code>[sources]</code> blocks, which are left in the file, commented, for exactly this. Saving the file restarts the daemon within a minute; no reboot.</p>
     </section>
 
     <!-- 18 UNINSTALL -->
@@ -655,7 +674,7 @@ exact.example.com # blocks only this exact host
       <div class="sec-hdr"><span class="sec-num">18</span><h2>Uninstall</h2></div>
       <div class="callout ok">
         <span class="ci">✓</span>
-        <div class="ct">Remove via SUkiSU / KernelSU / Magisk and reboot. The uninstaller removes all iptables rules, restores IPv6 and Android Private DNS to their defaults, and cleans up config and logs.</div>
+        <div class="ct">Remove via SUkiSU / KernelSU / Magisk and reboot. The uninstaller removes all iptables and ip6tables rules, restores IPv6, returns Android Private DNS to whatever it was set to before install rather than a guessed default, and cleans up config and logs.</div>
       </div>
     </section>
 
