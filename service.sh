@@ -14,6 +14,9 @@ IPV6_AUTO_LIFT=0
 # Also off by default. See enforce_ipv6_disable() for the reasoning -
 # short version: the firewall is what stops IPv6, not this.
 IPV6_PER_IFACE_ENFORCE=0
+# How many lines of /data/adb/dnscrypt-proxy.log to keep. Rotation
+# triggers at twice this. See rotate_log() for why the default is 1500.
+LOG_KEEP_LINES=1500
 [ -f "$CONF" ] && . "$CONF"
 
 STATE_DIR="/data/adb/dnscrypt-proxy-state"
@@ -566,22 +569,48 @@ sync_from_sdcard() {
 # space was never actually reclaimed. Truncating in place keeps the
 # same inode and the daemon's file descriptor stays valid.
 # -----------------------------------------------
+# -----------------------------------------------
+# Log rotation.
+#
+# r11 did `tail -n 300 $LOG > $LOG.tmp && mv $LOG.tmp $LOG`. The daemon
+# holds the log open with O_APPEND, so after the mv it kept writing to
+# the old, now unlinked inode: the new log stayed empty and the disk
+# space was never reclaimed. Truncating in place keeps the same inode
+# and the daemon's file descriptor stays valid.
+#
+# The budget went from 300/600 lines to 1500/3000 in r11.6. The reason
+# is measured, not arbitrary: dnscrypt-proxy writes a two-line
+# "Network change detected / Rotated DNSCrypt client key" pair roughly
+# once a minute on this class of device, because the modem keeps
+# recreating its rmnet PDN contexts with fresh MAC addresses. At 300
+# lines that pair evicts the entire log in about two hours, which is
+# exactly why a mid-session Wi-Fi to mobile switch could not be
+# reviewed afterwards. 1500 lines holds roughly half a day and costs
+# about 350 KB on /data.
+#
+# LOG_KEEP_LINES in the settings file overrides it.
+# -----------------------------------------------
 rotate_log() {
   [ -f "$LOG" ] || return
+  _keep=${LOG_KEEP_LINES:-1500}
+  case "$_keep" in
+    ''|*[!0-9]*) _keep=1500 ;;
+  esac
+  [ "$_keep" -lt 100 ] && _keep=100
   _lines=$(wc -l < "$LOG" 2>/dev/null || echo 0)
-  [ "$_lines" -le 600 ] && { unset _lines; return; }
-  tail -n 300 "$LOG" > "$LOG.tmp" 2>/dev/null && cat "$LOG.tmp" > "$LOG" 2>/dev/null
+  [ "$_lines" -le $(( _keep * 2 )) ] && { unset _lines _keep; return; }
+  tail -n "$_keep" "$LOG" > "$LOG.tmp" 2>/dev/null && cat "$LOG.tmp" > "$LOG" 2>/dev/null
   rm -f "$LOG.tmp"
-  unset _lines
+  unset _lines _keep
 }
 
 # -----------------------------------------------
 # HTTP server on 127.0.0.1:5556 via busybox httpd
 # -----------------------------------------------
 start_httpd() {
-  # Kill only OUR previous instance, tracked by pidfile. A blanket
-  # `pkill -f "busybox httpd"` also killed the WebUI server of every
-  # other module using busybox httpd.
+  # Kill only OUR previous instance, tracked by pidfile, so a blanket
+  # `pkill -f "busybox httpd"` cannot take down the WebUI server of
+  # another module using busybox httpd.
   if [ -f "$HTTPD_PIDFILE" ]; then
     _old=$(cat "$HTTPD_PIDFILE" 2>/dev/null)
     if [ -n "$_old" ] && [ -d "/proc/$_old" ]; then

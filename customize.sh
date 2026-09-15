@@ -2,7 +2,7 @@ ui_print " "
 ui_print "******************************"
 ui_print "*   dnscrypt-proxy-android   *"
 ui_print "*        Аrm64 ONLY          *"
-ui_print "*        2.1.18-r11.5        *"
+ui_print "*        2.1.18-r11.6        *"
 ui_print "******************************"
 ui_print "*        Tears Burn          *"
 ui_print "******************************"
@@ -436,6 +436,13 @@ IPV6_AUTO_LIFT=0
 # 1 = yes, fight it anyway.
 IPV6_PER_IFACE_ENFORCE=0
 
+# How many lines of /data/adb/dnscrypt-proxy.log to keep. Rotation kicks
+# in at twice this number. Default 1500, roughly half a day and about
+# 350 KB: dnscrypt-proxy logs a two-line "Network change detected" pair
+# about once a minute on devices whose modem keeps recreating its rmnet
+# contexts, and a smaller budget evicts everything else within hours.
+LOG_KEEP_LINES=1500
+
 # Drop outbound UDP/443 (QUIC), on both IPv4 and IPv6.
 # 1 = on (default). Stops Chrome/YouTube and similar from using
 # QUIC's built-in DoH to bypass this proxy. Browsers fall back to
@@ -473,6 +480,15 @@ ADDEOF
 IPV6_PER_IFACE_ENFORCE=0
 ADD2EOF
     ui_print "* Added new setting IPV6_PER_IFACE_ENFORCE=0 to $CONF"
+  fi
+  if ! grep -q '^LOG_KEEP_LINES=' "$CONF" 2>/dev/null; then
+    cat >> "$CONF" << 'ADD3EOF'
+
+# How many lines of /data/adb/dnscrypt-proxy.log to keep. Rotation kicks
+# in at twice this number. Default 1500, roughly half a day.
+LOG_KEEP_LINES=1500
+ADD3EOF
+    ui_print "* Added new setting LOG_KEEP_LINES=1500 to $CONF"
   fi
 fi
 

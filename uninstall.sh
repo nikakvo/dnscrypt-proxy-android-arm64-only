@@ -26,9 +26,9 @@ fi
 
 # ===============================================
 # STEP 1a: Kill busybox httpd (CGI control server)
-# Only OUR instance, via the pidfile service.sh writes. A blanket
-# `pkill -f "busybox httpd"` also killed the WebUI server of every
-# other module using busybox httpd.
+# Only OUR instance, via the pidfile service.sh writes, so a blanket
+# `pkill -f "busybox httpd"` cannot take down the WebUI server of
+# another module using busybox httpd.
 # ===============================================
 HTTPD_PIDFILE="/data/adb/dnscrypt-proxy-state/httpd.pid"
 if [ -f "$HTTPD_PIDFILE" ]; then

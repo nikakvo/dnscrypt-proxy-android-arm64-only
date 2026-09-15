@@ -1,475 +1,55 @@
 # Changelog
 
-All notable changes to `dnscrypt-proxy-android-arm64-only` are documented here.
+## 2.1.18-r11.6
 
-## r10
+Fixes the long-standing problem where a reboot or flashing another module left the device with no DNS until this module was reflashed.
 
-**Fixed**
-- The IPv6-only safety check added in r9 ran `dnscrypt-proxy -resolve`
-  on every 10-second tick. Each call issues around eleven real DNS
-  queries, so the daemon's own query log filled with `example.com` and
-  the WebUI's "Recent queries" panel showed almost none of the device's
-  actual traffic. It also cost battery and upstream requests for
-  nothing.
+### Startup
 
-  The check is now bounded: it runs at most once a minute, and switches
-  off permanently for the rest of the boot as soon as resolution is
-  confirmed working. In practice that is one call shortly after boot.
-  The failure it guards against — an IPv6-only network with the
-  killswitch on — only ever shows up at boot, so there is nothing to
-  gain from probing later.
+* Pinned the three configured resolvers as `[static]` stamps and disabled the remote source lists, so the daemon starts with no source download, no bootstrap DNS and no network at all
+* Set `netprobe_timeout = 0`, which was costing a guaranteed 60-second stall on every boot because the probe was aimed at a port-53 address this module redirects into dnscrypt-proxy itself
+* Moved the config, resolver cache and blocklist from `/storage/emulated/0` to `/data/adb/dnscrypt-proxy`, ending the race with the FUSE storage stack that left the redirect installed with no daemon behind it
+* Added a sdcard mirror at `/storage/emulated/0/dnscrypt-proxy` that syncs editable files inward on change, restarting the daemon for a config edit and reloading it for a list edit
+* Killed any leftover dnscrypt-proxy at startup, so a module update no longer leaves the previous binary holding `:5354`
+* Cut the failsafe grace period from 180 to 90 seconds
+* Added a config check at flash time, so a broken toml is reported during install instead of black-holing DNS until the failsafe fires
 
-- Metrics-shape warning could fill the log on a healthy daemon; now
-  logged once per boot.
+### DNS rules
 
----
+* Removed the boot-time port-53 DROP rule, which could never match because nat OUTPUT rewrites the port before filter OUTPUT sees the packet
+* Added a real leak guard scoped to non-loopback output, catching port-53 traffic that escaped the redirect
+* Exempted only root-owned traffic to the three bootstrap resolvers rather than all of uid 0, so the module's own `curl` still resolves through the proxy
+* Switched rule installation from `-A` to `-I OUTPUT 1` so the redirect sits above netd's rules
+* Re-verified the rules every tick against a sentinel from nat, filter and ip6tables, instead of only inside a branch that required the daemon to already be listening
+* Extended the QUIC block to IPv6, which was previously unblocked the moment the IPv6 killswitch lifted
+* Extracted all iptables rules into `rules.sh`, shared by `post-fs-data.sh`, `service.sh` and `uninstall.sh`
 
-## v2.1.18-r9
+### IPv6
 
-**Fixed**
-- IPv6 killswitch could permanently break connectivity on IPv6-only
-  carriers. IPv4 is carried inside IPv6 there (464XLAT), so blocking
-  IPv6 blocked everything — and a reboot re-applied it. The block is
-  still applied unconditionally at boot (fail-closed), but is now
-  lifted if DNS never resolves, and re-armed if lifting turns out not
-  to have been the cause.
-- Port detection matched the *remote* port in `/proc/net/{udp,tcp}`,
-  so an outbound connection to someone else's port 5354 read as
-  "our daemon is up" and the watchdog skipped restarting a dead one.
-- `blocklist_domains` was injected into every line of metrics.json
-  ending in `}`, duplicating the field inside nested objects. Valid
-  JSON, wrong data.
-- `pkill -f "busybox httpd"` killed the control server of *any* other
-  module using busybox httpd for its WebUI. Now scoped via pidfile.
-- Stale-watchdog cleanup matched any process mentioning "dnscrypt"
-  and "service.sh"; now matches this module's path only.
+* The killswitch no longer lifts itself on a heuristic; auto-lift is opt-in via `IPV6_AUTO_LIFT` and off by default
+* Made enforcement idempotent, so it no longer rewrites sysctls, calls `resetprop` and rebuilds loopback rules every 60 seconds when nothing has changed
+* Left per-interface `disable_ipv6` alone by default, since forcing it is an endless tug-of-war with the modem's rmnet contexts and the ip6tables DROP policy already guarantees what it was meant to; `IPV6_PER_IFACE_ENFORCE` restores the old behaviour
 
-**Changed**
-- `gustum-blocked-names.txt` → `custom-blocked-names.txt`. Existing
-  files are renamed automatically; the old name still works.
-- New settings file at `/data/adb/dnscrypt-proxy-android.conf` with
-  `IPV6_KILL` and `QUIC_BLOCK`. Both default to 1 — no behaviour
-  change. Survives module updates.
-- Metrics polling drops to ~60s while the screen is off (was every
-  10s around the clock).
-- Blocklist counter ignores comments and blank lines.
-- `cgi-bin/update.sh` requires POST.
-- Uninstall no longer kills other modules' httpd, and removes the
-  settings file and runtime state.
-- Help page documents the settings file and IPv6-only behaviour.
+### Health check
 
-**Updated**
-- dnscrypt-proxy binary rebuilt from upstream [`47ce24d`](https://github.com/DNSCrypt/dnscrypt-proxy/commit/47ce24df6e8686681bfed04d2c9c6300b611684c)
+* Replaced the `-resolve` check, which ran a second dnscrypt-proxy against the same cache files and could corrupt the `public-resolvers.md` / `.minisig` pair into a state only a reflash could clear
+* The probe now sends a raw DNS query straight to `127.0.0.1:5354`, needing no resolver tool and no NAT redirect
+* The monitoring-API liveness check no longer overrules a failed DNS probe; it is used only on a device with no way to ask a DNS question
 
+### Blocklist
 
----
+* A changed `custom-blocked-names.txt` is merged into the live blocklist within a minute, deletions included, instead of waiting for a full re-download
 
-## v2.1.18-r8
+### Logging and cost
 
-### Fixed
+* Fixed rotation writing to an unlinked inode, which left the new log empty and never reclaimed the space
+* Moved rotation onto a timer, since it previously only ran when starting the daemon and a healthy device never reached that branch
+* Raised the budget to 1500 lines, configurable via `LOG_KEEP_LINES`
+* Cached the blocklist line count instead of running `grep -cv` over a 7.6 MB file every 10 seconds
+* Dropped `dumpsys power` polling from every tick to once a minute
 
-- Updated `dnscrypt-proxy` ARM64 binary with upstream fixes.
-- Fixed IPv4-mapped IPv6 filtering for allowed/blocked IP rules.
-- Fixed incorrect line numbers in IP rule configuration errors.
-- Added upstream test coverage for IP rule parsing.
+### Uninstall and install
 
-### Upstream
-
-- DNSCrypt/dnscrypt-proxy commit [`9fd8201`](https://github.com/DNSCrypt/dnscrypt-proxy/commit/9fd82010162244e96a55a9e1e9cc11a120c478dd)
-
----
-
-## v2.1.18-r7
-
-**⚠ Auto-update (24h) temporarily removed**
-
-The 24h background auto-update for the blocklist was causing device/ROM compatibility issues (the background loop wasn't reliably surviving Doze/battery optimization on some devices, leading to a stuck "due now" state). To avoid misleading users, this feature has been pulled from this release.
-
-- Removed the "Enable auto-update" toggle from the dashboard
-- Blocklist updates are manual-only again via the **Update blocked-names.txt** button — same as before, stable and predictable
-- No more background processes, flags, or schedule files tied to auto-update
-- Upgrading from an older version automatically cleans up any leftover loop process and state files
-
-Everything else (watchdog, IPv6 protection, boot leak prevention, live dashboard) is unchanged.
-
-Auto-update will return in a future release once the scheduling logic is reworked and verified to be reliable across devices and ROMs.
-
----
-
-## dnscrypt-proxy-android-arm64-only — v2.1.18-r6
-
-### Fixed
-- Auto-update could silently die (killed by Android's battery optimizer) and get stuck on "due now" forever until reboot. Now self-heals within ~60s via service.sh's watchdog, whether or not the dashboard is open.
-
----
-
-## dnscrypt-proxy-android-arm64-only — v2.1.18-r5
-
-### Added
-- **Blocklist auto-update (24h toggle)** — next to the manual "Update Blocklist" button, a new toggle enables an automatic background refresh every 24 hours. Off by default; nothing runs on a schedule until enabled.
-  - Runs as a detached background loop (`auto-update-loop.sh`), independent of whether the dashboard is open.
-  - Skips a scheduled run if a manual update is already in progress, instead of running two at once.
-  - Resumes automatically after a reboot if it was left on.
-  - **Live countdown** ("Next update in: 23h 59m 42s") next to the toggle, ticking in real time — persists correctly across page reloads and reboots, not just while the dashboard happens to be open.
-  - New CGI endpoints: `cgi-bin/autoupdate-on.sh`, `cgi-bin/autoupdate-off.sh`. `status.sh` now also reports `auto_update` and `next_update_epoch`.
-- **HELP button** (`?`) added next to "My IP" in the dashboard, linking to a fully rewritten `help.html`.
-- `webroot/help.html` rewritten from scratch — accurate section-by-section documentation (DNS flow, IPv6 handling, resolvers, blocklists, dashboard, VPN combination, and integration with the companion `ipset-arm64` module), with all version-specific "what's new" content removed (that belongs in release notes, not the help doc).
-
-### Fixed
-- **Stale PID across reboot** — the auto-update toggle's Disable action could fail to actually stop the background loop after a reboot, because the tracked PID from before the reboot no longer matched the resumed process. Both enable/disable now resolve live processes directly via `pgrep` instead of trusting a potentially stale PID file.
-- **Frozen toggle button** — `sleep` calls inside the CGI scripts were blocking the HTTP response itself (the busybox `httpd` server doesn't return anything until the script fully exits), which could exceed the client-side timeout under load. All blocking waits were removed from the synchronous CGI response path; PID bookkeeping now happens in a fully detached background step instead.
-- **Auto-update status not reflecting reality on page load** — the dashboard read the on/off state from `status.sh` *before* the toggle button existed in the DOM (it's created later, once dashboard data is parsed), so the update silently no-opped and the button showed the wrong state until the next 10-second refresh cycle. The status check now runs after the button is created, so it's correct from the very first load.
-- **"Latest Update" timestamp lagging by one refresh cycle** — same root cause as above, but for the Blocklist section's timestamp display, which was baked into the dashboard's HTML string before the real value had arrived. It now updates via a direct, decoupled DOM write as soon as the data is in, regardless of render timing.
-
----
-
-## v2.1.18-r4
-🔄 DNSCrypt-Proxy upstream
-
-Logger: restore original behavior
-
-Log file is now explicitly created before lumberjack opens it — errors during creation are no longer silently discarded, they're now logged (dlog.Errorf)
-Log file permissions restored to 0644 instead of lumberjack's 0600 — logs remain readable by non-root users when the server runs as root or a dedicated user
-Access control is left to the parent directory's permissions, not the log file itself
-
----
-
-## 2.1.18-r3
-
-Updated dnscrypt-proxy binary.
-
-Upstream change:
-- Removed interface enumeration to reduce idle CPU usage.
-- Client key rotation after network changes is now checked less frequently.
-
----
-## 2.1.18-r2 — 2026-08-01
-
-### Upstream (dnscrypt-proxy binary)
-- Updated binary to include upstream commit [`0de84ad`](https://github.com/DNSCrypt/dnscrypt-proxy/commit/0de84ad05b5b7bad8baa6cd682881977e207ebed) — **"Match suffix rules at label boundaries."**
-  - Fixes suffix-rule matching in `pattern_matcher.go` so the longest valid suffix is found in a single trie lookup, instead of the previous 2-lookup-max workaround.
-  - Prevents a shorter, correct blocklist/allowlist suffix rule from being hidden by a longer prefix that happened to end mid-label.
-  - No config changes required — drop-in binary replacement, `dnscrypt-proxy.toml` is fully compatible as-is.
-
-### Module cleanup
-- Removed a dead `set_perm` call in `customize.sh` targeting the old `action.sh`, which no longer ships with the module (blocklist updates are now handled entirely through the Web UI, not a SukiSU Manager Action button).
-- `customize.sh` now correctly sets executable permissions on `update-blocklist.sh` (the actual script the Web UI's `update.sh` CGI handler invokes).
-- Fixed stale `action.sh` references left over from the rename to `update-blocklist.sh`:
-  - `update.sh`: header comment and the `"action.sh not found"` JSON error message now correctly say `update-blocklist.sh`.
-  - `service.sh`: corrected an inline comment referencing `action.sh` as an example CONFIG_WAIT trigger.
-- No functional/behavioral changes from the cleanup — these were dead code and stale comments only; the boot failsafe, watchdog, and Web UI update flow are unaffected.
-
-### Fixed
-- **Custom/downloaded blocklists were being wiped on every reflash.** `customize.sh` copied the shipped `config/` templates onto the device with `cp -af`, which force-overwrites existing files — including `blocked-names.txt` (your merged OISD/hagezi list) and `gustum-blocked-names.txt` (your custom domains), despite an explicit comment claiming they were preserved. Both files are now stashed before the template copy and restored immediately after, so custom entries survive module updates as intended.
-
----
-
-## 2.1.18-r1
-
-- Improve portable network change detection
-
----
-
-## 2.1.18
-
-- Bumped upstream binary to **2.1.18** (official signed release, verified tag by jedisct1)
-- New forwarding rule prefix `$PROXY:` — routes selected plain DNS upstreams over DNS-over-TCP through the configured `proxy` setting
-- PQDNSCrypt certificate retrieval improved on paths where fragmented UDP is blocked, including when certs are fetched via Anonymized DNSCrypt relays
-- Resolver latency measurements no longer include setup/cert-transfer time — more accurate server selection and startup benchmarks
-- Personal customizations (ports, cache sizes, `server_names`, monitoring UI credentials) preserved unchanged
-
-✅ Official signed release — replaces previous dev build based on unreleased master commits.
-
----
-
-## 2.1.17-r1
-
-- Updated binary to dev build from master (commit `3c9e7bf`, 2026-07-18), building on top of 2.1.17
-- PQDNSCrypt fix: corrected certificate fallback on fragmented UDP paths (`a04d330`)
-- Updated `miekg/dns` dependency (`9601210`)
-- Personal customizations (ports, cache sizes, `server_names`, monitoring UI credentials) preserved unchanged
-
-⚠️ This is a **dev build** from master, not an official signed release (next tag after 2.1.17 hasn't been published yet) — no `.minisig` verification.
-
----
-
-## 2.1.17
-
-Upstream **dnscrypt-proxy 2.1.17** has been released, and this module has been rebuilt against the new binaries.
-
-### What's new in this release:
-
-- Added support for PQDNSCrypt (DNSCrypt 2026), using post-quantum cryptography with compatible DNSCrypt servers to protect query confidentiality against future quantum computers. It is enabled by default and can be disabled with the new `pqdnscrypt` setting.
-- Key material is now rotated when the local network changes, reducing linkability across network changes.
-- Fixed a cache issue that could corrupt cached responses or cause data races under concurrent use.
-- The `netprobe_timeout` configuration setting is now honored instead of being silently overridden by its command-line default.
-- Forwarded queries now correctly fall back to TCP after a truncated UDP response, and SOCKS-proxied anonymized DNS exchanges are sent to the relay.
-- HTTP/3 connections now retry after transient failures, and bootstrap resolution succeeds when at least one address was obtained.
-- Cloaking rules that resolve through a rule ending in an IP address are no longer incorrectly rejected as recursive. Actual loops are still rejected.
-- The monitoring dashboard now resolves API paths against the page origin, allowing it to work correctly when hosted under a path.
-
----
-
-## 2.1.16-r10
-
-Improve ODoH diagnostics
-
----
-
-## 2.1.16-r9
-
-Updated to the latest upstream (DNSCrypt/dnscrypt-proxy @ f6baedb)
-
-Includes upstream fixes for:
-- local DoH response padding
-- DNS resolver fallback when partial results are returned
-- pattern matcher nil-check bug
-- SOCKS+relay routing fix
-
----
-
-## 2.1.16-r8
-
-Updated to latest upstream dnscrypt-proxy binary.
-
-Upstream changes: DNS cache is now initialized once at plugin init
-(no more lazy init via sync.Once), simplifying cache setup and
-removing an unused sync dependency. Internal refactor only — no
-config or behavior changes for end users.
-
----
-
-## 2.1.16-r7 — 2026-07-07
-
-### Fixed
-- **Critical: DNS could be permanently black-holed if dnscrypt-proxy failed to start in time.**
-  The boot-time failsafe (`force_lift_dns_block_failsafe`, fires ~180s after boot if
-  dnscrypt-proxy isn't confirmed listening + resolving) only removed the `OUTPUT DROP`
-  rule on port 53. It never removed the `nat OUTPUT` DNAT rule redirecting all DNS
-  traffic to `127.0.0.1:5354`. If dnscrypt-proxy genuinely never came up, "lifting the
-  block" didn't restore DNS — it just changed an explicit block into a silent
-  black hole (DNS packets NATed to a dead local port, no response, no error).
-  To the user this was indistinguishable from "no internet," and it did not
-  self-heal on reboot, because whatever kept dnscrypt-proxy from starting
-  (e.g. stale/corrupted resolver cache on external storage) persisted across
-  reboots too. Only a full reflash — which resets `public-resolvers.md`,
-  `relays.md`, `allowed-*.txt`, `blocked-ips.txt` in `customize.sh` — happened
-  to clear the underlying cause and mask the real bug.
-
-### Added
-- `remove_dns_nat_redirect()` in `service.sh` — removes the port-53 DNAT
-  redirect. Called from the failsafe path so "lifting the block" actually
-  restores working (plaintext, temporarily) DNS instead of a black hole.
-- `restore_dns_nat_redirect()` in `service.sh` — re-adds the DNAT redirect if
-  dnscrypt-proxy catches up *after* the failsafe already fired, so DNS gets
-  routed back through the proxy again instead of staying in plaintext forever.
-
-### Changed
-- Watchdog catch-up check in the main loop now verifies both the DROP rule
-  *and* the NAT redirect state (not just the DROP rule), and restores
-  whichever is missing once `is_resolving()` confirms dnscrypt-proxy is
-  actually serving queries.
-
-### Binary
-- Refreshed arm64 `dnscrypt-proxy` binary to the latest upstream build
-  (pulled 2026-07-07). No functional dependency changes relevant to this
-  module — the only pending upstream change on that date
-  ([DNSCrypt/dnscrypt-proxy#3265](https://github.com/DNSCrypt/dnscrypt-proxy/pull/3265))
-  is an **unmerged** dependabot bump of `kardianos/service` (Windows/systemd
-  service-registration library), which isn't used on Android at all. Binary
-  refresh is a routine sync, not a fix carried in with this release.
-
-### Testing notes
-- Verified over 3 consecutive boots (1 reflash + 2 clean reboots) on device:
-  dnscrypt-proxy came up and confirmed resolving within 60–70s each time,
-  well under the 180s failsafe threshold. No FAILSAFE/FATAL/ERROR entries
-  logged. The actual failsafe/NAT-restore code path has not yet been
-  triggered live since the fix was applied — logs from a future occurrence
-  (if any) should be checked for the new `restoring NAT redirect` log line
-  to confirm the fix engages correctly.
-
----
-
-## v2.1.16-r6
-
-### Fixed
-- **Permanent internet loss after reboot.** Under certain boot conditions (slow network bring-up, storage mounting late), `service.sh`'s watchdog could get stuck in a restart loop for 20+ minutes — `dnscrypt-proxy` would bind port `:5354` and immediately get treated as "ready," but then stall trying to fetch its resolver/source lists over HTTPS, give up, and restart from scratch. The DNS-block-until-ready safeguard in `post-fs-data.sh` had no way to recover from this on its own, leaving the device with no DNS at all until the module was manually reflashed.
-
-### Changed
-- **Real resolution check instead of port-only check.** The watchdog no longer lifts the boot-time DNS block just because `dnscrypt-proxy` is listening on `:5354`. It now also verifies the daemon can actually answer a query (`dnscrypt-proxy -resolve example.com`, using the existing config and binary — no extra process competing for the port) before unblocking traffic. If it's listening but not yet resolving, the watchdog keeps retrying on every tick instead of forcing a full restart, so it recovers as soon as the daemon catches up.
-- **Hardened stale-watchdog cleanup.** Previously relied solely on `pgrep -f`, which isn't guaranteed on every ROM/busybox build. Now falls back to scanning `/proc/*/cmdline` directly if `pgrep` is unavailable or returns nothing, preventing a leftover watchdog from a previous boot from racing the new one for port `:5354`.
-
-### Added
-- **Boot grace-period failsafe (3 minutes).** If `dnscrypt-proxy` still isn't up and resolving after a generous boot grace period — for any reason (storage never mounted, binary won't bind, crash-looping, etc.) — the DNS block is force-lifted so the device falls back to working (unencrypted) internet instead of staying stuck offline indefinitely. This only ever triggers well outside the normal startup window and never weakens the leak-prevention behavior during a healthy boot; it's purely a last-resort recovery path. A clear `FAILSAFE` line is written to `/data/adb/dnscrypt-proxy.log` whenever this fires, so it's obvious when it happened and that something needs investigating.
-
-### Notes
-- No changes to `customize.sh`, `post-fs-data.sh`, the `.toml` config, or `webroot/index.html` — only `service.sh` was touched.
-- If you ever see `WARNING - dnscrypt-proxy listening but not resolving after 60s` once or twice right after boot on a slow network, that's expected and should self-resolve within a tick or two. Repeated `FAILSAFE` lines across multiple reboots would indicate something else is wrong and worth investigating (network readiness, bootstrap resolvers, etc).
-
----
-
-## What's New in v2.1.16-r5
-
-* Updated to latest upstream dnscrypt-proxy build
-* Added Post-Quantum DNSCrypt (PQDNSCrypt) support
-* Added CIRCL cryptography backend
-* Improved DoH3 / HTTP3 reliability
-* Automatic retry for temporary HTTP/3 failures
-* Fixed cloaking cycle detection
-* Fixed origin resolution issues
-* Upstream optimizations and bug fixes
-
-Full credit goes to the upstream dnscrypt-proxy project. This module packages the latest arm64 build for Android.
-
-
-## v2.1.16-r4 — 2026-06-20
-
-## What's New
-
-* Updated to the latest dnscrypt-proxy upstream binary.
-* Added improved support for Post-Quantum DNSCrypt (X-Wing) certificate retrieval.
-* Enhanced compatibility with anonymized DNSCrypt relays.
-* Improved handling of large DNSCrypt certificate responses over UDP.
-* Includes all upstream stability, reliability and performance improvements.
-
-## Fixed
-
-* Fixed scenarios where Post-Quantum certificates could fail to be discovered through certain relay configurations.
-* Improved certificate probing behavior for large encrypted DNS responses.
-
-## Upgrade Notes
-
-* No user action required.
-* Existing configuration files remain fully compatible.
-* Simply install the updated module version.
-
-
-## v2.1.16-r3 — 2026-06-20
-
-Dashboard (index.html)
-Blocklist Updater — button lock during update
-
-The ⬇ Update blocked-names.txt button now disables itself immediately on tap and shows ⏳ Updating… — cannot be tapped a second time while the operation is running
-The top banner switches to amber ⚙ Running command — blocklist update in progress… for the duration of the update
-All navigation buttons (DNS Test, Ads Test, My IP, Help) are locked during update — navigating away and returning no longer causes the UI to show a false "ready" state while the command is still running
-The auto-refresh cycle (every 10s) is fully paused while an update is in progress — no partial renders, no state resets
-The output log clears automatically 5 seconds after the update completes
-After completion, loadData() resumes normally and the dashboard returns to its live state
-
-Blocklist — Latest Update timestamp
-
-The Blocklist section now shows a Latest Update row with the exact date and time of the last successful blocked-names.txt update
-Timestamp is written by update-blocklist.sh at the moment of successful atomic replacement and read by status.sh on every poll — not derived from file mtime
-
-update-blocklist.sh
-gustum-blocked-names.txt support
-
-Introduced gustum-blocked-names.txt — a user-owned personal blocklist file located in /storage/emulated/0/dnscrypt-proxy/
-On every update: fresh OISD download + gustum-blocked-names.txt are concatenated and passed through a single sort | uniq — the result replaces blocked-names.txt
-The old blocked-names.txt is no longer merged — every update starts clean from the fresh download
-If gustum-blocked-names.txt is absent or empty, the updater continues normally with no changes to behavior
-Comments (#) and blank lines in gustum-blocked-names.txt are stripped automatically
-
-Wildcard prefix enforcement
-
-All domains in the downloaded list that do not already carry a *. prefix now receive one automatically via sed after the clean step
-Ensures consistent wildcard blocking across the entire list regardless of source format
-
-Timestamp on success
-
-On successful atomic replace, the exact timestamp is written to /storage/emulated/0/dnscrypt-proxy/.last_update
-Used by status.sh to expose last_update in the CGI response
-
-cgi-bin/status.sh
-
-Now returns last_update field alongside running in the JSON response
-Reads from .last_update file written by update-blocklist.sh — accurate to the second, not dependent on filesystem mtime
-
-help.html
-
-Warning section updated: replaced "Blocklist accumulates" notice with accurate description of the new replace-not-merge behavior and gustum-blocked-names.txt survivability guarantee; added "A site or app stopped working" guidance with instructions to ask Claude/GPT for domain lists and search both blocklist files
-Config Location updated: gustum-blocked-names.txt added to the directory tree with description
-Blocklist Updater section fully rewritten: documents the dashboard button workflow, the lock/pause mechanism, gustum-blocked-names.txt usage with example, step-by-step update flow reflecting the new logic, and "If a site or app stops working" troubleshooting guide
-File Structure section updated: full tree reflecting current layout including cgi-bin/ contents, update-blocklist.sh, gustum-blocked-names.txt, and META-INF/
-Blocklist Updater added to sidebar navigation (was missing)
-
----
-
-### v2.1.16-r2 Added
-- Web UI "Update Blocklist" button in `index.html` — triggers a blocklist update directly from the module's dashboard, with a live-scrolling log panel showing download/merge/dedupe progress and a final success/fail status.
-- `busybox httpd` CGI control server on `127.0.0.1:5556`, started by `service.sh`, exposing:
-  - `cgi-bin/update.sh` — starts the blocklist update (detached, survives Manager app close)
-  - `cgi-bin/log.sh` — returns the last 80 lines of the update log
-  - `cgi-bin/status.sh` — reports whether an update is currently running
-
-### Changed
-- `action.sh` renamed to `update-blocklist.sh`. It's no longer wired to a SukiSU/Magisk/KernelSU Action button — updates are now triggered exclusively from the Web UI.
-- Blocklist reload after update now uses `pkill -HUP` instead of a full process kill. dnscrypt-proxy reloads its config/blocklist in place (supported since 2.1.13) instead of restarting, so the `:5555` metrics API never goes down and the dashboard no longer shows a stats blackout after every update.
-- `uninstall.sh` now also kills the `busybox httpd` control server and any in-progress `update-blocklist.sh` run before removing files.
-
-### Fixed
-- `uninstall.sh` was deleting a log file named `dnscrypt-update.log`, which never existed — corrected to the actual filename, `dnscrypt-action.log`.
-
----
-
-## v2.1.16-r1
-
-### action.sh — Blocklist Updater
-- **Fixed:** Progress bar no longer spams hundreds of lines — now prints every 5% only
-- **Fixed:** OISD source URL updated from `domainswild` to `domainswild2` (current recommended format, ~700KB smaller, broader coverage)
-- **Fixed:** Blocklist file size now reflects real content (~13MB with domainswild2 vs ~7MB before)
-- **Fixed:** `EXPECTED` download size is now fetched dynamically via `Content-Length` header instead of hardcoded value — progress bar stays accurate regardless of list size
-- **Improved:** Merge step now lowercases all domains before sort+uniq — prevents duplicate entries caused by mixed case
-- **Improved:** `sort` fallback uses `-T /data/local/tmp` if default temp dir is not writable
-- **Improved:** Lock file guard prevents double-runs; stale locks (>10 min) are cleaned automatically
-
-### service.sh
-- **Fixed:** Stale watchdog kill now uses `pgrep -f` instead of `ps -ef | awk '{print $1}'` — avoids wrong PID column on Android busybox builds
-- **Improved:** Log rotation reduced from 500 to 300 lines
-- **Added:** `blocklist_domains` field injected into `metrics.json` on every fetch cycle (live domain count from `blocked-names.txt`)
-
-### customize.sh
-- **Fixed:** `set_perm_recursive` now uses `0644` for files instead of `0755` — only shell scripts and the binary are explicitly set executable
-
-### module.prop
-- **Fixed:** `versionCode` corrected from `1` to `21116` — auto-update detection now works properly
-
-### Dashboard (index.html)
-- **Fixed:** NXDOMAIN stat no longer shows `—` — now counted from `nxdomain_queries` field or derived from `recent_queries` as fallback
-- **Added:** NXDOMAIN percentage shown in Overview section
-- **Added:** Blocklist section showing live domain count loaded from `blocklist_domains`
-
-### uninstall.sh
-- **Added:** Cleans up `dnscrypt-update.log` on uninstall
-- **Added:** Comment clarifying that `.bak` backup files are removed intentionally on full uninstall
-
----
-
-## 2.1.16 — Initial public release
-
-### Added
-- `dnscrypt-proxy` ARM64 binary deployment via systemless mount (`/system/bin/dnscrypt-proxy`)
-- `post-fs-data.sh` — boot-time DNS leak prevention via iptables DROP on port 53
-- `post-fs-data.sh` — full IPv6 disable: sysctl + resetprop + ip6tables DROP policy
-- `post-fs-data.sh` — iptables NAT redirect: port 53 → `127.0.0.1:5354`
-- `post-fs-data.sh` — QUIC block (UDP port 443) to prevent Chrome/YouTube DoH bypass
-- `service.sh` — watchdog loop: monitors `:5354`, restarts daemon if not listening
-- `service.sh` — CONFIG_WAIT guard: prevents double-start FATAL on storage unavailability
-- `service.sh` — stale watchdog kill: terminates old instance on module update
-- `service.sh` — IPv6 re-enforcement every ~60 seconds (Android may restore IPv6 on network change)
-- `service.sh` — dynamic `Status:` update in `module.prop` (Working / Not Working)
-- `service.sh` — `fetch_metrics`: pulls `/api/metrics` from daemon, writes `webroot/metrics.json` atomically
-- `service.sh` — `ss` fallback chain: ss → netstat → `/proc/net/udp` hex check (port 0x14EA)
-- `service.sh` — daemon log rotation: keeps last 500 lines
-- `action.sh` — blocklist updater with progress bar and fallback sources (OISD Big → hagezi pro.plus → hagezi ultimate)
-- `action.sh` — merge strategy: strip comments, combine with existing list, sort + dedup
-- `action.sh` — atomic blocklist replace via `.new` temp file + flag file cleanup trap
-- `action.sh` — automatic `dnscrypt-proxy` restart with watchdog handoff after update
-- `customize.sh` — mount capability detection (capability flags → metamodule=1 → known IDs → legacy markers)
-- `customize.sh` — conflict detection: modules (AdAway, Energized, SystemlessHosts, etc.), APKs (AdGuard, NextDNS, Nebulo, InviZible), processes (dnsmasq, cloudflared, smartdns)
-- `customize.sh` — interactive conflict resolution with volume key confirmation
-- `customize.sh` — safe config update: backup existing `.toml`, preserve `blocked-names.txt` and `.bak` files
-- `customize.sh` — runtime binary verification (`-version` output check)
-- `customize.sh` — Android 9+ Private DNS disable (`settings put global private_dns_mode off`)
-- `uninstall.sh` — full cleanup: iptables, ip6tables, sysctl, resetprop, Private DNS restore, config dir removal
-- `index.html` — built-in help page / dashboard
+* `private_dns_mode` is restored to its pre-install value instead of always being set to `opportunistic`
+* Fixed the `getevent` handler leaking a process after the conflict prompt
+* New settings are appended to an existing settings file on upgrade rather than overwriting it
