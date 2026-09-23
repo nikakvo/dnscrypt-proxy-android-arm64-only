@@ -3,7 +3,7 @@
 <head>
   <title>DNSCrypt Monitor</title>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
@@ -17,26 +17,26 @@
       --muted:  #3a5a4a;
       --text:   #b0ffcc;
       --dim:    #050505;
+      --panel:  #030d06;
+      --mono:   'Share Tech Mono', ui-monospace, 'Roboto Mono', Menlo, Consolas, monospace;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
+    html, body { height: 100%; }
     body {
       background: #000;
-      font-family: 'Share Tech Mono', monospace;
+      font-family: var(--mono);
       color: var(--text);
-      min-height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
-
     body::before {
       content: '';
       position: fixed; inset: 0;
-      background: repeating-linear-gradient(
-        0deg, transparent, transparent 2px,
-        rgba(0,255,136,0.012) 2px, rgba(0,255,136,0.012) 4px
-      );
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px,
+        rgba(0,255,136,0.012) 2px, rgba(0,255,136,0.012) 4px);
       pointer-events: none;
       z-index: 9999;
     }
@@ -44,60 +44,43 @@
     /* ── HEADER ── */
     header {
       padding: 6px 8px;
+      padding-top: calc(env(safe-area-inset-top, 0px) + 6px);
       background: #060606;
       border-bottom: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
+      display: flex; flex-direction: column; gap: 5px;
       flex-shrink: 0;
     }
-
-    /* Row 1: title + clock */
-    .hdr-top {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    .hdr-top { display: flex; align-items: baseline; gap: 8px; }
     .htitle {
-      flex: 1;
       font-size: clamp(11px, 3vw, 14px);
       color: var(--green);
       letter-spacing: 1.5px;
       text-transform: uppercase;
     }
+    #hdr-ver { flex: 1; font-size: 9px; color: var(--muted); letter-spacing: 0.5px; }
     #clock { font-size: 11px; color: var(--muted); white-space: nowrap; }
 
-    /* Row 2: test buttons */
-    .btn-row {
-      display: flex;
-      gap: 5px;
-    }
+    .btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
     a.button {
-      padding: 8px 0;
-      background: transparent;
+      padding: 7px 0;
       color: var(--green);
       border: 1px solid var(--green);
       border-radius: 3px;
       text-decoration: none;
-      font-family: 'Share Tech Mono', monospace;
-      font-size: clamp(9px, 3vw, 12px);
+      font-size: clamp(9px, 2.8vw, 11px);
       letter-spacing: 0.5px;
       white-space: nowrap;
-      transition: all 0.2s;
       text-transform: uppercase;
-      flex: 1;
       text-align: center;
-      min-width: 0;
+      transition: all 0.2s;
+      overflow: hidden; text-overflow: ellipsis;
     }
-    a.help-btn {
-      flex: 0 0 30px;
-      font-weight: 700;
-      font-size: 13px;
-    }
-    a.button:hover { background: var(--green); color: #000; box-shadow: 0 0 12px rgba(0,255,136,0.4); }
-    a.button.disabled { opacity: 0.35; pointer-events: none; cursor: not-allowed; border-color: var(--muted); color: var(--muted); }
+    a.button:active { background: var(--green); color: #000; }
+    a.button.alt { border-color: var(--blue); color: var(--blue); }
+    a.button.alt:active { background: var(--blue); color: #000; }
+    a.button.disabled { opacity: 0.35; pointer-events: none; border-color: var(--muted); color: var(--muted); }
 
-    /* ── STATUS BANNER ── */
+    /* ── BANNER ── */
     #banner {
       padding: 4px 12px;
       font-size: 10px;
@@ -105,149 +88,84 @@
       text-align: center;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
+      background: #001a08; color: var(--green);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .b-live  { background: #001a08; color: var(--green); }
-    .b-error { background: #1a0005; color: var(--red); }
-    .b-running { background: #1a1000; color: var(--amber); }
-
+    #banner.b-warn  { background: #1a1000; color: var(--amber); }
+    #banner.b-error { background: #1a0005; color: var(--red); }
     .live-dot {
-      display: inline-block;
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--green);
-      margin-right: 6px;
-      vertical-align: middle;
+      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor; margin-right: 6px; vertical-align: middle;
       animation: livePulse 1.4s ease-in-out infinite;
     }
-    .b-error .live-dot { background: var(--red); animation: none; }
-    .b-running .live-dot { background: var(--amber); animation: livePulse 0.8s ease-in-out infinite; }
-    @keyframes livePulse {
-      0%,100% { opacity: 1;   box-shadow: 0 0 0   0   rgba(0,255,136,0.6); }
-      50%      { opacity: 0.4; box-shadow: 0 0 6px 3px rgba(0,255,136,0.0); }
-    }
+    #banner.b-error .live-dot { animation: none; }
+    @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 
     /* ── STATS BAR ── */
-    .stats {
-      display: flex; gap: 1px;
-      background: var(--border);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-    .sc {
-      flex: 1; padding: 6px 8px;
-      background: var(--dim);
-      display: flex; flex-direction: column; gap: 1px;
-      min-width: 0;
-    }
+    .stats { display: flex; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .sc { flex: 1; padding: 6px 8px; background: var(--dim); display: flex; flex-direction: column; gap: 1px; min-width: 0; }
     .sc .lbl { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sc .val { font-size: clamp(13px, 3.5vw, 20px); color: var(--green); }
-    .sc .val.r { color: var(--red); }
-    .sc .val.a { color: var(--amber); }
-    .sc .val.b { color: var(--blue); }
+    .sc .val.r { color: var(--red); } .sc .val.a { color: var(--amber); } .sc .val.b { color: var(--blue); }
 
-    /* ── SCROLL CONTENT ── */
-    .dash-scroll {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0 0 52px 0;
+    /* ── TABS ── */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: #030303; flex-shrink: 0; }
+    .tab {
+      flex: 1; padding: 9px 0; background: transparent; border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted); font-family: var(--mono); font-size: 10px;
+      letter-spacing: 1.2px; text-transform: uppercase; cursor: pointer;
     }
+    .tab.active { color: var(--green); border-bottom-color: var(--green); }
+    .tab .tab-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin-left: 5px; vertical-align: middle; background: transparent; }
+    .tab .tab-dot.warn { background: var(--amber); }
+    .tab .tab-dot.bad  { background: var(--red); }
+
+    /* ── PANES ── */
+    main { flex: 1; min-height: 0; position: relative; }
+    .pane { position: absolute; inset: 0; overflow-y: auto; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px); display: none; -webkit-overflow-scrolling: touch; }
+    .pane.active { display: block; }
     ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-thumb { background: var(--border); }
 
     /* ── SECTION ── */
-    .section {
-      border-bottom: 1px solid var(--border);
-      padding: 12px 14px 14px;
-    }
+    .section { border-bottom: 1px solid var(--border); padding: 12px 14px 14px; }
     .section-title {
-      font-size: 9px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 1.4px;
-      margin-bottom: 10px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 7px;
+      font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.4px;
+      margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 7px;
     }
-    .section-title .s-accent {
-      display: inline-block;
-      width: 3px; height: 10px;
-      border-radius: 1px;
-    }
+    .section-title .s-accent { display: inline-block; width: 3px; height: 10px; border-radius: 1px; }
+    .section-title .s-note { margin-left: auto; text-transform: none; letter-spacing: 0.3px; font-size: 8px; }
 
-    @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-4px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* reuse detail-title for sub-headers inside sections */
-    .detail-title {
-      font-size: 9px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 1.2px;
-      margin-bottom: 10px;
-      margin-top: 12px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    /* bar rows inside detail */
-    .d-bar-row {
-      display: flex; align-items: center;
-      gap: 8px; margin-bottom: 7px; font-size: 10px;
-    }
-    .d-bar-label { color: var(--text); min-width: 80px; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .d-bar-wrap  { flex: 1; height: 4px; background: #0d2a1a; border-radius: 2px; overflow: hidden; }
-    .d-bar-fill  { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
-    .d-bar-count { color: var(--muted); min-width: 32px; text-align: right; font-size: 9px; }
-    .fill-g { background: var(--green); }
-    .fill-r { background: var(--red); }
-    .fill-a { background: var(--amber); }
-    .fill-b { background: var(--blue); }
-    .fill-p { background: var(--purple); }
-
-    /* stat rows inside detail */
-    .d-stat {
-      display: flex; justify-content: space-between;
-      padding: 5px 0; border-bottom: 1px solid #0a1a10;
-      font-size: 10px;
-    }
+    .d-stat { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid #0a1a10; font-size: 10px; }
     .d-stat:last-child { border-bottom: none; }
-    .d-stat .k { color: var(--muted); }
-    .d-stat .v { color: var(--green); }
-    .d-stat .v.r { color: var(--red); }
-    .d-stat .v.a { color: var(--amber); }
-    .d-stat .v.b { color: var(--blue); }
+    .d-stat .k { color: var(--muted); white-space: nowrap; }
+    .d-stat .v { color: var(--green); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .v.r, .c-r { color: var(--red) !important; }
+    .v.a, .c-a { color: var(--amber) !important; }
+    .v.b, .c-b { color: var(--blue) !important; }
+    .v.m, .c-m { color: var(--muted) !important; }
+    .c-g { color: var(--green) !important; }
 
-    /* list rows inside detail (recent queries) */
-    .d-row {
-      padding: 5px 0;
-      border-bottom: 1px solid #0a1a10;
-      display: grid;
-      grid-template-columns: 1fr auto auto auto;
-      gap: 0 8px;
-      align-items: center;
-      font-size: 10px;
-    }
+    .d-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 10px; }
+    .d-bar-label { color: var(--text); min-width: 80px; max-width: 55%; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .d-bar-wrap { flex: 1; height: 4px; background: #0d2a1a; border-radius: 2px; overflow: hidden; }
+    .d-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+    .d-bar-count { color: var(--muted); min-width: 32px; text-align: right; font-size: 9px; }
+    .fill-g { background: var(--green); } .fill-r { background: var(--red); } .fill-a { background: var(--amber); }
+    .fill-b { background: var(--blue); } .fill-p { background: var(--purple); }
+
+    .d-row { padding: 5px 0; border-bottom: 1px solid #0a1a10; display: grid; grid-template-columns: 1fr auto auto auto; gap: 0 8px; align-items: center; font-size: 10px; }
     .d-row:last-child { border-bottom: none; }
     .d-domain { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .d-qtype  { color: var(--purple); font-size: 8px; text-align: center; min-width: 28px; }
     .d-status { font-size: 9px; text-align: right; min-width: 60px; }
     .d-rtt    { color: var(--blue); text-align: right; min-width: 36px; font-size: 9px; }
-    .s-pass   { color: var(--green); }
-    .s-reject { color: var(--red); }
-    .s-nx     { color: var(--amber); }
-    .s-wait   { color: var(--blue); }
-    .s-cloak  { color: var(--purple); }
+    .s-pass { color: var(--green); } .s-reject { color: var(--red); } .s-nx { color: var(--amber); }
+    .s-wait { color: var(--blue); } .s-cloak { color: var(--purple); }
 
-    /* resolver rows inside detail */
-    .d-res {
-      padding: 6px 0;
-      border-bottom: 1px solid #0a1a10;
-    }
+    .d-res { padding: 6px 0; border-bottom: 1px solid #0a1a10; }
     .d-res:last-child { border-bottom: none; }
     .d-res-name { font-size: 11px; color: var(--green); margin-bottom: 2px; }
     .d-res-sub  { font-size: 9px; color: var(--muted); }
@@ -255,47 +173,213 @@
     .d-res-bar  { height: 2px; background: #0d2a1a; margin-top: 5px; border-radius: 1px; overflow: hidden; }
     .d-res-fill { height: 100%; background: var(--green); transition: width 0.6s; }
 
-    /* ── FOOTER ── */
-    footer {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      padding: 4px 12px;
-      background: var(--dim);
-      border-top: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: space-between;
-      font-size: 9px; color: var(--muted); gap: 6px;
-      z-index: 100;
-    }
-    footer button {
-      background: transparent; border: 1px solid var(--muted);
-      color: var(--muted); font-family: 'Share Tech Mono', monospace;
-      font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
-      padding: 3px 7px; border-radius: 2px; cursor: pointer;
-      transition: all 0.2s; white-space: nowrap;
-    }
-    footer button:hover { color: var(--green); border-color: var(--green); }
+    .empty { padding: 16px 0; text-align: center; color: var(--muted); font-size: 10px; }
 
-    .empty { padding: 20px 14px; text-align: center; color: var(--muted); font-size: 10px; }
-
+    /* ── UPDATE ── */
     .upd-btn {
       display: block; width: 100%; padding: 10px;
       background: transparent; border: 1px solid var(--green);
-      color: var(--green); font-family: 'Share Tech Mono', monospace;
+      color: var(--green); font-family: var(--mono);
       font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
-      cursor: pointer; border-radius: 3px; transition: all 0.2s; margin-bottom: 10px;
+      cursor: pointer; border-radius: 3px; margin-bottom: 10px;
     }
-    .upd-btn:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--muted); color: var(--muted); }
-    .upd-btn.running { border-color: var(--amber); color: var(--amber); animation: btnPulse 1.2s ease-in-out infinite; }
-    @keyframes btnPulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
-    #upd-log {
-      background: #030d06; border: 1px solid var(--border); border-radius: 3px;
-      padding: 8px 10px; font-size: 9px; color: var(--text);
-      height: 160px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+    .upd-btn:disabled { opacity: 0.45; border-color: var(--muted); color: var(--muted); }
+    .upd-btn.running { border-color: var(--amber); color: var(--amber); opacity: 1; animation: btnPulse 1.2s ease-in-out infinite; }
+    @keyframes btnPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+    #upd-status { color: var(--muted); font-size: 9px; margin-bottom: 8px; }
+    .upd-row { display: flex; gap: 6px; margin-bottom: 10px; }
+    .upd-row .upd-btn { flex: 1; width: auto; margin-bottom: 0; }
+    .src-btn {
+      flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px;
+      padding: 8px 10px; background: transparent; border: 1px solid var(--border);
+      border-radius: 3px; color: var(--text); font-family: var(--mono); font-size: 10px; cursor: pointer; text-align: left;
     }
-    #upd-log .log-ok   { color: var(--green); }
-    #upd-log .log-err  { color: var(--red); }
-    #upd-log .log-info { color: var(--muted); }
+    .src-btn.open { border-color: rgba(0,170,255,0.45); }
+    .src-btn .sl { color: var(--muted); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0; }
+    .src-btn #src-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--blue); }
+    .src-btn .chev { color: var(--muted); transition: transform .2s; flex-shrink: 0; }
+    .src-btn.open .chev { transform: rotate(180deg); }
+    .src-btn:disabled { opacity: 0.45; }
 
+    #src-panel { border: 1px solid rgba(0,170,255,0.3); border-radius: 3px; padding: 4px 10px 10px; margin-bottom: 10px; background: #02080d; }
+    #src-panel.hidden { display: none; }
+    #src-panel.locked { opacity: 0.5; pointer-events: none; }
+    .src-group { font-size: 8px; color: var(--muted); letter-spacing: 1.2px; text-transform: uppercase; margin: 10px 0 2px; }
+    .src-row { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; border-bottom: 1px solid #0a1a10; cursor: pointer; }
+    .src-row:last-child { border-bottom: none; }
+    .src-row input { appearance: none; -webkit-appearance: none; width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px;
+      border: 1px solid var(--muted); border-radius: 2px; background: transparent; position: relative; cursor: pointer; }
+    .src-row input:checked { border-color: var(--green); background: rgba(0,255,136,0.12); }
+    .src-row input:checked::after { content: '✓'; position: absolute; inset: 0; color: var(--green); font-size: 11px; line-height: 14px; text-align: center; }
+    .src-row .si { flex: 1; min-width: 0; }
+    .src-row .si b { display: block; font-weight: normal; font-size: 11px; color: var(--text); }
+    .src-row .si span { display: block; font-size: 9px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .src-row .si span.cache { color: #2f7a55; }
+    .src-row .pill { margin-top: 1px; }
+    .src-del { background: transparent; border: 1px solid rgba(255,68,85,0.4); color: var(--red); font-family: var(--mono); font-size: 10px; border-radius: 2px; padding: 1px 7px; cursor: pointer; flex-shrink: 0; }
+    .url-add { display: flex; gap: 6px; margin-top: 8px; }
+    .url-add input { flex: 1; min-width: 0; background: #000; border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 10px; padding: 6px 8px; border-radius: 2px; }
+    .url-add button, .seg button { background: transparent; border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 10px; padding: 6px 10px; border-radius: 2px; cursor: pointer; }
+    .seg { display: flex; gap: 0; margin-top: 6px; }
+    .seg button { flex: 1; border-radius: 0; margin-left: -1px; text-transform: uppercase; letter-spacing: 0.8px; font-size: 9px; }
+    .seg button:first-child { border-radius: 2px 0 0 2px; margin-left: 0; }
+    .seg button:last-child { border-radius: 0 2px 2px 0; }
+    .seg button.on { color: var(--green); border-color: rgba(0,255,136,0.45); background: rgba(0,255,136,0.07); position: relative; z-index: 1; }
+    .src-warn { font-size: 9px; color: var(--amber); margin-top: 8px; line-height: 1.5; }
+    #ipm-seg button { padding: 9px 4px; font-size: 9px; }
+    /* tools */
+    .inrow { display: flex; gap: 6px; }
+    .inrow input { flex: 1; min-width: 0; background: #000; border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 11px; padding: 8px; border-radius: 2px; }
+    .inrow button, .btn-s { background: transparent; border: 1px solid rgba(0,255,136,0.35); color: var(--green); font-family: var(--mono); font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; padding: 7px 12px; border-radius: 2px; cursor: pointer; white-space: nowrap; }
+    .btn-s.r { border-color: rgba(255,68,85,0.45); color: var(--red); }
+    .btn-s.b { border-color: rgba(0,170,255,0.45); color: var(--blue); }
+    .btn-s.a { border-color: rgba(255,170,0,0.45); color: var(--amber); }
+    .btn-s:disabled, .inrow button:disabled { opacity: 0.4; }
+    .btn-s.busy { animation: btnPulse 1s ease-in-out infinite; }
+    .btn-row2 { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    #chk-out { margin-top: 10px; }
+    .verdict { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+    .rule-list { max-height: 220px; overflow-y: auto; }
+    .rule-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #0a1a10; font-size: 10px; }
+    .rule-row:last-child { border-bottom: none; }
+    .rule-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rule-row button { background: transparent; border: 1px solid rgba(255,68,85,0.4); color: var(--red); font-family: var(--mono); font-size: 10px; border-radius: 2px; padding: 1px 7px; cursor: pointer; }
+    .sub-h { font-size: 8px; color: var(--muted); letter-spacing: 1.2px; text-transform: uppercase; margin: 12px 0 4px; display: flex; justify-content: space-between; }
+    .badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+    .bdg { font-size: 7.5px; letter-spacing: 0.6px; padding: 0 4px; border-radius: 2px; border: 1px solid var(--border); color: var(--muted); text-transform: uppercase; }
+    .bdg.g { color: var(--green); border-color: rgba(0,255,136,0.3); }
+    .bdg.r { color: var(--red); border-color: rgba(255,68,85,0.35); }
+    .bdg.b { color: var(--blue); border-color: rgba(0,170,255,0.3); }
+    .bdg.a { color: var(--amber); border-color: rgba(255,170,0,0.35); }
+    .lat { font-size: 10px; min-width: 44px; text-align: right; color: var(--muted); }
+    .lat.g { color: var(--green); } .lat.a { color: var(--amber); } .lat.r { color: var(--red); }
+    /* pause */
+    .pause-row { display: flex; gap: 6px; }
+    .pause-row button { flex: 1; }
+    #pause-state { font-size: 10px; margin-top: 8px; color: var(--muted); }
+    /* settings switches */
+    .sw { position: relative; width: 38px; height: 20px; flex-shrink: 0; }
+    .sw input { opacity: 0; width: 0; height: 0; }
+    .sw i { position: absolute; inset: 0; border: 1px solid var(--muted); border-radius: 10px; cursor: pointer; transition: .2s; }
+    .sw i::before { content: ''; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px; border-radius: 50%; background: var(--muted); transition: .2s; }
+    .sw input:checked + i { border-color: rgba(0,255,136,0.5); background: rgba(0,255,136,0.08); }
+    .sw input:checked + i::before { transform: translateX(18px); background: var(--green); }
+    .sw.busy { opacity: .4; pointer-events: none; }
+    /* domain sheet */
+    #sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 300; display: none; }
+    #sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 301; background: #04100a; border-top: 1px solid rgba(0,255,136,0.35); padding: 14px 14px calc(env(safe-area-inset-bottom, 0px) + 16px); transform: translateY(100%); transition: transform .2s; }
+    #sheet.open { transform: translateY(0); }
+    #sheet-dom { font-size: 13px; color: var(--green); word-break: break-all; margin-bottom: 4px; }
+    #sheet-sub { font-size: 9px; color: var(--muted); margin-bottom: 12px; }
+    #sheet .btn-row2 button { flex: 1; padding: 10px; }
+    .d-row, .d-bar-row.tap { cursor: pointer; }
+    #ipm-seg.busy { opacity: 0.5; pointer-events: none; }
+    #ipm-desc { font-size: 9px; color: var(--text); line-height: 1.6; margin: 10px 0 4px; min-height: 30px; }
+    #ipm-desc b { color: var(--green); font-weight: normal; }
+    .d-stat.wrap { align-items: flex-start; }
+    .d-stat.wrap .v { white-space: normal; overflow: visible; }
+    .chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+    .chip { font-size: 9px; color: var(--blue); border: 1px solid rgba(0,170,255,0.3); border-radius: 2px; padding: 1px 6px; white-space: nowrap; }
+    .auto-sub { display: block; font-size: 9px; color: var(--muted); margin-top: 2px; }
+    .term {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 3px;
+      padding: 8px 10px; font-size: 9px; color: var(--text);
+      overflow-y: auto; white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+    }
+    #upd-log { height: 160px; }
+    .log-ok { color: var(--green); } .log-err { color: var(--red); } .log-info { color: var(--muted); }
+
+    /* ── SYSTEM ── */
+    .row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #0a1a10; font-size: 10px; }
+    .row:last-child { border-bottom: none; }
+    .row .rn { flex: 1; min-width: 0; }
+    .row .rn b { display: block; color: var(--text); font-weight: normal; font-size: 11px; }
+    .row .rn span { display: block; color: var(--muted); font-size: 9px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row.ctl .rn span { white-space: normal; line-height: 1.45; }
+    .rule-row .pat { flex: none; color: var(--muted); font-size: 8px; letter-spacing: .6px; text-transform: uppercase; }
+    .pill { flex-shrink: 0; font-size: 8px; letter-spacing: 0.8px; padding: 2px 7px; border-radius: 2px; border: 1px solid; text-transform: uppercase; }
+    .pill.ok   { color: var(--green);  border-color: rgba(0,255,136,0.35); background: rgba(0,255,136,0.07); }
+    .pill.warn { color: var(--amber);  border-color: rgba(255,170,0,0.4);  background: rgba(255,170,0,0.07); }
+    .pill.bad  { color: var(--red);    border-color: rgba(255,68,85,0.45); background: rgba(255,68,85,0.08); }
+    .pill.skip { color: var(--muted);  border-color: var(--border);        background: transparent; }
+
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .act {
+      padding: 10px 4px; background: transparent; border: 1px solid var(--border);
+      border-radius: 3px; color: var(--text); font-family: var(--mono); font-size: 10px;
+      letter-spacing: 0.8px; text-transform: uppercase; cursor: pointer;
+    }
+    .act.g { border-color: rgba(0,255,136,0.35); color: var(--green); }
+    .act.a { border-color: rgba(255,170,0,0.4); color: var(--amber); }
+    .act.b { border-color: rgba(0,170,255,0.4); color: var(--blue); }
+    .act.p { border-color: rgba(204,136,255,0.4); color: var(--purple); }
+    .act:disabled { opacity: 0.35; }
+    .act.busy { animation: btnPulse 1s ease-in-out infinite; }
+    #act-result { margin-top: 8px; font-size: 9px; color: var(--muted); min-height: 12px; }
+    .note { font-size: 9px; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+    .note b { color: var(--text); font-weight: normal; }
+
+    /* ── LOG ── */
+    #tab-log { display: none; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+    #tab-log.active { display: flex; }
+    .log-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 8px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .fbtn {
+      padding: 3px 7px; background: transparent; border: 1px solid var(--border); border-radius: 2px;
+      font-family: var(--mono); font-size: 9px; color: var(--muted); cursor: pointer; letter-spacing: 0.5px;
+    }
+    .fbtn.on.info  { color: var(--green);  border-color: rgba(0,255,136,0.35); }
+    .fbtn.on.warn  { color: var(--amber);  border-color: rgba(255,170,0,0.4); }
+    .fbtn.on.err   { color: var(--red);    border-color: rgba(255,68,85,0.45); }
+    .fbtn.on.src   { color: var(--blue);   border-color: rgba(0,170,255,0.4); }
+    .fbtn.danger   { color: var(--red); }
+    .log-sel { background: #000; border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 9px; padding: 2px 4px; border-radius: 2px; }
+    #log-count { margin-left: auto; font-size: 9px; color: var(--muted); }
+    #log-body { flex: 1; min-height: 0; border: none; border-radius: 0; padding: 8px 10px calc(env(safe-area-inset-bottom, 0px) + 36px); font-size: 9.5px; }
+    .ll { display: block; }
+    .ll .t { color: var(--muted); }
+    .ll .s { color: var(--blue); }
+    .ll.INFO  .m { color: var(--text); }
+    .ll.WARN  .m { color: var(--amber); }
+    .ll.ERROR .m { color: var(--red); }
+    .ll.DEBUG .m { color: var(--muted); }
+
+    /* ── FOOTER ── */
+    footer {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 4px 12px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
+      background: var(--dim); border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 9px; color: var(--muted); gap: 6px; z-index: 100;
+    }
+    #src-info { flex: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    footer button {
+      background: transparent; border: 1px solid var(--muted); color: var(--muted);
+      font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 3px 7px; border-radius: 2px; cursor: pointer; white-space: nowrap;
+    }
+
+    .toast {
+      position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 36px);
+      transform: translateX(-50%) translateY(10px); opacity: 0; transition: all .25s;
+      background: #061209; border: 1px solid var(--border); color: var(--text);
+      font-size: 10px; padding: 8px 14px; border-radius: 3px; pointer-events: none; z-index: 200;
+      max-width: 90vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.ok  { border-color: rgba(0,255,136,0.4); color: var(--green); }
+    .toast.err { border-color: rgba(255,68,85,0.5); color: var(--red); }
+
+    /* press feedback: every button, every tappable row */
+    button { transition: transform .08s, filter .08s, background-color .15s; }
+    button:active:not(:disabled) { transform: scale(0.95); filter: brightness(1.6); }
+    button.working { animation: btnPulse .9s ease-in-out infinite; pointer-events: none; }
+    .src-row:active, .d-row:active, .d-bar-row.tap:active, .rule-row:active { background: rgba(0,255,136,0.07); }
+    #busy-bar { position: relative; height: 2px; background: transparent; overflow: hidden; flex-shrink: 0; }
+    #busy-bar::after { content: ''; position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; background: var(--green); opacity: 0; }
+    #busy-bar.on::after { opacity: .9; animation: busySlide 1s linear infinite; }
+    @keyframes busySlide { from { left: -40%; } to { left: 100%; } }
+
+    .fatal { margin: 30px 14px; padding: 16px; border: 1px solid rgba(255,68,85,0.5); background: #1a0005; color: var(--red); font-size: 10px; line-height: 1.7; border-radius: 3px; }
   </style>
 </head>
 <body>
@@ -303,21 +387,22 @@
 <header>
   <div class="hdr-top">
     <div class="htitle">⬡ DNSCrypt Monitor</div>
+    <div id="hdr-ver"></div>
     <div id="clock">--:--:--</div>
   </div>
-  <div class="btn-row">
+  <div class="btn-grid">
     <a class="button" href="https://www.dnsleaktest.com/" target="_blank">DNS Test</a>
     <a class="button" href="https://superadblocktest.com/" target="_blank">Ads Test</a>
     <a class="button" href="https://obfusgated.com/tools/ad-block-test" target="_blank">Ads Test 2</a>
     <a class="button" href="https://whatismyipaddress.com/" target="_blank">My IP</a>
-    <a class="button help-btn" href="help.html" title="Help">?</a>
+    <a class="button alt" href="http://127.0.0.1:5555/" target="_blank">Monitor ↗</a>
+    <a class="button alt" href="help.html">Help</a>
   </div>
 </header>
 
+<div id="busy-bar"></div>
+<div id="banner"><span class="live-dot"></span>Connecting…</div>
 
-<div id="banner" class="b-live"><span class="live-dot"></span>Connecting…</div>
-
-<!-- Quick stats bar -->
 <div class="stats">
   <div class="sc"><div class="lbl">Total</div><div class="val" id="s-total">—</div></div>
   <div class="sc"><div class="lbl">Passed</div><div class="val" id="s-pass">—</div></div>
@@ -326,460 +411,1425 @@
   <div class="sc"><div class="lbl">Resolvers</div><div class="val b" id="s-resolvers">—</div></div>
 </div>
 
-<!-- Dashboard scroll — JS renders sections -->
-<div class="dash-scroll" id="dash-scroll"></div>
+<nav class="tabs">
+  <button class="tab active" data-tab="dash" onclick="showTab('dash')">Dashboard</button>
+  <button class="tab" data-tab="tools" onclick="showTab('tools')">Tools</button>
+  <button class="tab" data-tab="sys" onclick="showTab('sys')">System<span class="tab-dot" id="sys-dot"></span></button>
+  <button class="tab" data-tab="log" onclick="showTab('log')">Log</button>
+</nav>
+
+<main>
+  <!-- ═════════════ DASHBOARD ═════════════ -->
+  <div class="pane active" id="tab-dash">
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--green)"></span>Overview</div>
+      <div id="ov-body"><div class="empty">Waiting for data…</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--red)"></span>Blocklist</div>
+      <div class="d-stat"><span class="k">Rules Loaded</span><span class="v r" id="bl-count">—</span></div>
+      <div class="d-stat wrap"><span class="k">Sources</span><span class="v" id="bl-sources">—</span></div>
+      <div class="d-stat wrap"><span class="k">Automatic Update</span><span class="v" id="bl-auto">—</span></div>
+      <div class="d-stat"><span class="k">Latest Update</span><span class="v m" id="bl-updated">—</span></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--amber)"></span>Update Blocklist</div>
+      <div id="upd-status">Ready — tap Update to fetch the selected lists</div>
+      <div class="upd-row">
+        <button class="src-btn" id="src-btn" onclick="toggleSources()">
+          <span class="sl">Sources</span><span id="src-summary">…</span><span class="chev">▾</span>
+        </button>
+        <button class="upd-btn" id="upd-btn" onclick="startUpdate()">⬇ Update</button>
+      </div>
+      <div id="src-panel" class="hidden">
+        <div id="src-list"><div class="empty">Loading…</div></div>
+        <div class="src-group">Your own lists</div>
+        <div id="src-custom"></div>
+        <div class="url-add">
+          <input id="url-in" type="url" placeholder="https://… plain, hosts or AdBlock list" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button onclick="addUrl()">+ Add</button>
+        </div>
+        <div class="src-group">Automatic update</div>
+        <div class="seg" id="auto-seg">
+          <button data-v="off" onclick="setAuto('off')">Off</button>
+          <button data-v="daily" onclick="setAuto('daily')">Daily</button>
+          <button data-v="weekly" onclick="setAuto('weekly')">Weekly</button>
+        </div>
+        <div id="src-warn"></div>
+        <div class="note">Changes are saved right away and take effect with the next update. <b>custom-blocked-names.txt</b> is always added on top of whatever is selected. Duplicates, and subdomains already covered by a blocked parent, are removed.</div>
+      </div>
+      <div class="term" id="upd-log"><span class="log-info">// Output will appear here...</span></div>
+    </div>
+
+    <div class="section" id="sec-cache" style="display:none">
+      <div class="section-title"><span class="s-accent" style="background:var(--blue)"></span>Cache</div>
+      <div id="cache-body"></div>
+    </div>
+
+    <div class="section" id="sec-qtypes" style="display:none">
+      <div class="section-title"><span class="s-accent" style="background:var(--purple)"></span>Query Types</div>
+      <div id="qtypes-body"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--blue)"></span>Resolvers</div>
+      <div id="res-body"><div class="empty">No resolver data.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--amber)"></span>Top Domains<span class="s-note c-m">health checks hidden</span></div>
+      <div id="top-body"><div class="empty">No domain data.</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--muted)"></span>Recent Queries<span class="s-note c-m">health checks hidden</span></div>
+      <div id="recent-body"><div class="empty">No entries.</div></div>
+    </div>
+  </div>
+
+  <!-- ═════════════ TOOLS ═════════════ -->
+  <div class="pane" id="tab-tools">
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--green)"></span>Check a Domain</div>
+      <div class="inrow">
+        <input id="chk-in" type="text" placeholder="example.com" autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter')checkDomain()">
+        <button id="chk-btn" onclick="checkDomain()">Check</button>
+      </div>
+      <div id="chk-out"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--amber)"></span>My Rules</div>
+      <div class="note" style="margin-top:0">Allow wins over every blocklist. Block adds to <b>custom-blocked-names.txt</b>, which is kept through every update. Both take effect immediately.</div>
+      <div class="sub-h"><span>Allowed</span><span id="n-allow"></span></div>
+      <div class="rule-list" id="rl-allow"><div class="empty">Loading…</div></div>
+      <div class="sub-h"><span>Blocked by you</span><span id="n-block"></span></div>
+      <div class="rule-list" id="rl-block"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--blue)"></span>Resolvers<span class="s-note c-m" id="res-note"></span></div>
+      <div id="res-list"><div class="empty">Loading…</div></div>
+      <div class="btn-row2">
+        <button class="btn-s b" id="res-test" onclick="testResolvers()">⏱ Test latency</button>
+        <button class="btn-s" id="res-apply" onclick="applyResolvers()" disabled>✓ Apply</button>
+      </div>
+      <div class="sub-h"><span>Add from the full list</span></div>
+      <div class="inrow">
+        <input id="res-q" type="text" placeholder="name or provider, e.g. adguard" autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter')searchResolvers()">
+        <button onclick="searchResolvers()">Search</button>
+      </div>
+      <div id="res-found"></div>
+      <div class="note">Latency is one TCP handshake to the resolver's address — a rough measure of distance. Protocol, DNSSEC, logging and filtering are what each operator declares in its signed stamp. dnscrypt-proxy spreads queries over the selected resolvers and prefers the fastest.</div>
+    </div>
+  </div>
+
+  <!-- ═════════════ SYSTEM ═════════════ -->
+  <div class="pane" id="tab-sys">
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--amber)"></span>Pause Protection</div>
+      <div class="pause-row" id="pause-btns">
+        <button class="btn-s a" onclick="pauseFor(5)">5 min</button>
+        <button class="btn-s a" onclick="pauseFor(15)">15 min</button>
+        <button class="btn-s a" onclick="pauseFor(60)">60 min</button>
+        <button class="btn-s" id="resume-btn" onclick="resumeNow()" disabled>▶ Resume</button>
+      </div>
+      <div id="pause-state">For Wi-Fi login pages (hotel, airport, train) that need the network's own DNS. Encrypted DNS comes back on its own when the time is up, and after any reboot.</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--green)"></span>Protection</div>
+      <div id="sys-proc"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--blue)"></span>IP Mode</div>
+      <div class="seg" id="ipm-seg">
+        <button data-v="ipv4" onclick="setIpMode('ipv4')">IPv4 only</button>
+        <button data-v="compat" onclick="setIpMode('compat')">IPv6 compatible</button>
+        <button data-v="dual" onclick="setIpMode('dual')">Dual stack</button>
+      </div>
+      <div id="ipm-desc"></div>
+      <div id="ipm-rows"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--amber)"></span>Actions</div>
+      <div class="actions">
+        <button class="act a" id="act-restart" onclick="doAction('restart')">↻ Restart daemon</button>
+        <button class="act g" id="act-reload"  onclick="doAction('reload')">⟳ Reload lists</button>
+        <button class="act b" id="act-rules"   onclick="doAction('reapply-rules')">⛨ Reapply rules</button>
+        <button class="act p" id="act-probe"   onclick="doAction('probe')">✓ Run checks</button>
+      </div>
+      <div id="act-result"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--blue)"></span>Firewall</div>
+      <div id="sys-fw"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--purple)"></span>System</div>
+      <div id="sys-sys"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--muted)"></span>Settings</div>
+      <div id="sys-set"><div class="empty">Loading…</div></div>
+      <div class="note">Applied immediately and kept in <b>/data/adb/dnscrypt-proxy-android.conf</b>, which survives updates.</div>
+    </div>
+  </div>
+
+  <!-- ═════════════ LOG ═════════════ -->
+  <div class="pane" id="tab-log">
+    <div class="log-bar">
+      <button class="fbtn info on" data-f="INFO"  onclick="toggleFilter(this)">INFO</button>
+      <button class="fbtn warn on" data-f="WARN"  onclick="toggleFilter(this)">WARN</button>
+      <button class="fbtn err on"  data-f="ERROR" onclick="toggleFilter(this)">ERR</button>
+      <button class="fbtn src on"  data-f="M"     onclick="toggleFilter(this)">MODULE</button>
+      <button class="fbtn src on"  data-f="D"     onclick="toggleFilter(this)">DAEMON</button>
+      <select class="log-sel" id="log-lines" onchange="loadLog(true)">
+        <option value="200">200</option>
+        <option value="500" selected>500</option>
+        <option value="1500">1500</option>
+      </select>
+      <button class="fbtn" onclick="loadLog(true)">↻</button>
+      <button class="fbtn danger" onclick="clearLog()">clear</button>
+      <span id="log-count"></span>
+    </div>
+    <div class="term" id="log-body"><span class="log-info">Loading…</span></div>
+  </div>
+</main>
 
 <footer>
   <span id="last-refresh">—</span>
-  <span id="src-info" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-  <button onclick="loadData()">↺ Refresh</button>
+  <span id="src-info"></span>
+  <button onclick="refreshNow()">↺ Refresh</button>
 </footer>
 
+<div id="sheet-bg" onclick="closeSheet()"></div>
+<div id="sheet">
+  <div id="sheet-dom"></div>
+  <div id="sheet-sub"></div>
+  <div class="btn-row2">
+    <button class="btn-s" onclick="sheetAct('allow')">✓ Allow</button>
+    <button class="btn-s r" onclick="sheetAct('block')">✕ Block</button>
+    <button class="btn-s b" onclick="sheetAct('check')">? Check</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
 <script>
-// ── Clock ──────────────────────────────────────────────
-setInterval(() => {
-  document.getElementById('clock').textContent = new Date().toTimeString().slice(0,8);
-}, 1000);
+'use strict';
 
-// ── XSS escape ─────────────────────────────────────────
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+const MODDIR = '/data/adb/modules/dnscrypt-proxy-android';
+const CTL = 'sh ' + MODDIR + '/ctl.sh';
+
+// Hidden from the query lists: the watchdog's own health checks. They are
+// real DNS queries, so dnscrypt-proxy's totals still include them.
+const PROBE_NAMES = new Set(['dnscrypt-probe.invalid', 'example.com']);
+
+// ═════════════════════════════════════════════════════════════════════════
+// Root bridge. Managers expose ksu.exec in two shapes: the callback form
+// ksu.exec(cmd, options, cbName) and a legacy one-argument form that returns
+// a string. Output is base64-wrapped so multi-line text survives both.
+// ═════════════════════════════════════════════════════════════════════════
+let EXEC_MODE = null;
+let _cbSeq = 0;
+
+function hasBridge() {
+  return typeof ksu !== 'undefined' && ksu && typeof ksu.exec === 'function';
 }
 
-function resultLabel(r) {
-  switch(r) {
-    case 'PASS':      return { text: '✓ pass',      cls: 's-pass' };
-    case 'REJECT':
-    case 'BLOCKED':   return { text: '✗ rejected',  cls: 's-reject' };
-    case 'NXDOMAIN':  return { text: '? nxdomain',  cls: 's-nx' };
-    case 'NOT_READY': return { text: '⏳ wait',      cls: 's-wait' };
-    case 'CLOAK':     return { text: '◈ cloaked',   cls: 's-cloak' };
-    case 'SYNTH':     return { text: '◈ synth',     cls: 's-cloak' };
-    case 'FORWARD':   return { text: '→ forward',   cls: 's-pass' };
-    default:          return { text: r,              cls: 's-pass' };
-  }
-}
-
-// ── Stats bar (from metrics) ───────────────────────────
-function renderStats(m) {
-  const total   = m.total_queries || 0;
-  const blocked = m.blocked_queries || 0;
-  const pass    = total - blocked;
-  const srvs    = (m.resolver_health || []).filter(r => r.status === 'healthy').length;
-
-  // NXDOMAIN: use dedicated field if present, otherwise count from recent_queries
-  let nx = 0;
-  if (m.nxdomain_queries != null) {
-    nx = m.nxdomain_queries;
-  } else if (Array.isArray(m.recent_queries) && m.recent_queries.length) {
-    nx = m.recent_queries.filter(q =>
-      (q.response_code || '').toUpperCase() === 'NXDOMAIN'
-    ).length;
-  }
-
-  document.getElementById('s-total').textContent     = total.toLocaleString();
-  document.getElementById('s-pass').textContent      = pass.toLocaleString();
-  document.getElementById('s-reject').textContent    = blocked.toLocaleString();
-  document.getElementById('s-nx').textContent        = nx > 0 ? nx.toLocaleString() : '0';
-  document.getElementById('s-resolvers').textContent = srvs;
-}
-
-// ── Helpers ────────────────────────────────────────────
-function barHTML(label, count, total, colorClass) {
-  const pct = total ? Math.round(count / total * 100) : 0;
-  return `<div class="d-bar-row">
-    <span class="d-bar-label">${escapeHtml(label)}</span>
-    <div class="d-bar-wrap"><div class="d-bar-fill ${colorClass}" style="width:${pct}%"></div></div>
-    <span class="d-bar-count">${count}</span>
-  </div>`;
-}
-
-function sectionTitle(label, accentColor) {
-  return `<div class="section-title">
-    <span class="s-accent" style="background:${accentColor}"></span>${label}
-  </div>`;
-}
-
-function fmtUptime(sec) {
-  if (!sec || sec < 1) return '—';
-  const d = Math.floor(sec / 86400);
-  const h = Math.floor((sec % 86400) / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = Math.floor(sec % 60);
-  if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
-
-// ── Build scroll sections from metrics JSON ────────────
-function buildCards(m) {
-  const wrap    = document.getElementById('dash-scroll');
-  const total   = m.total_queries || 1;
-  const blocked = m.blocked_queries || 0;
-  const passed  = total - blocked;
-  const blockPct = Math.round(blocked / total * 100);
-  const avgRtt  = Math.round(m.avg_response_time || 0);
-  const uptime  = fmtUptime(m.uptime_seconds);
-  const cs      = m.cache_stats || {};
-  // NXDOMAIN count: dedicated field or counted from recent_queries
-  const nx = m.nxdomain_queries != null
-    ? m.nxdomain_queries
-    : (m.recent_queries || []).filter(q => (q.response_code||'').toUpperCase() === 'NXDOMAIN').length;
-  const nxPct = total ? (nx / total * 100).toFixed(1) : '0.0';
-  const cacheHitRatio = cs.cache_hit_ratio != null
-    ? (cs.cache_hit_ratio * 100).toFixed(1) + '%'
-    : (m.cache_hit_ratio != null ? (m.cache_hit_ratio * 100).toFixed(1) + '%' : '—');
-  const genAt = m.generated_at
-    ? m.generated_at.replace('T', ' ').slice(0, 19) + ' UTC'
-    : '—';
-  const qps = m.queries_per_second != null
-    ? m.queries_per_second.toFixed(2)
-    : '—';
-
-  // ── Section: Overview ──
-  let html = `<div class="section">
-    ${sectionTitle('Overview', 'var(--green)')}
-    <div class="d-stat"><span class="k">Total Queries</span><span class="v">${total.toLocaleString()}</span></div>
-    <div class="d-stat"><span class="k">Passed</span><span class="v">${passed.toLocaleString()}</span></div>
-    <div class="d-stat"><span class="k">Blocked</span><span class="v r">${blocked.toLocaleString()}</span></div>
-    <div class="d-stat"><span class="k">NXDOMAIN</span><span class="v a">${nx.toLocaleString()} (${nxPct}%)</span></div>
-    <div class="d-stat"><span class="k">Block Rate</span><span class="v ${blockPct>30?'r':blockPct>10?'a':''}">${blockPct}%</span></div>
-    <div class="d-stat"><span class="k">Avg RTT</span><span class="v">${avgRtt}ms</span></div>
-    <div class="d-stat"><span class="k">Queries/sec</span><span class="v">${qps}</span></div>
-    <div class="d-stat"><span class="k">Cache Hit Ratio</span><span class="v">${cacheHitRatio}</span></div>
-    <div class="d-stat"><span class="k">Uptime</span><span class="v">${uptime}</span></div>
-    <div class="d-stat"><span class="k">Last Snapshot</span><span class="v" style="color:var(--muted)">${genAt}</span></div>
-  </div>`;
-
-  // ── Section: Blocklist ──
-  // blocklist_domains is injected by service.sh (blocked-names.txt,
-  // excluding comments and blank lines)
-  const blDomains = m.blocklist_domains != null
-    ? m.blocklist_domains.toLocaleString()
-    : '—';
-  html += `<div class="section">
-    ${sectionTitle('Blocklist', 'var(--red)')}
-    <div class="d-stat"><span class="k">Domains Loaded</span><span class="v r">${blDomains}</span></div>
-    <div class="d-stat"><span class="k">Latest Update</span><span class="v" id="latest-update-val" style="color:var(--muted)">${_lastUpdate}</span></div>
-  </div>`;
-
-  // ── Section: Update Blocklist ──
-  // If an update is already running, skip re-rendering this section
-  // so the button state, log output and status text are preserved.
-  if (!document.getElementById('section-update')) {
-    html += `<div class="section" id="section-update">
-      ${sectionTitle('Update Blocklist', 'var(--amber)')}
-      <div id="upd-status" style="color:var(--muted);font-size:9px;margin-bottom:8px">Ready — tap to fetch latest list</div>
-      <button class="upd-btn" id="upd-btn" onclick="startUpdate()">⬇ Update blocked-names.txt</button>
-      <div id="upd-log"><span class="log-info">// Output will appear here...</span></div>
-    </div>`;
-  }
-
-  // ── Section: Cache Stats ──
-  if (cs.capacity) {
-    const entries = cs.entries || 0;
-    const cap = cs.capacity || 1;
-    const fillPct = Math.round(entries / cap * 100);
-    html += `<div class="section">
-      ${sectionTitle('Cache', 'var(--blue)')}
-      <div class="d-stat"><span class="k">Entries / Capacity</span><span class="v">${entries.toLocaleString()} / ${cap.toLocaleString()}</span></div>
-      <div class="d-stat"><span class="k">Fill</span><span class="v">${fillPct}%</span></div>
-      <div class="d-stat"><span class="k">Hits</span><span class="v">${(cs.cache_hits||0).toLocaleString()}</span></div>
-      <div class="d-stat"><span class="k">Misses</span><span class="v">${(cs.cache_misses||0).toLocaleString()}</span></div>
-      <div class="d-stat"><span class="k">Min TTL</span><span class="v">${cs.min_ttl||'—'}s</span></div>
-      <div class="d-stat"><span class="k">Max TTL</span><span class="v">${cs.max_ttl||'—'}s</span></div>
-    </div>`;
-  }
-
-  // ── Section: Query Types ──
-  const qtypes = m.query_types || [];
-  if (qtypes.length) {
-    const colorMap = { A:'fill-g', AAAA:'fill-b', HTTPS:'fill-p', MX:'fill-a', TXT:'fill-a' };
-    html += `<div class="section">
-      ${sectionTitle('Query Types', 'var(--purple)')}
-      ${qtypes.sort((a,b)=>b.count-a.count).map(q =>
-        barHTML(q.type, q.count, total, colorMap[q.type]||'fill-p')
-      ).join('')}
-      <div style="margin-top:10px">
-      ${qtypes.map(q => {
-        const pct = (q.count/total*100).toFixed(1);
-        return `<div class="d-stat"><span class="k">${escapeHtml(q.type)}</span><span class="v" style="color:var(--purple)">${q.count.toLocaleString()} (${pct}%)</span></div>`;
-      }).join('')}
-      </div>
-    </div>`;
-  }
-
-  // ── Section: Resolvers ──
-  const resolvers = m.resolver_health || [];
-  html += `<div class="section">
-    ${sectionTitle('Resolvers', 'var(--blue)')}`;
-  if (!resolvers.length) {
-    html += `<div class="empty">No resolver data.</div>`;
-  } else {
-    const maxQ = Math.max(...resolvers.map(r => r.total_queries || 0)) || 1;
-    resolvers.sort((a,b) => (b.score||0)-(a.score||0)).forEach(r => {
-      const pct  = Math.round((r.total_queries||0) / maxQ * 100);
-      const score = r.score != null ? (r.score * 100).toFixed(1) : '—';
-      const avgR  = r.avg_response_ms != null ? Math.round(r.avg_response_ms) : '—';
-      const ok    = r.status === 'healthy';
-      html += `<div class="d-res">
-        <div class="d-res-name">${escapeHtml(r.name)} <span style="font-size:10px;color:var(--muted)">${escapeHtml(r.proto||'')}</span></div>
-        <div class="d-res-sub">${(r.total_queries||0).toLocaleString()} queries · avg <span>${avgR}ms</span> · score <span>${score}%</span> · <span class="${ok?'':'r'}">${r.status||'—'}</span></div>
-        <div class="d-res-bar"><div class="d-res-fill" style="width:${pct}%"></div></div>
-      </div>`;
-    });
-  }
-  html += `</div>`;
-
-  // ── Section: Top Domains ──
-  const topDoms = m.top_domains || [];
-  html += `<div class="section">
-    ${sectionTitle('Top Domains', 'var(--amber)')}`;
-  if (!topDoms.length) {
-    html += `<div class="empty">No domain data.</div>`;
-  } else {
-    const maxC = topDoms[0].count || 1;
-    topDoms.forEach(d => {
-      const pct = Math.round(d.count / maxC * 100);
-      html += `<div class="d-bar-row">
-        <span class="d-bar-label" title="${escapeHtml(d.domain)}">${escapeHtml(d.domain)}</span>
-        <div class="d-bar-wrap"><div class="d-bar-fill fill-a" style="width:${pct}%"></div></div>
-        <span class="d-bar-count">${d.count}×</span>
-      </div>`;
-    });
-  }
-  html += `</div>`;
-
-  // ── Section: Recent Queries ──
-  const recent = (m.recent_queries || []).slice().reverse();
-  html += `<div class="section">
-    ${sectionTitle('Recent Queries', 'var(--muted)')}`;
-  if (!recent.length) {
-    html += `<div class="empty">No entries.</div>`;
-  } else {
-    recent.forEach(e => {
-      const rc = (e.response_code || 'PASS').toUpperCase();
-      const {text,cls} = resultLabel(rc);
-      const rttStr = rc === 'PASS' ? (e.response_time||0)+'ms' : '—';
-      const ts = (e.timestamp || '').slice(11, 19);
-      html += `<div class="d-row">
-        <div class="d-domain" title="${escapeHtml(e.domain)}">${escapeHtml(e.domain)}</div>
-        <div class="d-qtype">${escapeHtml(e.type||'A')}</div>
-        <div class="d-status ${cls}">${text}</div>
-        <div class="d-rtt">${rttStr}</div>
-      </div>`;
-    });
-  }
-  html += `</div>`;
-
-  // If an update section already exists (update in progress), save it before
-  // overwriting innerHTML, then re-insert it at the correct position so the
-  // button lock, log output and status text are never wiped by auto-refresh.
-  const liveUpdSection = document.getElementById('section-update');
-  const savedUpdSection = liveUpdSection ? liveUpdSection.cloneNode(true) : null;
-
-  wrap.innerHTML = html;
-
-  if (savedUpdSection) {
-    const placeholder = wrap.querySelector('#section-update');
-    if (placeholder) {
-      wrap.replaceChild(savedUpdSection, placeholder);
-    } else {
-      const sections = wrap.querySelectorAll('.section');
-      if (sections.length >= 2) {
-        sections[1].insertAdjacentElement('afterend', savedUpdSection);
-      } else {
-        wrap.appendChild(savedUpdSection);
-      }
-    }
-  }
-
-  requestAnimationFrame(() => {
-    wrap.querySelectorAll('.d-bar-fill, .d-res-fill').forEach(el => {
-      const w = el.style.width;
-      el.style.width = '0%';
-      requestAnimationFrame(() => { el.style.width = w; });
-    });
+function callbackExec(cmd, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const name = '__dnsc_cb_' + (++_cbSeq) + '_' + Date.now();
+    let settled = false;
+    window[name] = (errno, stdout, stderr) => {
+      if (settled) return;
+      settled = true;
+      try { delete window[name]; } catch (e) { window[name] = undefined; }
+      resolve({ errno: typeof errno === 'number' ? errno : 0, stdout: stdout == null ? '' : String(stdout), stderr: stderr == null ? '' : String(stderr) });
+    };
+    try { ksu.exec(cmd, '{}', name); }
+    catch (e) { settled = true; try { delete window[name]; } catch (_) {} reject(e); return; }
+    setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { delete window[name]; } catch (_) {}
+      reject(new Error('exec timeout'));
+    }, timeoutMs || 30000);
   });
 }
 
-// ── Banner helper ──────────────────────────────────────
-function setBanner(cls, msg) {
-  // Don't overwrite the "running" banner while an update is in progress
-  if (_updPolling && cls !== 'b-running') return;
-  const banner = document.getElementById('banner');
-  banner.className = cls;
-  banner.innerHTML = '<span class="live-dot"></span>' + msg;
+function legacyExec(cmd) {
+  const r = ksu.exec(cmd);
+  return { errno: 0, stdout: typeof r === 'string' ? r : (r && r.stdout) || '', stderr: '' };
 }
 
-let _lastUpdate = '—';
-
-// ── Data loader ────────────────────────────────────────
-let _loading = false;
-async function loadData() {
-  if (_loading) return;
-  if (_updPolling) return;   // pause auto-refresh while update is running
-  _loading = true;
-  const srcInfo = document.getElementById('src-info');
-
+async function detectExecMode() {
+  if (!hasBridge()) throw new Error('no root bridge');
   try {
-    const resp = await fetch('metrics.json?_=' + Date.now(), { signal: AbortSignal.timeout(4000) });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const m = await resp.json();
-    if (!m || typeof m.total_queries === 'undefined') throw new Error('invalid metrics JSON');
+    const r = await callbackExec('echo dnsc_ok', 3000);
+    if ((r.stdout || '').indexOf('dnsc_ok') >= 0) return 'callback';
+  } catch (e) {}
+  try {
+    const l = legacyExec('echo dnsc_ok');
+    if ((l.stdout || '').indexOf('dnsc_ok') >= 0) return 'legacy';
+  } catch (e) {}
+  throw new Error('root shell unavailable');
+}
 
-    setBanner('b-live', `Live — ${(m.total_queries||0).toLocaleString()} total · ${(m.blocked_queries||0).toLocaleString()} blocked · uptime ${fmtUptime(m.uptime_seconds)}`);
-    srcInfo.textContent = 'source: /api/metrics → metrics.json · auto-refresh 10s';
-    renderStats(m);
-    buildCards(m);
+function b64ToText(b64) {
+  if (!b64) return '';
+  try {
+    const bin = atob(b64);
+    return new TextDecoder('utf-8').decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+  } catch (e) { return ''; }
+}
 
-    // Fetch last_update from status.sh - done AFTER buildCards() so the
-    // update section already exists in the DOM on the very first load,
-    // instead of silently no-op'ing until the next 10s cycle.
-    try {
-      const sr = await fetch(CTL + '/cgi-bin/status.sh?_=' + Date.now(), { signal: AbortSignal.timeout(3000) });
-      const sj = await sr.json();
-      if (sj.last_update && sj.last_update !== '—') {
-        _lastUpdate = sj.last_update;
-        const lv = document.getElementById('latest-update-val');
-        if (lv) lv.textContent = _lastUpdate;
-      }
-    } catch(_) {}
-  } catch(err) {
-    setBanner('b-error', 'metrics.json: ' + err.message);
-    srcInfo.textContent = 'Check service.sh and reflash';
+async function sh(cmd, timeoutMs) {
+  const wrapped = '{ ' + cmd + '; } 2>&1 | base64 | tr -d "\\n\\r"';
+  const res = EXEC_MODE === 'callback' ? await callbackExec(wrapped, timeoutMs) : legacyExec(wrapped);
+  return b64ToText((res.stdout || '').trim());
+}
+
+// ── Press feedback ──────────────────────────────────────────────────────
+// Whatever the user taps, they see it: the button flashes on touch (CSS),
+// and if the tap starts a root command, that button pulses and ignores
+// further taps until the answer is back, while a thin bar runs under the
+// header. Background refreshes (poll, status, log...) show nothing.
+let _pressed = null, _pressedAt = 0, _busyN = 0;
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest && e.target.closest('button');
+  if (b) { _pressed = b; _pressedAt = Date.now(); }
+}, true);
+const BG_CMD = /^(poll|status|log \d|update poll|sources$|rules-list|resolvers$)/;
+
+async function ctl(args, timeoutMs) {
+  const fg = !BG_CMD.test(args);
+  let btn = null;
+  if (fg) {
+    if (_pressed && Date.now() - _pressedAt < 60000 && document.body.contains(_pressed)) btn = _pressed;
+    _pressed = null;
+    if (btn) btn.classList.add('working');
+    if (++_busyN === 1) $('busy-bar').classList.add('on');
+  }
+  try {
+    return await sh(CTL + ' ' + args, timeoutMs);
   } finally {
-    _loading = false;
+    if (fg) {
+      if (btn) btn.classList.remove('working');
+      if (--_busyN <= 0) { _busyN = 0; $('busy-bar').classList.remove('on'); }
+    }
+  }
+}
+
+function parseKV(text) {
+  const out = {};
+  (text || '').split('\n').forEach(line => {
+    const i = line.indexOf('=');
+    if (i > 0) out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  });
+  return out;
+}
+
+// Split "key=value lines / @@MARK@@ / payload" responses.
+function splitMarker(text, mark) {
+  const i = text.indexOf(mark);
+  if (i < 0) return [text, ''];
+  return [text.slice(0, i), text.slice(i + mark.length).replace(/^\n/, '')];
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═════════════════════════════════════════════════════════════════════════
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+const $ = id => document.getElementById(id);
+const num = v => { const n = parseInt(v, 10); return isNaN(n) ? 0 : n; };
+
+function fmtDur(sec) {
+  sec = num(sec);
+  if (sec < 1) return '—';
+  const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600),
+        m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  if (d) return `${d}d ${h}h ${m}m`;
+  if (h) return `${h}h ${m}m ${s}s`;
+  if (m) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+let _toastTimer = null;
+function toast(msg, type) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
+}
+
+setInterval(() => { $('clock').textContent = new Date().toTimeString().slice(0, 8); }, 1000);
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tabs
+// ═════════════════════════════════════════════════════════════════════════
+let currentTab = 'dash';
+function showTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+  if (name === 'sys') loadStatus();
+  if (name === 'log') loadLog(true);
+  if (name === 'tools') { loadRules(); if (!RES.loaded) loadResolvers(); }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Banner — the one-line answer to "am I protected right now?"
+// ═════════════════════════════════════════════════════════════════════════
+let _updRunning = false;
+
+function setBanner(cls, msg) {
+  const b = $('banner');
+  b.className = cls;
+  b.innerHTML = '<span class="live-dot"></span>' + msg;
+}
+
+let _pauseLeft = 0, _pauseAt = 0;
+function pauseRemaining() { return Math.max(0, _pauseLeft - Math.floor((Date.now() - _pauseAt) / 1000)); }
+const mmss = t => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+
+function renderBanner(st, m) {
+  if (_updRunning) { setBanner('b-warn', '⚙ Blocklist update in progress…'); return; }
+  if (pauseRemaining() > 0) {
+    setBanner('b-warn', `PAUSED — DNS is not encrypted · resumes in ${mmss(pauseRemaining())}`);
+    return;
+  }
+  if (st.watchdog !== 'running') {
+    setBanner('b-error', 'Watchdog not running — protection is not being maintained. Reboot.');
+    return;
+  }
+  const total = (m && m.total_queries) || 0, blocked = (m && m.blocked_queries) || 0;
+  switch (st.state) {
+    case 'working':
+      setBanner('', `Protected — ${total.toLocaleString()} total · ${blocked.toLocaleString()} blocked · up ${fmtDur(st.daemon_uptime)}`);
+      break;
+    case 'running':
+      setBanner('', `Running — ${total.toLocaleString()} total · resolution not verifiable on this device`);
+      break;
+    case 'degraded':
+      setBanner('b-warn', 'Nothing resolves — no internet or upstream down. Wi-Fi login page? System → Pause');
+      break;
+    case 'hung':
+      setBanner('b-warn', 'dnscrypt-proxy not responding — restarting it');
+      break;
+    case 'failsafe':
+      setBanner('b-error', 'FAILSAFE — DNS is NOT encrypted until dnscrypt-proxy recovers');
+      break;
+    case 'starting':
+      setBanner('b-warn', 'Starting…');
+      break;
+    default:
+      setBanner('b-error', 'dnscrypt-proxy is down');
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dashboard
+// ═════════════════════════════════════════════════════════════════════════
+function resultLabel(r) {
+  switch (r) {
+    case 'PASS':      return { text: '✓ pass', cls: 's-pass' };
+    case 'REJECT':
+    case 'BLOCKED':   return { text: '✗ rejected', cls: 's-reject' };
+    case 'NXDOMAIN':  return { text: '? nxdomain', cls: 's-nx' };
+    case 'NOT_READY': return { text: '⏳ wait', cls: 's-wait' };
+    case 'CLOAK':     return { text: '◈ cloaked', cls: 's-cloak' };
+    case 'SYNTH':     return { text: '◈ synth', cls: 's-cloak' };
+    case 'FORWARD':   return { text: '→ forward', cls: 's-pass' };
+    default:          return { text: r, cls: 's-pass' };
+  }
+}
+
+function barHTML(label, count, total, colorClass) {
+  const pct = total ? Math.round(count / total * 100) : 0;
+  return `<div class="d-bar-row"><span class="d-bar-label">${esc(label)}</span>
+    <div class="d-bar-wrap"><div class="d-bar-fill ${colorClass}" style="width:${pct}%"></div></div>
+    <span class="d-bar-count">${count}</span></div>`;
+}
+
+const stat = (k, v, cls) => `<div class="d-stat"><span class="k">${k}</span><span class="v ${cls || ''}">${v}</span></div>`;
+
+function nxCount(m) {
+  if (m.nxdomain_queries != null) return m.nxdomain_queries;
+  return (m.recent_queries || []).filter(q => (q.response_code || '').toUpperCase() === 'NXDOMAIN').length;
+}
+
+function renderDashboard(st, m) {
+  if (st.version) $('hdr-ver').textContent = 'v' + st.version;
+  $('bl-count').textContent = st.blocklist_domains ? num(st.blocklist_domains).toLocaleString() : '—';
+  $('bl-updated').textContent = st.blocklist_updated || '—';
+
+  if (!m || m.total_queries == null) {
+    ['s-total', 's-pass', 's-reject', 's-nx', 's-resolvers'].forEach(id => { $(id).textContent = '—'; });
+    $('ov-body').innerHTML = `<div class="empty">${st.daemon === 'running' ? 'Monitoring API not answering yet…' : 'dnscrypt-proxy is not running.'}</div>`;
+    return;
   }
 
-  document.getElementById('last-refresh').textContent =
-    'Refreshed: ' + new Date().toTimeString().slice(0,8);
+  const total = m.total_queries || 0, blocked = m.blocked_queries || 0, passed = total - blocked;
+  const resolvers = m.resolver_health || [];
+  const nx = nxCount(m);
+  $('s-total').textContent = total.toLocaleString();
+  $('s-pass').textContent = passed.toLocaleString();
+  $('s-reject').textContent = blocked.toLocaleString();
+  $('s-nx').textContent = nx.toLocaleString();
+  $('s-resolvers').textContent = resolvers.filter(r => r.status === 'healthy').length;
+
+  // Overview
+  const t1 = total || 1;
+  const blockPct = Math.round(blocked / t1 * 100);
+  const cs = m.cache_stats || {};
+  const hit = cs.cache_hit_ratio != null ? (cs.cache_hit_ratio * 100).toFixed(1) + '%'
+            : (m.cache_hit_ratio != null ? (m.cache_hit_ratio * 100).toFixed(1) + '%' : '—');
+  $('ov-body').innerHTML =
+    stat('Total Queries', total.toLocaleString()) +
+    stat('Passed', passed.toLocaleString()) +
+    stat('Blocked', blocked.toLocaleString(), 'r') +
+    stat('NXDOMAIN', `${nx.toLocaleString()} (${(nx / t1 * 100).toFixed(1)}%)`, 'a') +
+    stat('Block Rate', blockPct + '%', blockPct > 30 ? 'r' : blockPct > 10 ? 'a' : '') +
+    stat('Avg RTT', Math.round(m.avg_response_time || 0) + 'ms') +
+    stat('Queries/sec', m.queries_per_second != null ? m.queries_per_second.toFixed(2) : '—') +
+    stat('Cache Hit Ratio', hit) +
+    stat('Uptime', fmtDur(m.uptime_seconds)) +
+    stat('Last Snapshot', m.generated_at ? m.generated_at.replace('T', ' ').slice(0, 19) + ' UTC' : '—', 'm') +
+    (m._probes ? stat('Health checks excluded', m._probes.toLocaleString(), 'm') : '');
+
+  // Cache
+  if (cs.capacity) {
+    const e = cs.entries || 0, cap = cs.capacity || 1;
+    $('sec-cache').style.display = '';
+    $('cache-body').innerHTML =
+      stat('Entries / Capacity', `${e.toLocaleString()} / ${cap.toLocaleString()}`) +
+      stat('Fill', Math.round(e / cap * 100) + '%') +
+      stat('Hits', (cs.cache_hits || 0).toLocaleString()) +
+      stat('Misses', (cs.cache_misses || 0).toLocaleString()) +
+      stat('Min TTL', (cs.min_ttl || '—') + 's') +
+      stat('Max TTL', (cs.max_ttl || '—') + 's');
+  } else {
+    $('sec-cache').style.display = 'none';
+  }
+
+  // Query types
+  const qt = (m.query_types || []).slice().sort((a, b) => b.count - a.count);
+  if (qt.length) {
+    const colorMap = { A: 'fill-g', AAAA: 'fill-b', HTTPS: 'fill-p', MX: 'fill-a', TXT: 'fill-a' };
+    $('sec-qtypes').style.display = '';
+    $('qtypes-body').innerHTML = qt.map(q => barHTML(q.type, q.count, t1, colorMap[q.type] || 'fill-p')).join('');
+  } else {
+    $('sec-qtypes').style.display = 'none';
+  }
+
+  // Resolvers
+  if (!resolvers.length) {
+    $('res-body').innerHTML = '<div class="empty">No resolver data.</div>';
+  } else {
+    const maxQ = Math.max(...resolvers.map(r => r.total_queries || 0)) || 1;
+    $('res-body').innerHTML = resolvers.slice().sort((a, b) => (b.score || 0) - (a.score || 0)).map(r => {
+      const pct = Math.round((r.total_queries || 0) / maxQ * 100);
+      const score = r.score != null ? (r.score * 100).toFixed(1) : '—';
+      const avg = r.avg_response_ms != null ? Math.round(r.avg_response_ms) : '—';
+      const ok = r.status === 'healthy';
+      return `<div class="d-res">
+        <div class="d-res-name">${esc(r.name)} <span style="font-size:10px;color:var(--muted)">${esc(r.proto || '')}</span></div>
+        <div class="d-res-sub">${(r.total_queries || 0).toLocaleString()} queries · avg <span>${avg}ms</span> · score <span>${score}%</span> · <span class="${ok ? '' : 'c-r'}">${esc(r.status || '—')}</span></div>
+        <div class="d-res-bar"><div class="d-res-fill" style="width:${pct}%"></div></div>
+      </div>`;
+    }).join('');
+  }
+
+  // Top domains
+  const top = (m.top_domains || []).filter(d => !PROBE_NAMES.has(d.domain));
+  if (!top.length) {
+    $('top-body').innerHTML = '<div class="empty">No domain data.</div>';
+  } else {
+    const maxC = top[0].count || 1;
+    $('top-body').innerHTML = top.map(d => `<div class="d-bar-row tap" data-d="${esc(d.domain)}" onclick="openSheet(this.dataset.d)">
+      <span class="d-bar-label" title="${esc(d.domain)}">${esc(d.domain)}</span>
+      <div class="d-bar-wrap"><div class="d-bar-fill fill-a" style="width:${Math.round(d.count / maxC * 100)}%"></div></div>
+      <span class="d-bar-count">${d.count}×</span></div>`).join('');
+  }
+
+  // Recent queries
+  const recent = (m.recent_queries || []).filter(e => !PROBE_NAMES.has(e.domain)).reverse();
+  if (!recent.length) {
+    $('recent-body').innerHTML = '<div class="empty">No entries.</div>';
+  } else {
+    $('recent-body').innerHTML = recent.map(e => {
+      const rc = (e.response_code || 'PASS').toUpperCase();
+      const { text, cls } = resultLabel(rc);
+      return `<div class="d-row" data-d="${esc(e.domain)}" data-s="${esc(text)}" onclick="openSheet(this.dataset.d, this.dataset.s)">
+        <div class="d-domain" title="${esc(e.domain)}">${esc(e.domain)}</div>
+        <div class="d-qtype">${esc(e.type || 'A')}</div>
+        <div class="d-status ${cls}">${esc(text)}</div>
+        <div class="d-rtt">${rc === 'PASS' ? (e.response_time || 0) + 'ms' : '—'}</div>
+      </div>`;
+    }).join('');
+  }
 }
 
-// ── Blocklist Updater ──────────────────────────────────
-const CTL = 'http://127.0.0.1:5556';
-let _updPolling = null;
-let _lastLogText = '';
+// ═════════════════════════════════════════════════════════════════════════
+// Poll — state + metrics in one round trip, every 5s while visible
+// ═════════════════════════════════════════════════════════════════════════
+let _polling = false;
+let _lastState = {};
+
+async function poll() {
+  if (_polling || document.hidden) return;
+  _polling = true;
+  try {
+    const out = await ctl('poll', 15000);
+    const [kv, json] = splitMarker(out, '@@METRICS@@');
+    const st = parseKV(kv);
+    if (!st.state && !st.watchdog) throw new Error('no answer from ctl.sh');
+    let m = null;
+    try { m = JSON.parse(json); } catch (e) { m = null; }
+    // The watchdog's health checks are real queries; take them back out.
+    const pq = num(st.probe_queries);
+    if (m && m.total_queries != null && pq > 0) {
+      m.total_queries = Math.max(m.blocked_queries || 0, m.total_queries - pq);
+      (m.query_types || []).forEach(q => { if (q.type === 'A') q.count = Math.max(0, q.count - pq); });
+      m._probes = pq;
+    }
+    _lastState = st;
+    _pauseLeft = num(st.paused_left); _pauseAt = Date.now();
+    renderPause();
+    renderBanner(st, m);
+    renderDashboard(st, m);
+    updateSysDot(st);
+    if (st.update_running === '1' && !_updRunning) attachUpdate();
+    $('src-info').textContent = m && m.total_queries != null ? 'source: ctl.sh poll · monitoring API' : 'source: ctl.sh poll · no metrics';
+  } catch (e) {
+    setBanner('b-error', 'Cannot read module state: ' + esc(e.message));
+  } finally {
+    _polling = false;
+    $('last-refresh').textContent = 'Refreshed: ' + new Date().toTimeString().slice(0, 8);
+  }
+}
+
+function updateSysDot(st) {
+  const dot = $('sys-dot');
+  dot.className = 'tab-dot';
+  if (st.watchdog !== 'running' || st.state === 'failsafe' || st.state === 'down') dot.classList.add('bad');
+  else if (st.state === 'degraded' || st.state === 'hung') dot.classList.add('warn');
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// System tab
+// ═════════════════════════════════════════════════════════════════════════
+function rowCtl(name, detail, ctrl) {
+  return `<div class="row ctl"><div class="rn"><b>${name}</b>${detail ? `<span>${detail}</span>` : ''}</div>${ctrl}</div>`;
+}
+function row(name, detail, pill, pillText) {
+  return `<div class="row"><div class="rn"><b>${name}</b>${detail ? `<span>${detail}</span>` : ''}</div>
+    <span class="pill ${pill}">${esc(pillText)}</span></div>`;
+}
+const onoff = v => v === '1';
+
+function renderStatus(s) {
+  const wdOk = s.watchdog === 'running', dOk = s.daemon === 'running';
+  const tickAge = s.tick_age === '' ? null : num(s.tick_age);
+  let h = '';
+
+  h += row('Watchdog', wdOk ? `pid ${esc(s.watchdog_pid)} · last check ${tickAge == null ? '—' : tickAge + 's ago'}` : 'not running — nothing keeps the rules or the daemon alive',
+    !wdOk ? 'bad' : (tickAge != null && tickAge > 40 ? 'warn' : 'ok'),
+    !wdOk ? 'stopped' : (tickAge != null && tickAge > 40 ? 'stalled' : 'running'));
+
+  h += row('dnscrypt-proxy', dOk ? `pid ${esc(s.daemon_pid)} · up ${fmtDur(s.daemon_uptime)} · ${esc(s.binary_version || '')}` : 'not running',
+    dOk ? 'ok' : 'bad', dOk ? 'running' : 'stopped');
+
+  const v6listen = s.ip_mode_effective === 'compat' || s.ip_mode_effective === 'dual';
+  h += row('Listener', v6listen ? '127.0.0.1:5354 · [::1]:5354' : '127.0.0.1:5354', onoff(s.listening) ? 'ok' : 'bad', onoff(s.listening) ? 'open' : 'closed');
+
+  const live = { ok: ['ok', 'ok'], silent: ['bad', 'no reply'], unknown: ['skip', 'n/a'] }[s.liveness] || ['skip', s.liveness || '—'];
+  h += row('Liveness check', 'local query every 30s · answered without internet', live[0], live[1]);
+
+  const res = { ok: ['ok', 'resolving'], noanswer: ['warn', 'no answer'], silent: ['bad', 'no reply'], unknown: ['skip', 'n/a'] }[s.resolving] || ['skip', s.resolving || '—'];
+  const resDetail = (s.resolved_ago !== '' ? `last success ${fmtDur(s.resolved_ago)} ago` : 'no success yet') + ` · via ${esc(s.probe_tool || '—')}`;
+  h += row('Resolution check', resDetail, res[0], res[1]);
+
+  h += row('Auto-restart', `${num(s.health_restarts)} restart(s) this boot` + (s.last_restart_reason && s.last_restart_reason !== 'none' ? ` · last: ${esc(s.last_restart_reason)}` : ''),
+    onoff(s.health_restart_enabled) ? 'ok' : 'skip', onoff(s.health_restart_enabled) ? 'on' : 'off');
+
+  h += row('Failsafe', onoff(s.failsafe) ? 'redirect removed — DNS goes out in plaintext' : 'not triggered',
+    onoff(s.failsafe) ? 'bad' : 'ok', onoff(s.failsafe) ? 'active' : 'inactive');
+  $('sys-proc').innerHTML = h;
+
+  // Firewall
+  const ownerOk = onoff(s.owner_match), quicOn = s.setting_QUIC_BLOCK === '1';
+  const ruleRow = (name, detail, present, enabled, skipWhy) =>
+    !enabled ? row(name, skipWhy, 'skip', 'off') : row(name, detail, present ? 'ok' : 'bad', present ? 'active' : 'missing');
+  let f = '';
+  f += ruleRow('DNS redirect (IPv4)', 'nat OUTPUT :53 → 127.0.0.1:5354', onoff(s.rule_nat_v4), true);
+  f += ruleRow('Leak guard (IPv4)', 'drops port 53 that escaped the redirect', onoff(s.rule_guard_v4), ownerOk, 'kernel has no xt_owner match');
+  const eff = s.ip_mode_effective || 'ipv4';
+  const v6on = eff !== 'ipv4';
+  if (v6on) {
+    f += onoff(s.ip6_nat)
+      ? ruleRow('DNS redirect (IPv6)', 'nat OUTPUT :53 → [::1]:5354', onoff(s.rule_nat_v6), true)
+      : row('DNS redirect (IPv6)', 'kernel has no IPv6 NAT — IPv6 DNS is dropped instead', 'warn', 'n/a');
+  }
+  f += ruleRow('Leak guard (IPv6)', 'drops port 53 over IPv6 that escaped the redirect', onoff(s.rule_guard_v6), true);
+  f += ruleRow('QUIC block (IPv4)', 'UDP/443 — stops browser DoH bypass', onoff(s.rule_quic_v4), quicOn, 'QUIC_BLOCK=0');
+  f += ruleRow('QUIC block (IPv6)', 'UDP/443 over IPv6', onoff(s.rule_quic_v6), quicOn, 'QUIC_BLOCK=0');
+  f += !v6on
+    ? row('IPv6 killswitch', `ip6tables OUTPUT policy: ${esc(s.ipv6_policy || '—')}`, s.ipv6_policy === 'DROP' ? 'ok' : 'bad', s.ipv6_policy === 'DROP' ? 'armed' : 'open')
+    : row('IPv6 killswitch', 'IPv6 is allowed by the IP mode', 'skip', 'off');
+  f += row('xt_owner match', 'needed for the leak guard', ownerOk ? 'ok' : 'warn', ownerOk ? 'present' : 'missing');
+  $('sys-fw').innerHTML = f;
+
+  // System
+  const pdns = s.private_dns || '—';
+  let y = '';
+  y += row('Module', esc(s.version || '—') + ' · versionCode ' + esc(s.version_code || '—'), 'skip', 'info');
+  y += row('SELinux', esc(s.selinux || '—'), s.selinux === 'Enforcing' ? 'ok' : 'warn', (s.selinux || '—').toLowerCase());
+  y += row('Android Private DNS', pdns === 'off' ? 'off — DNS stays with this module' : 'on — Android may send DNS around the proxy',
+    pdns === 'off' ? 'ok' : 'warn', pdns);
+  y += row('Network', onoff(s.live_interface) ? 'an interface is up' : 'no interface up (airplane mode?)',
+    onoff(s.live_interface) ? 'ok' : 'skip', onoff(s.live_interface) ? 'up' : 'down');
+  y += row('Busybox', esc(s.busybox || 'none'), s.busybox && s.busybox !== 'none' ? 'ok' : 'warn', s.busybox && s.busybox !== 'none' ? 'found' : 'missing');
+  y += row('Blocklist', `${num(s.blocklist_domains || s.blocklist_lines).toLocaleString()} domains · updated ${esc(s.blocklist_updated || '—')}`, 'skip', 'info');
+  $('sys-sys').innerHTML = y;
+
+  renderIpMode(s);
+
+  // Settings - switches, applied immediately
+  const sw = (key, label, detail) => rowCtl(label, detail,
+    `<label class="sw" id="sw-${key}"><input type="checkbox" ${s['setting_' + key] === '1' ? 'checked' : ''} onchange="setSetting('${key}', this.checked ? '1' : '0')"><i></i></label>`);
+  let st2 = '';
+  st2 += sw('QUIC_BLOCK', 'Block QUIC (UDP/443)', 'stops browsers using their own DNS-over-HTTPS; HTTP/3 falls back to TCP');
+  st2 += sw('HEALTH_RESTART', 'Auto-restart when hung', 'restart dnscrypt-proxy if it stops answering (max 5 per 15 min)');
+  st2 += sw('IPV6_PER_IFACE_ENFORCE', 'Per-interface IPv6 off', 'IPv4 mode only: also force disable_ipv6 on every interface (can fight the modem)');
+  const kl = s.setting_LOG_KEEP_LINES || '1500';
+  st2 += rowCtl('Log size', 'lines kept in /data/adb/dnscrypt-proxy.log',
+    `<select class="log-sel" onchange="setSetting('LOG_KEEP_LINES', this.value)">${['500', '1500', '3000', '5000'].concat([kl]).filter((v, i, a) => a.indexOf(v) === i).map(v => `<option value="${v}" ${v === kl ? 'selected' : ''}>${v}</option>`).join('')}</select>`);
+  $('sys-set').innerHTML = st2;
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// IP mode
+// ═════════════════════════════════════════════════════════════════════════
+const IPM_TEXT = {
+  ipv4:   '<b>IPv4 only.</b> IPv6 is switched off in the kernel and the firewall, and AAAA answers are blocked. Strongest leak protection — but no connection at all on an IPv6-only carrier.',
+  compat: '<b>IPv6 compatible.</b> IPv6 stays on so an IPv6-only (464XLAT) carrier can connect; IPv6 DNS is sent through the proxy too. AAAA answers stay blocked, so apps keep using IPv4.',
+  dual:   '<b>Dual stack.</b> IPv6 fully on, IPv6 DNS through the proxy, AAAA answered — apps may connect over IPv6. Sites see your IPv6 address.'
+};
+
+function renderIpMode(s) {
+  const mode = s.ip_mode || 'ipv4', eff = s.ip_mode_effective || mode;
+  document.querySelectorAll('#ipm-seg button').forEach(b => b.classList.toggle('on', b.dataset.v === mode));
+  $('ipm-desc').innerHTML = IPM_TEXT[mode] || '';
+  const nat = onoff(s.ip6_nat), v4 = onoff(s.net_ipv4), v6 = onoff(s.net_ipv6), clat = onoff(s.net_clat);
+  let h = '';
+  if (eff.endsWith('-limited')) {
+    h += row('Active mode', 'kernel has no IPv6 NAT — IPv6 DNS is dropped, apps must use IPv4 DNS', 'warn', 'limited');
+  } else {
+    h += row('Active mode', eff === mode ? 'applied' : `applying (${esc(eff)})`, eff === mode ? 'ok' : 'warn', eff);
+  }
+  h += row('Kernel IPv6 NAT', nat ? 'IPv6 DNS can be redirected into the proxy' : 'CONFIG_IP6_NF_NAT missing — IPv6 modes run limited', nat ? 'ok' : 'warn', nat ? 'available' : 'missing');
+  const net = clat ? 'IPv6-only with 464XLAT (IPv4 is translated)' : [v4 ? 'IPv4' : null, v6 ? 'IPv6' : null].filter(Boolean).join(' + ') || 'no global address';
+  h += row('This network', net, clat || v4 || v6 ? 'ok' : 'skip', clat ? '464xlat' : (v4 && v6 ? 'dual' : v4 ? 'ipv4' : v6 ? 'ipv6' : 'none'));
+  if (mode === 'ipv4' && (clat || (!v4 && onoff(s.live_interface)))) {
+    h += '<div class="src-warn">⚠ This network has no real IPv4. If nothing loads, switch to <b>IPv6 compatible</b>.</div>';
+  }
+  $('ipm-rows').innerHTML = h;
+}
+
+async function setIpMode(mode) {
+  const cur = document.querySelector('#ipm-seg button.on');
+  if (cur && cur.dataset.v === mode) return;
+  if (mode !== 'ipv4' && !confirm('Allow IPv6 on this device?\n\nDNS stays encrypted, but IPv6 traffic is no longer blocked by the firewall.')) return;
+  $('ipm-seg').classList.add('busy');
+  $('ipm-desc').innerHTML = IPM_TEXT[mode] + '<br><span class="c-a">Applying — dnscrypt-proxy may restart…</span>';
+  try {
+    const r = parseKV(await ctl('ipmode-set ' + shq(mode), 90000));
+    if (r.ok === '1') {
+      const lim = (r.ip_mode_effective || '').endsWith('-limited');
+      toast(lim ? 'Applied — limited (no IPv6 NAT in kernel)' : `IP mode: ${mode}` + (r.restarted === '1' ? ' — daemon restarted' : ''), lim ? 'err' : 'ok');
+      if (mode !== 'ipv4') setTimeout(() => toast('Toggle Wi-Fi / mobile data if IPv6 does not come up', 'ok'), 2800);
+    } else {
+      toast(r.error || 'Could not apply', 'err');
+    }
+  } catch (e) {
+    toast(e.message, 'err');
+  } finally {
+    $('ipm-seg').classList.remove('busy');
+    loadStatus();
+    poll();
+  }
+}
+
+async function setSetting(key, val) {
+  const el = $('sw-' + key);
+  if (el) el.classList.add('busy');
+  try {
+    const r = parseKV(await ctl('set ' + shq(key) + ' ' + shq(val)));
+    toast(r.ok === '1' ? 'Saved — applied' : (r.error || 'Could not save'), r.ok === '1' ? 'ok' : 'err');
+  } catch (e) { toast(e.message, 'err'); }
+  finally { if (el) el.classList.remove('busy'); loadStatus(); }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Pause
+// ═════════════════════════════════════════════════════════════════════════
+function renderPause() {
+  const left = pauseRemaining();
+  $('resume-btn').disabled = left <= 0;
+  $('pause-state').innerHTML = left > 0
+    ? `<span class="c-a">Paused — DNS goes out unencrypted. Resumes in ${mmss(left)}.</span>`
+    : 'For Wi-Fi login pages (hotel, airport, train) that need the network\'s own DNS. Encrypted DNS comes back on its own when the time is up, and after any reboot.';
+}
+setInterval(() => { if (_pauseLeft > 0) { renderPause(); if (pauseRemaining() > 0) renderBanner(_lastState, null); } }, 1000);
+
+async function pauseFor(min) {
+  if (!confirm(`Pause protection for ${min} minutes?\n\nDNS will go to the network unencrypted until then.`)) return;
+  const r = parseKV(await ctl('pause ' + min));
+  if (r.ok === '1') { _pauseLeft = num(r.paused_left); _pauseAt = Date.now(); renderPause(); toast(`Paused for ${min} min`, 'ok'); }
+  else toast(r.error || 'Could not pause', 'err');
+  poll();
+}
+
+async function resumeNow() {
+  const r = parseKV(await ctl('resume'));
+  _pauseLeft = 0; renderPause();
+  toast(r.ok === '1' ? 'Protection resumed' : (r.error || 'Could not resume'), r.ok === '1' ? 'ok' : 'err');
+  poll();
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Domain sheet (tap a domain on the dashboard)
+// ═════════════════════════════════════════════════════════════════════════
+let _sheetDomain = '';
+function openSheet(d, status) {
+  if (!d || PROBE_NAMES.has(d)) return;
+  _sheetDomain = d;
+  $('sheet-dom').textContent = d;
+  $('sheet-sub').textContent = status ? `last query: ${status}` : 'from Top Domains';
+  $('sheet-bg').style.display = 'block';
+  requestAnimationFrame(() => $('sheet').classList.add('open'));
+}
+function closeSheet() {
+  $('sheet').classList.remove('open');
+  setTimeout(() => { $('sheet-bg').style.display = 'none'; }, 200);
+}
+async function sheetAct(what) {
+  const d = _sheetDomain;
+  closeSheet();
+  if (what === 'check') { showTab('tools'); $('chk-in').value = d; checkDomain(); return; }
+  await ruleAction(what, d);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tools: domain check and rules
+// ═════════════════════════════════════════════════════════════════════════
+const ACT_TEXT = { allow: 'Allowed', unallow: 'Removed from the allow list', block: 'Blocked', unblock: 'Removed from your blocks' };
+async function ruleAction(what, d) {
+  toast(`${what}: ${d}…`);
+  try {
+    const r = parseKV(await ctl(what + ' ' + shq(d), 90000));
+    if (r.ok === '1') {
+      let msg = `${ACT_TEXT[what]}: ${d}`;
+      if (r.note) msg = `${d}: ${r.note}`;
+      if (r.warning) msg = r.warning;
+      else if (r.still_blocked_by) msg = `${d} is still blocked by ${r.still_blocked_by}`;
+      toast(msg, r.warning || r.still_blocked_by ? 'err' : 'ok');
+    } else toast(r.error || 'failed', 'err');
+  } catch (e) { toast(e.message, 'err'); }
+  loadRules();
+  if ($('chk-in').value.trim() === d) checkDomain();
+}
+
+const ORIGIN_NAME = id => {
+  if (id === 'custom') return 'your custom list';
+  if (id === 'legacy') return 'previous list';
+  const src = SRC.list.find(x => x.id === id);
+  return src ? srcName(src) : id;
+};
+
+async function checkDomain() {
+  const d = $('chk-in').value.trim().toLowerCase();
+  if (!d) return;
+  $('chk-btn').disabled = true;
+  $('chk-out').innerHTML = '<div class="empty">Checking the rules…</div>';
+  try {
+    const r = parseKV(await ctl('check ' + shq(d), 60000));
+    if (r.ok !== '1') { $('chk-out').innerHTML = `<div class="empty c-r">${esc(r.error || 'check failed')}</div>`; return; }
+    if (!SRC.loaded) await loadSources();
+    const v = { allowed: ['c-g', '✓ Allowed'], blocked: ['c-r', '✕ Blocked'], not_blocked: ['c-g', '○ Not blocked'] }[r.verdict];
+    let h = `<div class="verdict ${v[0]}">${v[1]}</div>`;
+    if (r.allowed_rule) h += stat('Allow rule', esc(r.allowed_rule));
+    if (r.blocked_rule) {
+      const by = (r.blocked_by || '').split(',').filter(Boolean).map(ORIGIN_NAME);
+      h += stat('Block rule', esc(r.blocked_rule) + (r.blocked_rule !== r.domain ? ' <span class="c-m">(parent)</span>' : ''), r.allowed_rule ? 'm' : 'r');
+      h += stat('From', by.length ? esc(by.join(', ')) : 'pattern rule', 'b');
+      if (r.allowed_rule) h += '<div class="note" style="margin-top:4px">The allow rule wins, so this domain resolves.</div>';
+    }
+    const live = r.live === 'reply'
+      ? (r.live_type === 'HINFO' ? 'blocked answer (HINFO)' : `${r.live_rcode}${num(r.live_answers) ? ' · ' + r.live_answers + ' answer(s)' : ''}${r.live_ip ? ' · ' + r.live_ip : ''}${r.live_type && r.live_type !== 'A' ? ' · ' + r.live_type : ''}`)
+      : ({ noreply: 'no reply', down: 'dnscrypt-proxy is not running', unavailable: 'no tool to ask with' }[r.live] || r.live || '—');
+    h += stat('Live answer', esc(live), r.live === 'reply' ? '' : 'a');
+    const btns = [];
+    if (r.in_allow === '1') btns.push(`<button class="btn-s r" onclick="ruleAction('unallow', '${esc(r.domain)}')">Remove allow</button>`);
+    else btns.push(`<button class="btn-s" onclick="ruleAction('allow', '${esc(r.domain)}')">✓ Allow</button>`);
+    if (r.in_custom === '1') btns.push(`<button class="btn-s a" onclick="ruleAction('unblock', '${esc(r.domain)}')">Remove my block</button>`);
+    else btns.push(`<button class="btn-s r" onclick="ruleAction('block', '${esc(r.domain)}')">✕ Block</button>`);
+    h += `<div class="btn-row2">${btns.join('')}</div>`;
+    $('chk-out').innerHTML = h;
+  } catch (e) {
+    $('chk-out').innerHTML = `<div class="empty c-r">${esc(e.message)}</div>`;
+  } finally {
+    $('chk-btn').disabled = false;
+  }
+}
+
+async function loadRules() {
+  try {
+    const out = await ctl('rules-list', 15000);
+    const allow = [], block = [];
+    out.split('\n').forEach(l => {
+      if (l.startsWith('allow=')) allow.push(l.slice(6));
+      else if (l.startsWith('block=')) block.push(l.slice(6));
+    });
+    const plain = x => /^[a-z0-9._*-]+$/i.test(x) && !/^=|\*$/.test(x);
+    const list = (arr, act) => arr.length
+      ? arr.slice().reverse().map(x => {
+          const name = x.replace(/^\*\./, '').replace(/^\./, '');
+          const del = plain(x) ? `<button onclick="ruleAction('${act}', '${esc(name)}')">✕</button>` : '<span class="pat">pattern</span>';
+          return `<div class="rule-row"><span title="${esc(x)}">${esc(x)}</span>${del}</div>`;
+        }).join('')
+      : '<div class="empty">None.</div>';
+    $('rl-allow').innerHTML = list(allow, 'unallow');
+    $('rl-block').innerHTML = list(block, 'unblock');
+    $('n-allow').textContent = allow.length;
+    $('n-block').textContent = block.length;
+  } catch (e) {
+    $('rl-allow').innerHTML = `<div class="empty c-r">${esc(e.message)}</div>`;
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tools: resolvers
+// ═════════════════════════════════════════════════════════════════════════
+const RES = { list: [], applied: [], lat: {}, loaded: false };
+
+function parseRes(line) {
+  const f = line.slice(4).split('|');
+  return { name: f[0], curated: f[1] === '1', on: f[2] === '1', proto: f[3], dnssec: f[4] === '1', nolog: f[5] === '1', nofilter: f[6] === '1', addr: f[7], desc: f[8] || '' };
+}
+
+async function loadResolvers() {
+  try {
+    const out = await ctl('resolvers', 20000);
+    RES.list = out.split('\n').filter(l => l.startsWith('res=')).map(parseRes);
+    RES.applied = RES.list.filter(r => r.on).map(r => r.name);
+    RES.loaded = true;
+    renderResolvers();
+  } catch (e) {
+    $('res-list').innerHTML = `<div class="empty c-r">${esc(e.message)}</div>`;
+  }
+}
+
+function resSelected() { return RES.list.filter(r => r.on).map(r => r.name); }
+
+function renderResolvers() {
+  const latCls = v => v === undefined ? '' : (v === 'fail' || v === 'na') ? 'r' : num(v) < 60 ? 'g' : num(v) < 150 ? '' : 'a';
+  const latTxt = v => v === undefined ? '' : v === 'fail' ? 'fail' : v === 'na' ? 'n/a' : (num(v) < 10 ? '<10ms' : v + 'ms');
+  $('res-list').innerHTML = RES.list.map(r => `<label class="src-row">
+      <input type="checkbox" ${r.on ? 'checked' : ''} onchange="toggleRes('${esc(r.name)}', this.checked)">
+      <div class="si"><b>${esc(r.name)}</b><span>${esc(r.desc)}</span>
+        <div class="badges">
+          <span class="bdg b">${esc(r.proto)}</span>
+          <span class="bdg ${r.nolog ? 'g' : 'r'}">${r.nolog ? 'no-log' : 'logs'}</span>
+          <span class="bdg ${r.nofilter ? '' : 'a'}">${r.nofilter ? 'no filter' : 'filters'}</span>
+          ${r.dnssec ? '<span class="bdg g">dnssec</span>' : ''}
+          <span class="bdg">${esc(r.addr)}</span>
+        </div></div>
+      <span class="lat ${latCls(RES.lat[r.name])}">${latTxt(RES.lat[r.name])}</span>
+    </label>`).join('');
+  const sel = resSelected();
+  const changed = sel.slice().sort().join(',') !== RES.applied.slice().sort().join(',');
+  $('res-apply').disabled = !changed || !sel.length;
+  $('res-note').textContent = `${sel.length} selected${changed ? ' · not applied' : ''}`;
+}
+
+function toggleRes(name, on) {
+  const r = RES.list.find(x => x.name === name);
+  if (r) r.on = on;
+  if (resSelected().length > 8) { r.on = false; toast('8 resolvers at most', 'err'); }
+  renderResolvers();
+}
+
+async function testResolvers() {
+  const names = RES.list.map(r => r.name);
+  $('res-test').disabled = true; $('res-test').classList.add('busy');
+  try {
+    const out = await ctl('resolvers-test ' + shq(names.join(',')), 60000);
+    out.split('\n').filter(l => l.startsWith('lat=')).forEach(l => {
+      const [n, v] = l.slice(4).split('=');
+      RES.lat[n] = v;
+    });
+    renderResolvers();
+  } catch (e) { toast(e.message, 'err'); }
+  finally { $('res-test').disabled = false; $('res-test').classList.remove('busy'); }
+}
+
+async function applyResolvers() {
+  const sel = resSelected();
+  if (!confirm(`Use ${sel.length} resolver(s)?\n\n${sel.join('\n')}\n\ndnscrypt-proxy restarts (a few seconds).`)) return;
+  $('res-apply').disabled = true; $('res-apply').classList.add('busy');
+  try {
+    const r = parseKV(await ctl('resolvers-set ' + shq(sel.join(',')), 120000));
+    if (r.ok === '1') { toast(`Resolvers applied — back in ${r.took}s`, 'ok'); RES.applied = sel; }
+    else toast(r.error || 'Could not apply', 'err');
+  } catch (e) { toast(e.message, 'err'); }
+  finally { $('res-apply').classList.remove('busy'); await loadResolvers(); poll(); }
+}
+
+async function searchResolvers() {
+  const q = $('res-q').value.trim();
+  if (q.length < 2) return;
+  $('res-found').innerHTML = '<div class="empty">Searching…</div>';
+  const out = await ctl('resolvers-search ' + shq(q), 20000);
+  const found = out.split('\n').filter(l => l.startsWith('res=')).map(parseRes).filter(f => !RES.list.some(r => r.name === f.name));
+  $('res-found').innerHTML = found.length ? found.map(f => `<div class="rule-row">
+      <span title="${esc(f.desc)}">${esc(f.name)} <span class="c-m">· ${esc(f.proto)} · ${f.nolog ? 'no-log' : 'logs'}${f.nofilter ? '' : ' · filters'}</span></span>
+      <button style="color:var(--green);border-color:rgba(0,255,136,0.4)" onclick="addResolver('${esc(f.name)}')">+</button>
+    </div>`).join('') : '<div class="empty">No match (IPv4 and IPv6 entries both listed).</div>';
+  RES.found = found;
+}
+
+function addResolver(name) {
+  const f = (RES.found || []).find(x => x.name === name);
+  if (!f) return;
+  f.on = true;
+  RES.list.push(f);
+  $('res-found').innerHTML = '';
+  $('res-q').value = '';
+  renderResolvers();
+  toast(`${name} added — tap Apply`, 'ok');
+}
+
+let _statusBusy = false;
+async function loadStatus() {
+  if (_statusBusy) return;
+  _statusBusy = true;
+  try {
+    const s = parseKV(await ctl('status', 20000));
+    if (s.ok !== '1') throw new Error(s.error || 'status failed');
+    renderStatus(s);
+  } catch (e) {
+    $('sys-proc').innerHTML = `<div class="empty c-r">Cannot read status: ${esc(e.message)}</div>`;
+  } finally {
+    _statusBusy = false;
+  }
+}
+
+const ACTION_BTNS = ['act-restart', 'act-reload', 'act-rules', 'act-probe'];
+async function doAction(cmd) {
+  const labels = { restart: 'Restarting dnscrypt-proxy…', reload: 'Reloading lists…', 'reapply-rules': 'Reapplying rules…', probe: 'Running checks…' };
+  const btnId = { restart: 'act-restart', reload: 'act-reload', 'reapply-rules': 'act-rules', probe: 'act-probe' }[cmd];
+  ACTION_BTNS.forEach(id => { $(id).disabled = true; });
+  $(btnId).classList.add('busy');
+  $('act-result').textContent = labels[cmd];
+  $('act-result').className = '';
+  try {
+    const r = parseKV(await ctl(cmd, 60000));
+    let msg;
+    if (cmd === 'probe') {
+      msg = r.listening === '1' ? `liveness: ${r.liveness} (${r.liveness_bytes}b) · resolution: ${r.resolving} (${r.resolving_bytes}b) · via ${r.probe_tool}` : 'dnscrypt-proxy is not listening';
+    } else if (cmd === 'restart') {
+      msg = r.ok === '1' ? `Restarted — new pid ${r.daemon_pid}, back in ${r.took}s` : r.error;
+    } else if (cmd === 'reload') {
+      msg = r.ok === '1' ? (r.method === 'reload' ? 'Lists reloaded — confirmed by dnscrypt-proxy' : 'Reload not acknowledged — daemon restarted instead') : r.error;
+    } else {
+      msg = r.ok === '1' ? 'Rules reapplied' + (r.rules_present === '1' ? ' — all present' : ' — some still missing, see Firewall') : r.error;
+    }
+    $('act-result').textContent = msg || 'done';
+    $('act-result').className = r.ok === '1' ? 'c-g' : 'c-r';
+    toast(msg || 'done', r.ok === '1' ? 'ok' : 'err');
+  } catch (e) {
+    $('act-result').textContent = e.message;
+    $('act-result').className = 'c-r';
+    toast(e.message, 'err');
+  } finally {
+    ACTION_BTNS.forEach(id => { $(id).disabled = false; });
+    $(btnId).classList.remove('busy');
+    loadStatus();
+    poll();
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Log tab
+// ═════════════════════════════════════════════════════════════════════════
+const logFilter = { INFO: true, WARN: true, ERROR: true, M: true, D: true };
+let _logLines = [];
+let _logBusy = false;
+
+function toggleFilter(btn) {
+  const f = btn.dataset.f;
+  logFilter[f] = !logFilter[f];
+  btn.classList.toggle('on', logFilter[f]);
+  renderLog();
+}
+
+// Two formats share the file:
+//   module: 2026-09-22 23:56:45 [INFO] message
+//   daemon: [2026-09-22 23:56:45] [NOTICE] message
+const RX_MOD = /^(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d) \[(\w+)\] (.*)$/;
+const RX_DMN = /^\[(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d)\] \[(\w+)\] (.*)$/;
+
+function normLevel(l) {
+  l = (l || '').toUpperCase();
+  if (l === 'WARNING' || l === 'WARN') return 'WARN';
+  if (l === 'ERROR' || l === 'CRITICAL' || l === 'FATAL') return 'ERROR';
+  if (l === 'DEBUG') return 'DEBUG';
+  return 'INFO';
+}
+
+function parseLog(text) {
+  return text.split('\n').filter(l => l.trim()).map(line => {
+    let m = RX_MOD.exec(line);
+    if (m) return { d: m[1], t: m[2], lvl: normLevel(m[3]), src: 'M', msg: m[4] };
+    m = RX_DMN.exec(line);
+    if (m) return { d: m[1], t: m[2], lvl: normLevel(m[3]), src: 'D', msg: m[4] };
+    // Older "Mon Sep 22 ...: message" lines, or anything else.
+    const lvl = /ERROR|FAILSAFE|FATAL/.test(line) ? 'ERROR' : /WARN/.test(line) ? 'WARN' : 'INFO';
+    return { d: '', t: '', lvl, src: 'M', msg: line };
+  });
+}
+
+function renderLog() {
+  const body = $('log-body');
+  const atBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 30;
+  const shown = _logLines.filter(l => logFilter[l.lvl === 'DEBUG' ? 'INFO' : l.lvl] && logFilter[l.src]);
+  $('log-count').textContent = `${shown.length}/${_logLines.length}`;
+  body.innerHTML = shown.length
+    ? shown.map(l => `<span class="ll ${l.lvl}"><span class="t">${l.t || '        '}</span> <span class="s">${l.src}</span> <span class="m">${esc(l.msg)}</span></span>`).join('')
+    : '<span class="log-info">No lines match the filters.</span>';
+  if (atBottom || body.dataset.first !== '0') { body.scrollTop = body.scrollHeight; body.dataset.first = '0'; }
+}
+
+async function loadLog(force) {
+  if (_logBusy || (document.hidden && !force)) return;
+  _logBusy = true;
+  try {
+    const n = $('log-lines').value;
+    _logLines = parseLog(await ctl('log ' + n, 15000));
+    renderLog();
+  } catch (e) {
+    $('log-body').innerHTML = `<span class="log-err">Cannot read log: ${esc(e.message)}</span>`;
+  } finally {
+    _logBusy = false;
+  }
+}
+
+async function clearLog() {
+  if (!confirm('Clear the module log?')) return;
+  const r = parseKV(await ctl('log-clear'));
+  toast(r.ok === '1' ? 'Log cleared' : 'Could not clear the log', r.ok === '1' ? 'ok' : 'err');
+  loadLog(true);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Blocklist update
+// ═════════════════════════════════════════════════════════════════════════
+let _updTimer = null;
+let _updSeen = '';
 
 function colorLog(text) {
   return text.split('\n').map(line => {
-    if (/ERROR|FAILED|failed/i.test(line)) return `<span class="log-err">${escapeHtml(line)}</span>`;
-    if (/Done|complete|success|restart/i.test(line)) return `<span class="log-ok">${escapeHtml(line)}</span>`;
     if (/^\s*$/.test(line)) return '';
-    return `<span class="log-info">${escapeHtml(line)}</span>`;
+    if (/! ERROR|! FAILED|did not acknowledge|not running/.test(line)) return `<span class="log-err">${esc(line)}</span>`;
+    if (/using the copy|keeping the previous list/.test(line)) return `<span style="color:var(--amber)">${esc(line)}</span>`;
+    if (/Done|complete|confirmed|success|Restarted|OK - /i.test(line)) return `<span class="log-ok">${esc(line)}</span>`;
+    return `<span class="log-info">${esc(line)}</span>`;
   }).filter(Boolean).join('\n');
 }
 
 function setUpdStatus(msg, color) {
-  const el = document.getElementById('upd-status');
-  if (el) { el.style.color = color || 'var(--muted)'; el.textContent = msg; }
+  const el = $('upd-status');
+  el.style.color = color || 'var(--muted)';
+  el.textContent = msg;
+}
+
+function setUpdRunningUI(running) {
+  const btn = $('upd-btn');
+  btn.disabled = running;
+  btn.classList.toggle('running', running);
+  btn.textContent = running ? '⏳ Updating…' : '⬇ Update';
+  $('src-btn').disabled = running;
+  $('src-panel').classList.toggle('locked', running);
+}
+
+function attachUpdate() {
+  _updRunning = true;
+  _updSeen = '';
+  setUpdRunningUI(true);
+  setUpdStatus('⚙ Running — downloading & deduplicating…', 'var(--amber)');
+  setBanner('b-warn', '⚙ Blocklist update in progress…');
+  clearInterval(_updTimer);
+  _updTimer = setInterval(pollUpdate, 2000);
+}
+
+async function pollUpdate() {
+  try {
+    const out = await ctl('update poll', 10000);
+    const [kv, log] = splitMarker(out, '@@LOG@@');
+    const st = parseKV(kv);
+    if (log.trim() && log !== _updSeen) {
+      _updSeen = log;
+      const box = $('upd-log');
+      box.innerHTML = colorLog(log);
+      box.scrollTop = box.scrollHeight;
+    }
+    if (st.running !== '1') finishUpdate(log);
+  } catch (e) { /* transient — keep polling */ }
 }
 
 function finishUpdate(logText) {
-  clearInterval(_updPolling);
-  _updPolling = null;
-  const btn = document.getElementById('upd-btn');
-  if (btn) { btn.disabled = false; btn.classList.remove('running'); btn.textContent = '⬇ Update blocked-names.txt'; }
-  setNavButtons(false);
-
-  const failed = /ALL SOURCES FAILED|ERROR: Result is empty/i.test(logText);
-  if (failed) {
-    setUpdStatus('✗ Blocked-names update failed — kept existing list', 'var(--red)');
-  } else {
-    setUpdStatus('✓ Blocked-names updated successfully', 'var(--green)');
-  }
-  // Force banner back to normal on next loadData (clear the running lock)
-  const banner = document.getElementById('banner');
-  if (banner) banner.className = '';
-  setTimeout(loadData, 2000);
-  // Clear the log box after 5s so it doesn't linger
-  setTimeout(() => {
-    const box = document.getElementById('upd-log');
-    if (box) box.innerHTML = '<span class="log-info">// Output will appear here...</span>';
-  }, 5000);
-}
-
-async function pollLog() {
-  let logText = _lastLogText;
-  try {
-    const r = await fetch(CTL + '/cgi-bin/log.sh?_=' + Date.now(), { signal: AbortSignal.timeout(4000) });
-    if (r.ok) {
-      const text = await r.text();
-      // Ignore empty/transient reads — never blank the box while running
-      if (text && text.trim().length > 0 && text !== _lastLogText) {
-        _lastLogText = text;
-        logText = text;
-        const box = document.getElementById('upd-log');
-        if (box) {
-          box.innerHTML = colorLog(text);
-          box.scrollTop = box.scrollHeight;
-        }
-      }
-    }
-  } catch(_) {}
-
-  try {
-    const rs = await fetch(CTL + '/cgi-bin/status.sh?_=' + Date.now(), { signal: AbortSignal.timeout(3000) });
-    const js = await rs.json();
-    if (!js.running) {
-      // One last log fetch to make sure we have the final lines before deciding
-      try {
-        const rf = await fetch(CTL + '/cgi-bin/log.sh?_=' + Date.now(), { signal: AbortSignal.timeout(4000) });
-        if (rf.ok) {
-          const finalText = await rf.text();
-          if (finalText && finalText.trim().length > 0) {
-            logText = finalText;
-            const box = document.getElementById('upd-log');
-            if (box) { box.innerHTML = colorLog(finalText); box.scrollTop = box.scrollHeight; }
-          }
-        }
-      } catch(_) {}
-      finishUpdate(logText);
-    }
-  } catch(_) {}
-}
-
-function setNavButtons(disabled) {
-  document.querySelectorAll('a.button').forEach(a => {
-    if (disabled) a.classList.add('disabled');
-    else a.classList.remove('disabled');
-  });
+  clearInterval(_updTimer);
+  _updTimer = null;
+  _updRunning = false;
+  setUpdRunningUI(false);
+  const txt = logText || '';
+  if (/! ERROR/.test(txt)) setUpdStatus('✗ Update failed — kept the existing list', 'var(--red)');
+  else if (/! FAILED|using the copy from/.test(txt)) setUpdStatus('⚠ Updated, but some sources failed — see below', 'var(--amber)');
+  else setUpdStatus('✓ Blocklist updated', 'var(--green)');
+  setTimeout(() => { poll(); loadSources(); }, 800);
 }
 
 async function startUpdate() {
-  const btn = document.getElementById('upd-btn');
-  if (!btn || btn.disabled) return;
-  btn.disabled = true; btn.classList.add('running'); btn.textContent = '⏳ Updating…';
-  setNavButtons(true);
-  _lastLogText = '';
-  setUpdStatus('Connecting…', 'var(--amber)');
-  const box = document.getElementById('upd-log');
-  if (box) box.innerHTML = '<span class="log-info">// Starting update...</span>';
+  if (_updRunning) return;
+  setUpdRunningUI(true);
+  $('upd-log').innerHTML = '<span class="log-info">// Starting update...</span>';
+  setUpdStatus('Starting…', 'var(--amber)');
   try {
-    const r = await fetch(CTL + '/cgi-bin/update.sh', { method: 'POST', signal: AbortSignal.timeout(5000) });
-    const js = await r.json();
-    if (js.ok) {
-      setUpdStatus('⚙ Running — downloading & deduplicating…', 'var(--amber)');
-      _updPolling = setInterval(pollLog, 2000);
-      // Show persistent "running" banner
-      const banner = document.getElementById('banner');
-      banner.className = 'b-running';
-      banner.innerHTML = '<span class="live-dot"></span>⚙ Running command — blocklist update in progress…';
-    } else {
-      throw new Error(js.msg || 'Server error');
-    }
-  } catch(err) {
-    btn.disabled = false; btn.classList.remove('running'); btn.textContent = '⬇ Update blocked-names.txt';
-    setUpdStatus('✗ ' + err.message, 'var(--red)');
+    const r = parseKV(await ctl('update start', 10000));
+    if (r.ok !== '1') throw new Error(r.error || 'could not start');
+    attachUpdate();
+  } catch (e) {
+    setUpdRunningUI(false);
+    setUpdStatus('✗ ' + e.message, 'var(--red)');
   }
 }
 
-loadData();
-setInterval(loadData, 10000);
+// ═════════════════════════════════════════════════════════════════════════
+// Blocklist sources
+// ═════════════════════════════════════════════════════════════════════════
+const shq = v => "'" + String(v).replace(/'/g, "'\\''") + "'";
+const MAIN_LISTS = new Set(['oisd-small', 'oisd-big', 'hagezi-light', 'hagezi-normal', 'hagezi-pro', 'hagezi-proplus', 'hagezi-ultimate']);
+const SRC = { list: [], auto: 'off', report: {}, legacy: null, loaded: false };
+
+function parseSources(text) {
+  SRC.list = []; SRC.report = {}; SRC.legacy = null;
+  text.split('\n').forEach(line => {
+    if (line.startsWith('src=')) {
+      const f = line.slice(4).split('|');
+      SRC.list.push({ id: f[0], group: f[1], label: f[2], on: f[3] === '1', rules: f[4], date: f[5], desc: f[6], url: f[7] });
+    } else if (line.startsWith('report=')) {
+      const f = line.slice(7).split('|');
+      SRC.report[f[0]] = { status: f[1], rules: f[2], note: f[3] };
+    } else if (line.startsWith('legacy=')) {
+      const f = line.slice(7).split('|');
+      SRC.legacy = { rules: f[0], date: f[1] };
+    } else if (line.startsWith('auto=')) {
+      SRC.auto = line.slice(5);
+    } else if (line.startsWith('auto_last=')) {
+      SRC.autoLast = line.slice(10);
+    } else if (line.startsWith('auto_attempt=')) {
+      SRC.autoAttempt = line.slice(13);
+    } else if (line.startsWith('now=')) {
+      SRC.now = line.slice(4);
+    }
+  });
+  SRC.loaded = true;
+}
+
+async function loadSources() {
+  try {
+    parseSources(await ctl('sources', 15000));
+    renderSources();
+  } catch (e) {
+    $('src-list').innerHTML = `<div class="empty c-r">Cannot read sources: ${esc(e.message)}</div>`;
+  }
+}
+
+// "https://host/a/b/list.txt?x" -> "host · list.txt"
+function shortUrl(u) {
+  const m = /^https:\/\/([^/?#]+)(?:.*\/([^/?#]+))?/.exec(u || '');
+  return m ? (m[2] ? `${m[1]} · ${m[2]}` : m[1]) : u;
+}
+function srcName(s) { return s.group === 'Custom' ? shortUrl(s.url) : (s.group === 'Add-ons' ? s.label : `${s.group} ${s.label}`); }
+
+function renderSources() {
+  const sel = SRC.list.filter(s => s.on);
+  $('src-summary').textContent = sel.length ? srcName(sel[0]) + (sel.length > 1 ? ` +${sel.length - 1}` : '') : 'custom list only';
+  $('bl-sources').innerHTML = sel.length
+    ? `<span class="chips">${sel.map(x => `<span class="chip">${esc(srcName(x))}</span>`).join('')}</span>`
+    : '<span class="c-m">none — custom list only</span>';
+  renderAuto();
+  document.querySelectorAll('#auto-seg button').forEach(b => b.classList.toggle('on', b.dataset.v === SRC.auto));
+
+  const rowHTML = s => {
+    const r = SRC.report[s.id];
+    let pill = '';
+    if (r && s.on) {
+      const map = { ok: ['ok', 'updated'], cached: ['warn', 'cached'], failed: ['bad', 'failed'] };
+      const [cls, txt] = map[r.status] || ['skip', r.status];
+      pill = `<span class="pill ${cls}" title="${esc(r.note || '')}">${txt}</span>`;
+    }
+    const cache = s.rules ? `<span class="cache">${num(s.rules).toLocaleString()} rules · ${esc(s.date)}</span>` : '';
+    let note = '';
+    if (r && s.on && r.status === 'cached') note = `<span class="c-a">${esc(r.note)} — using the last good copy</span>`;
+    else if (r && s.on && r.status === 'failed') note = `<span class="c-a">${esc(r.note)}${SRC.legacy ? ' — the previous list stays in its place' : ''}</span>`;
+    const del = s.group === 'Custom' ? `<button class="src-del" onclick="event.preventDefault();event.stopPropagation();delUrl('${esc(s.id)}')">✕</button>` : '';
+    return `<label class="src-row">
+      <input type="checkbox" ${s.on ? 'checked' : ''} onchange="onSrcToggle()" data-id="${esc(s.id)}">
+      <div class="si"><b>${esc(s.group === 'Custom' ? shortUrl(s.url) : s.label)}</b><span>${esc(s.group === 'Custom' ? s.url : s.desc)}</span>${cache}${note}</div>
+      ${pill}${del}
+    </label>`;
+  };
+
+  let h = '';
+  ['OISD', 'HaGeZi', 'Add-ons'].forEach(g => {
+    const items = SRC.list.filter(s => s.group === g);
+    if (!items.length) return;
+    h += `<div class="src-group">${g === 'Add-ons' ? 'Add-ons (stack on a main list)' : g}</div>` + items.map(rowHTML).join('');
+  });
+  $('src-list').innerHTML = h;
+  const custom = SRC.list.filter(s => s.group === 'Custom');
+  $('src-custom').innerHTML = custom.length ? custom.map(rowHTML).join('') : '<div class="note" style="margin-top:2px">None yet.</div>';
+
+  const mains = sel.filter(s => MAIN_LISTS.has(s.id));
+  let warn = '';
+  if (mains.length > 1) warn += `<div class="src-warn">⚠ ${mains.length} main lists selected. They overlap heavily — duplicates are removed, but every extra list still costs download time and memory. One main list plus add-ons is usually enough.</div>`;
+  if (!sel.length) warn += '<div class="src-warn">⚠ Nothing selected: only custom-blocked-names.txt will be blocked.</div>';
+  if (SRC.legacy) warn += `<div class="note">Until the next update the list from before this version (${num(SRC.legacy.rules).toLocaleString()} rules) is used in place of anything not downloaded yet.</div>`;
+  $('src-warn').innerHTML = warn;
+}
+
+// When is the next automatic update due? The watchdog checks every ~10
+// minutes while the phone is awake and DNS is working, so "due" means
+// "within about ten minutes of the next time that is true".
+function renderAuto() {
+  const el = $('bl-auto');
+  if (SRC.auto === 'off') { el.className = 'v m'; el.textContent = 'off'; return; }
+  const iv = SRC.auto === 'weekly' ? 604800 : 86400;
+  const now = num(SRC.now), last = num(SRC.autoLast), att = num(SRC.autoAttempt);
+  let sub;
+  if (!last) sub = 'no update yet — first run within ~10 min';
+  else {
+    let due = last + iv;
+    // A failed attempt holds the next try back by an hour.
+    if (att > last && due <= now) due = Math.max(due, att + 3600);
+    if (due <= now) sub = 'due now — runs within ~10 min';
+    else {
+      const d = new Date(due * 1000);
+      const left = due - now;
+      const inTxt = left >= 86400 ? `${Math.floor(left / 86400)}d ${Math.floor(left % 86400 / 3600)}h` : `${Math.floor(left / 3600)}h ${Math.floor(left % 3600 / 60)}m`;
+      sub = `next ${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ${d.toTimeString().slice(0, 5)} · in ${inTxt}`;
+    }
+  }
+  el.className = 'v';
+  el.innerHTML = `${esc(SRC.auto)}<span class="auto-sub">${esc(sub)}</span>`;
+}
+
+function toggleSources() {
+  const open = $('src-panel').classList.toggle('hidden') === false;
+  $('src-btn').classList.toggle('open', open);
+  if (open) loadSources();
+}
+
+let _srcSaveTimer = null;
+function onSrcToggle() {
+  // Reflect immediately, save once the user stops tapping.
+  const ids = [...document.querySelectorAll('#src-panel input[type=checkbox]:checked')].map(i => i.dataset.id);
+  SRC.list.forEach(s => { s.on = ids.includes(s.id); });
+  renderSources();
+  clearTimeout(_srcSaveTimer);
+  _srcSaveTimer = setTimeout(async () => {
+    const r = parseKV(await ctl('sources-set ' + shq(ids.join(','))));
+    if (r.ok === '1') toast('Sources saved — tap Update to apply', 'ok');
+    else { toast(r.error || 'Could not save', 'err'); loadSources(); }
+  }, 600);
+}
+
+async function addUrl() {
+  const u = $('url-in').value.trim();
+  if (!u) return;
+  const r = parseKV(await ctl('sources-add-url ' + shq(u)));
+  if (r.ok === '1') { $('url-in').value = ''; toast('List added and selected', 'ok'); }
+  else toast(r.error || 'Could not add', 'err');
+  loadSources();
+}
+
+async function delUrl(id) {
+  if (!confirm('Remove this list?')) return;
+  const r = parseKV(await ctl('sources-del-url ' + shq(id)));
+  toast(r.ok === '1' ? 'List removed — tap Update to apply' : (r.error || 'Could not remove'), r.ok === '1' ? 'ok' : 'err');
+  loadSources();
+}
+
+async function setAuto(mode) {
+  const r = parseKV(await ctl('auto-set ' + shq(mode)));
+  if (r.ok === '1') { toast(mode === 'off' ? 'Automatic update off' : `Automatic update: ${mode}`, 'ok'); loadSources(); }
+  else toast(r.error || 'Could not save', 'err');
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Boot
+// ═════════════════════════════════════════════════════════════════════════
+function refreshNow() {
+  poll();
+  if (currentTab === 'sys') loadStatus();
+  if (currentTab === 'log') loadLog(true);
+}
+
+function fatal(msg) {
+  setBanner('b-error', 'No root access');
+  $('tab-dash').innerHTML = `<div class="fatal">${msg}</div>`;
+  ['tab-sys', 'tab-log'].forEach(id => { $(id).innerHTML = ''; });
+  $('src-info').textContent = '';
+}
+
+async function init() {
+  // Some managers inject the bridge a moment after the page loads.
+  for (let i = 0; i < 10 && !hasBridge(); i++) await new Promise(r => setTimeout(r, 150));
+  if (!hasBridge()) {
+    fatal('This page needs the root manager\'s WebUI bridge.<br><br>Open it from <b>SukiSU / KernelSU → Modules → DNSCrypt Proxy → Open</b>.<br><br>The dnscrypt-proxy monitor itself is also available in any browser at http://127.0.0.1:5555');
+    return;
+  }
+  try {
+    EXEC_MODE = await detectExecMode();
+  } catch (e) {
+    fatal('Root shell unavailable: ' + esc(e.message) + '<br><br>Check that the manager granted this module WebUI access.');
+    return;
+  }
+  poll();
+  loadSources();
+  setInterval(poll, 5000);
+  setInterval(() => { if (currentTab === 'sys' && !document.hidden) loadStatus(); }, 15000);
+  setInterval(() => { if (currentTab === 'log' && !document.hidden) loadLog(false); }, 5000);
+}
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshNow(); });
+init();
 </script>
 </body>
 </html>

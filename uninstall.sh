@@ -25,7 +25,7 @@ if pgrep -x dnscrypt-proxy >/dev/null 2>&1; then
 fi
 
 # ===============================================
-# STEP 1a: Kill busybox httpd (CGI control server)
+# STEP 1a: Kill busybox httpd (CGI control server of r11 and earlier)
 # Only OUR instance, via the pidfile service.sh writes, so a blanket
 # `pkill -f "busybox httpd"` cannot take down the WebUI server of
 # another module using busybox httpd.
@@ -74,6 +74,10 @@ for IP in $BOOTSTRAP_IPS; do
   iptables -D OUTPUT ! -o lo -p tcp -d "$IP" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
   iptables -D OUTPUT ! -o lo -p udp -d "$IP" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
 done
+
+# IPv6 DNS redirect (IP modes compat / dual, r14+)
+ip6tables -t nat -D OUTPUT -p tcp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null
+ip6tables -t nat -D OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null
 
 # Legacy rules from r10 and earlier
 iptables -D OUTPUT -p udp --dport 53 -j DROP 2>/dev/null

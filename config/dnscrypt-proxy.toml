@@ -27,11 +27,7 @@
 ##
 ## Remove the leading # first to enable this; lines starting with # are ignored.
 
-server_names = [
-  'cloudflare',
-  'quad9-dnscrypt-ip4-nofilter-pri',
-  'mullvad-base-doh'
-]
+server_names = ['cloudflare', 'quad9-dnscrypt-ip4-nofilter-pri', 'mullvad-doh']
 
 
 ## List of local addresses and ports to listen to. Can be IPv4 and/or IPv6.
@@ -1101,23 +1097,15 @@ privacy_level = 1
 
 [static]
 
-## Optional, local, static list of additional servers
-## Mostly useful for testing your own servers.
-
-## MODULE NOTE (r11): the three servers listed in `server_names` at the top of
-## this file are pinned here so the daemon never has to download a source list
-## to find them. Stamps taken verbatim from the shipped public-resolvers.md.
-## If you change `server_names`, add the matching stamp here too, or re-enable
-## the [sources] blocks above.
+## Managed by the module (WebUI -> Tools -> Resolvers). Every server in
+## server_names is pinned here with its stamp from public-resolvers.md,
+## so the daemon starts without downloading a source list.
 
 [static.'cloudflare']
 stamp = 'sdns://AgcAAAAAAAAABzEuMC4wLjEAEmRucy5jbG91ZGZsYXJlLmNvbQovZG5zLXF1ZXJ5'
 
 [static.'quad9-dnscrypt-ip4-nofilter-pri']
-stamp = 'sdns://AQYAAAAAAAAADTkuOS45LjEwOjg0NDMgZ8hHuMh1jNEgJFVDvnVnRt803x2EwAuMRwNo34Idhj4ZMi5kbnNjcnlwdC1jZXJ0LnF1YWQ5Lm5ldA'
+stamp = 'sdns://AQcAAAAAAAAADTkuOS45LjEwOjg0NDMgZ8hHuMh1jNEgJFVDvnVnRt803x2EwAuMRwNo34Idhj4ZMi5kbnNjcnlwdC1jZXJ0LnF1YWQ5Lm5ldA'
 
-[static.'mullvad-base-doh']
-stamp = 'sdns://AgMAAAAAAAAACzE5NC4yNDIuMi40ABRiYXNlLmRucy5tdWxsdmFkLm5ldAovZG5zLXF1ZXJ5'
-
-# [static.myserver]
-#   stamp = 'sdns://AQcAAAAAAAAAAAAQMi5kbnNjcnlwdC1jZXJ0Lg'
+[static.'mullvad-doh']
+stamp = 'sdns://AgcAAAAAAAAACzE5NC4yNDIuMi4yAA9kbnMubXVsbHZhZC5uZXQKL2Rucy1xdWVyeQ'

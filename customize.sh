@@ -2,7 +2,7 @@ ui_print " "
 ui_print "******************************"
 ui_print "*   dnscrypt-proxy-android   *"
 ui_print "*        Аrm64 ONLY          *"
-ui_print "*        2.1.18-r11.6        *"
+ui_print "*         2.1.18-r12         *"
 ui_print "******************************"
 ui_print "*        Tears Burn          *"
 ui_print "******************************"
@@ -224,7 +224,7 @@ ui_print "* Creating the binary path."
 mkdir -p "$MODPATH/system/bin"
 
 ui_print "* Creating the runtime path: $DATA_DIR"
-mkdir -p "$DATA_DIR"
+mkdir -p "$DATA_DIR" "$DATA_DIR/sources"
 mkdir -p "$SD_DIR"
 
 if [ -f "$BINARY_PATH" ]; then
@@ -274,6 +274,9 @@ fi
   mv -f "$DATA_DIR/blocked-names.txt" "$DATA_DIR/.blocked-names.preserve" 2>/dev/null
 [ -f "$DATA_DIR/custom-blocked-names.txt" ] && \
   mv -f "$DATA_DIR/custom-blocked-names.txt" "$DATA_DIR/.custom-blocked-names.preserve" 2>/dev/null
+# Your allow list (WebUI -> Allow) is user data too.
+[ -f "$DATA_DIR/allowed-names.txt" ] && \
+  mv -f "$DATA_DIR/allowed-names.txt" "$DATA_DIR/.allowed-names.preserve" 2>/dev/null
 
 if [ -d "$CONFIG_PATH" ]; then
   ui_print "* Installing configuration into $DATA_DIR"
@@ -293,7 +296,71 @@ if [ -f "$DATA_DIR/.custom-blocked-names.preserve" ]; then
   mv -f "$DATA_DIR/.custom-blocked-names.preserve" "$DATA_DIR/custom-blocked-names.txt"
   ui_print "* Restored your existing custom-blocked-names.txt"
 fi
+if [ -f "$DATA_DIR/.allowed-names.preserve" ]; then
+  mv -f "$DATA_DIR/.allowed-names.preserve" "$DATA_DIR/allowed-names.txt"
+  ui_print "* Restored your existing allowed-names.txt"
+fi
 rm -f "$DATA_DIR/gustum-blocked-names.txt" 2>/dev/null
+
+# -----------------------------------------------
+# Resolvers across an update.
+#
+# The new toml is installed fresh (new defaults, new comments). Then:
+#  - if the previous server_names was a module default (the r11-r15
+#    default was cloudflare, quad9, mullvad-base-doh), the new default is
+#    kept - nobody chose the old one;
+#  - otherwise the resolvers picked in the WebUI are carried over, with
+#    their stamps taken from the NEW public-resolvers.md, so an updated
+#    stamp reaches them too. A name the new list no longer has keeps its
+#    old stamp rather than being dropped.
+# -----------------------------------------------
+toml_names() { # <toml> -> names, one per line
+  awk '/^server_names[ \t]*=/{on=1} on{s=s $0} on&&/\]/{exit}
+       END{while(match(s,/\047[^\047]+\047/)){print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH)}}' "$1"
+}
+md_stamp() { # <name>
+  awk -v n="## $1" '$0==n{f=1;next} f&&/^## /{exit} f&&/^sdns:\/\//{print;exit}' "$DATA_DIR/public-resolvers.md"
+}
+old_stamp() { # <toml> <name>
+  awk -v n="[static.'$2']" '$0==n{f=1;next} f&&/^stamp/{sub(/^stamp[ \t]*=[ \t]*\047/,""); sub(/\047.*$/,""); print; exit} f&&/^\[/{exit}' "$1"
+}
+
+OLD_TOML="$DATA_DIR/$BACKUP_NAME"
+if [ -n "$BACKUP_NAME" ] && [ -f "$OLD_TOML" ]; then
+  OLD_LIST=$(toml_names "$OLD_TOML" | tr '\n' ' ')
+  NEW_LIST=$(toml_names "$CONFIG_FILE" | tr '\n' ' ')
+  case "$OLD_LIST" in
+    "" | "$NEW_LIST" | "cloudflare quad9-dnscrypt-ip4-nofilter-pri mullvad-base-doh ")
+      [ -n "$OLD_LIST" ] && [ "$OLD_LIST" != "$NEW_LIST" ] && \
+        ui_print "* Resolvers: new default ($(echo $NEW_LIST | tr ' ' ','))"
+      ;;
+    *)
+      _names=""
+      for _n in $OLD_LIST; do _names="$_names${_names:+, }'$_n'"; done
+      awk -v names="server_names = [$_names]" '
+        skip && /\]/ { skip = 0; next }
+        skip { next }
+        /^server_names[ \t]*=/ { print names; if ($0 !~ /\]/) skip = 1; next }
+        /^\[static\]/ { exit }
+        { print }' "$CONFIG_FILE" > "$CONFIG_FILE.new"
+      {
+        echo "[static]"
+        echo ""
+        echo "## Managed by the module (WebUI -> Tools -> Resolvers)."
+        for _n in $OLD_LIST; do
+          _st=$(md_stamp "$_n")
+          [ -n "$_st" ] || _st=$(old_stamp "$OLD_TOML" "$_n")
+          echo ""
+          echo "[static.'$_n']"
+          echo "stamp = '$_st'"
+        done
+      } >> "$CONFIG_FILE.new"
+      mv -f "$CONFIG_FILE.new" "$CONFIG_FILE"
+      ui_print "* Kept your resolvers: $(echo $OLD_LIST | tr ' ' ',')"
+      unset _names _n _st
+      ;;
+  esac
+fi
 
 # -----------------------------------------------
 # Mirror the small editable files out to the sdcard so they can still
@@ -341,10 +408,12 @@ set_perm "$MODPATH/service.sh"          0 0 0755
 set_perm "$MODPATH/post-fs-data.sh"     0 0 0755
 set_perm "$MODPATH/uninstall.sh"        0 0 0755
 set_perm "$MODPATH/update-blocklist.sh" 0 0 0755
-set_perm "$MODPATH/rules.sh"            0 0 0755
-set_perm "$MODPATH/webroot/cgi-bin/status.sh" 0 0 0755
-set_perm "$MODPATH/webroot/cgi-bin/log.sh"    0 0 0755
-set_perm "$MODPATH/webroot/cgi-bin/update.sh" 0 0 0755
+set_perm "$MODPATH/ctl.sh"              0 0 0755
+set_perm "$MODPATH/sh/common.sh"        0 0 0755
+set_perm "$MODPATH/sh/rules.sh"         0 0 0755
+set_perm "$MODPATH/sh/blocklist.sh"     0 0 0755
+set_perm "$MODPATH/sh/tools.sh"         0 0 0755
+set_perm "$MODPATH/sh/resolvers.sh"     0 0 0755
 chmod 0700 "$DATA_DIR" 2>/dev/null
 chown 0:0  "$DATA_DIR" 2>/dev/null
 
@@ -408,21 +477,15 @@ if [ ! -f "$CONF" ]; then
 # dnscrypt-proxy-android settings
 # Edit, then reboot. This file is never overwritten by updates.
 
-# Disable IPv6 entirely (ip6tables DROP policy + sysctl at boot).
-# 1 = on (default). This is the module's leak-prevention core, and it
-# stays on: nothing lifts it unless you say so with IPV6_AUTO_LIFT below.
-# Set to 0 to leave IPv6 alone entirely.
-IPV6_KILL=1
-
-# Allow the module to switch the IPv6 killswitch OFF by itself if it
-# decides the device is on an IPv6-only network.
-# 0 = never (default). The killswitch stays on no matter what, which is
-# the point of installing this module. If DNS is dead for another reason
-# the module says so in the log and leaves the rules alone.
-# 1 = allow it. Only turn this on if you actually use an IPv6-only
-# carrier, where blocking IPv6 also blocks IPv4-over-IPv6 (464XLAT) and
-# the phone would otherwise have no connectivity at all.
-IPV6_AUTO_LIFT=0
+# How IPv6 is handled. Easiest to change from the WebUI (System tab),
+# which applies it immediately.
+#   ipv4    IPv6 fully off, AAAA blocked. Strongest leak protection.
+#           Default, and what this module always did.
+#   compat  IPv6 on, IPv6 DNS goes through the proxy, AAAA still blocked.
+#           For IPv6-only carriers (464XLAT), where "ipv4" means no
+#           connection at all. Apps keep using IPv4.
+#   dual    IPv6 on, IPv6 DNS goes through the proxy, AAAA allowed.
+IP_MODE=ipv4
 
 # Keep forcing disable_ipv6 back to 1 on every network interface.
 # 0 = no (default). IPv6 is stopped by the ip6tables DROP policy, which
@@ -449,6 +512,21 @@ LOG_KEEP_LINES=1500
 # TLS/TCP transparently; a few QUIC-only apps will not work.
 # Set to 0 if you need HTTP/3.
 QUIC_BLOCK=1
+
+# Restart dnscrypt-proxy automatically when it stops answering.
+# 1 = on (default). The watchdog asks the daemon a question it answers
+# locally (an .invalid name, needs block_undelegated = true in the toml)
+# every 30s; three missed answers in a row means it is hung, and it is
+# restarted - at most 5 times in 15 minutes.
+# 0 = off. A hung daemon is only reported, never restarted.
+HEALTH_RESTART=1
+
+# Blocklist sources, comma-separated ids. Easiest to change from the
+# WebUI (Dashboard -> Update Blocklist -> Sources). "none" = custom list only.
+BLOCKLIST_SOURCES=oisd-big
+
+# Automatic blocklist update: off | daily | weekly
+BLOCKLIST_AUTO=off
 CONFEOF
   ui_print "* Created settings file: $CONF"
 else
@@ -457,17 +535,17 @@ else
   # rewriting it, so upgrades never clobber what the user has set.
   # The script defaults match these values, so behaviour is identical
   # either way - this only makes the option visible and editable.
-  if ! grep -q '^IPV6_AUTO_LIFT=' "$CONF" 2>/dev/null; then
-    cat >> "$CONF" << 'ADDEOF'
+  if ! grep -q '^IP_MODE=' "$CONF" 2>/dev/null; then
+    # Carry the old meaning over: IPV6_KILL=0 left IPv6 alone -> dual.
+    _mode=ipv4
+    grep -q '^IPV6_KILL=0' "$CONF" 2>/dev/null && _mode=dual
+    cat >> "$CONF" << ADD6EOF
 
-# Allow the module to switch the IPv6 killswitch OFF by itself if it
-# decides the device is on an IPv6-only network.
-# 0 = never (default). The killswitch stays on no matter what.
-# 1 = allow it. Only for an IPv6-only carrier, where blocking IPv6 also
-# blocks IPv4-over-IPv6 (464XLAT) and nothing would work otherwise.
-IPV6_AUTO_LIFT=0
-ADDEOF
-    ui_print "* Added new setting IPV6_AUTO_LIFT=0 to $CONF"
+# How IPv6 is handled: ipv4 | compat | dual. Easiest to change from the
+# WebUI (System tab). IPV6_KILL and IPV6_AUTO_LIFT are no longer used.
+IP_MODE=$_mode
+ADD6EOF
+    ui_print "* Added new setting IP_MODE=$_mode to $CONF"
   fi
   if ! grep -q '^IPV6_PER_IFACE_ENFORCE=' "$CONF" 2>/dev/null; then
     cat >> "$CONF" << 'ADD2EOF'
@@ -489,6 +567,27 @@ ADD2EOF
 LOG_KEEP_LINES=1500
 ADD3EOF
     ui_print "* Added new setting LOG_KEEP_LINES=1500 to $CONF"
+  fi
+  if ! grep -q '^HEALTH_RESTART=' "$CONF" 2>/dev/null; then
+    cat >> "$CONF" << 'ADD4EOF'
+
+# Restart dnscrypt-proxy automatically when it stops answering.
+# 1 = on (default), at most 5 times in 15 minutes. 0 = only report it.
+HEALTH_RESTART=1
+ADD4EOF
+    ui_print "* Added new setting HEALTH_RESTART=1 to $CONF"
+  fi
+  if ! grep -q '^BLOCKLIST_SOURCES=' "$CONF" 2>/dev/null; then
+    cat >> "$CONF" << 'ADD5EOF'
+
+# Blocklist sources, comma-separated ids. Easiest to change from the
+# WebUI (Dashboard -> Update Blocklist -> Sources). "none" = custom list only.
+BLOCKLIST_SOURCES=oisd-big
+
+# Automatic blocklist update: off | daily | weekly
+BLOCKLIST_AUTO=off
+ADD5EOF
+    ui_print "* Added blocklist source settings to $CONF"
   fi
 fi
 
