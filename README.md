@@ -63,8 +63,6 @@ encrypted (DoH / DNSCrypt) → Cloudflare · Quad9 · Mullvad
 3. Reboot
 4. Open the WebUI — the banner should say **Protected**
 
-<img width="300" alt="dnscrypt-proxy" src="https://raw.githubusercontent.com/nikakvo/dnscrypt-proxy-android-arm64-only/main/dnscrypt-proxy.jpg" />
-
 ---
 
 ## WebUI
