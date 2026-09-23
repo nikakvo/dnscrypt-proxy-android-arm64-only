@@ -1,5 +1,84 @@
 # Changelog
 
+## 2.1.18-r12
+
+The biggest release so far: a new WebUI, blocklist sources, IPv6 support, domain tools, resolver choice and a rebuilt core. Settings, custom lists and cached data carry over from earlier versions automatically.
+
+### Resolvers
+
+* Updated `public-resolvers.md` and `relays.md` to the current signed lists (521 → 776 resolvers). Several stamps had changed since the shipped copy, including Quad9's, which now declares DNSSEC
+* Default resolvers are now Cloudflare, Quad9 and **Mullvad (non-filtering)**. The previous default, `mullvad-base-doh`, filters ads and trackers by itself - redundant next to the blocklists. Anyone still on the old default is moved over; a selection you made yourself is kept, with refreshed stamps
+* Checked against dnscrypt-proxy 2.1.19 (not yet released): its configuration is unchanged, so the module will take the new binary without changes
+
+### WebUI
+
+* Rebuilt on the root manager's own `ksu.exec` bridge. The busybox HTTP server on `127.0.0.1:5556` is gone - it had no authentication, and any app on the phone could reach it
+* Four tabs: **Dashboard**, **Tools**, **System**, **Log**
+* A status banner that says what is actually going on: Protected, Nothing resolves, Not responding, Paused, Failsafe
+* **System** shows every process with its PID and uptime, both health checks, every firewall rule and kernel feature, each as a live check
+* Actions: Restart daemon, Reload lists, Reapply rules, Run checks
+* Settings are switches that apply immediately - no more editing a file and rebooting
+* **Log** viewer with level and source filters
+* Tapping any domain on the dashboard offers Allow, Block and Check
+* Every button shows it was pressed, pulses while its command runs, and ignores repeated taps; a thin bar under the header shows the phone is working
+* The watchdog's own health-check queries are subtracted from the statistics and hidden from the lists
+* "?" became **Help**, rewritten to explain every section and function
+
+### Blocklists
+
+* Choose any combination of sources: OISD (Small, Big, NSFW Small, NSFW), HaGeZi (Light to Ultimate, Threat Intelligence), add-ons (pop-up ads, scams, gambling, NSFW, Xiaomi / Samsung / TikTok trackers, URL shorteners) and your own URLs in plain, hosts or AdBlock format
+* Lists are merged, deduplicated, and subdomains already covered by a blocked parent are removed; `custom-blocked-names.txt` is always added on top
+* Every source is cached. A failed download falls back to its last good copy instead of silently dropping out of the list; each source shows updated / cached / failed
+* Automatic update: off, daily or weekly, with the next run shown
+* Editing the custom list rebuilds the blocklist from the cache within a minute - no download, and deleted lines are really removed
+* Custom rules are kept exactly as written. The old `*.` prefixing broke `=exact` rules and turned `ads.*` into a match on everything containing "ads."
+* The blocklist count no longer includes comment lines, and the error-page check on downloads now works with Android's grep
+
+### Tools
+
+* **Check a domain**: verdict, the exact rule that matches (including a blocking parent), which list it came from, and the live answer from dnscrypt-proxy
+* **My rules**: allow and block lists with one-tap removal, applied immediately
+* **Resolvers**: 16 well-known resolvers plus a search of all 700+, with protocol, logging, filtering and DNSSEC decoded from each signed stamp, a latency test, and a configuration check before applying - with automatic rollback if dnscrypt-proxy does not come up
+
+### IPv4 / IPv6
+
+* New **IP mode**: IPv4 only (default, as before), IPv6 compatible (for IPv6-only / 464XLAT carriers), Dual stack
+* In the IPv6 modes, IPv6 DNS is redirected into the proxy as well; the kernel's IPv6 NAT support is detected, and without it the modes run "limited" with IPv6 DNS dropped rather than leaked
+* Switching is immediate, without a reboot
+* Replaces `IPV6_KILL` and the self-lifting `IPV6_AUTO_LIFT` heuristic; old settings are migrated
+
+### Pause protection
+
+* Pause for 5, 15 or 60 minutes for Wi-Fi login pages, with a countdown and Resume. Ends by itself, and after any reboot
+
+### Reliability
+
+* **Health checks**: a local liveness query every 30 s restarts a daemon that holds its port but stopped answering (at most 5 times in 15 minutes); a real lookup every 60 s tells "working" from "no upstream"
+* **Reloads are confirmed**: after a SIGHUP the module waits for dnscrypt-proxy to acknowledge it, and restarts it if it does not
+* The failsafe no longer fires on an intentional restart, which opened a few seconds of plaintext DNS on every restart
+* A daemon that is running but cannot reach upstream stays fail-closed instead of briefly dropping the redirect
+* A crash loop (e.g. a broken config) retries once a minute instead of every 10 seconds
+* All intervals use time since boot. A wrong clock at boot showed a 20,718-day uptime and could postpone the failsafe indefinitely
+* The sdcard mirror now works: `mtime_of` and `seed_sdcard` were called but never defined, so edits made on the sdcard were never copied in
+* Health-check probes only trust a netcat that supports UDP and has answered before, so a limited busybox can never trigger a false "hung"
+* Blocklist rebuilds are locked against each other and refuse a result that would halve the list when the sources have not changed
+
+### Under the hood
+
+* New structure: `sh/common.sh`, `sh/rules.sh`, `sh/blocklist.sh`, `sh/tools.sh`, `sh/resolvers.sh`, and `ctl.sh` - a command-line interface for everything the WebUI does
+* The watchdog no longer fetches metrics or polls the screen state; the WebUI reads them only while it is open
+* The settings file is parsed instead of executed: only known keys with plain values are accepted
+* Updates keep your allow list and chosen resolvers (both used to be reset by every flash)
+* Consistent log format with levels
+
+### Upgrade notes
+
+* Flash over the previous version and reboot. The first blocklist update downloads your sources into the new cache; until then the previous list stays in use
+* The WebUI needs SukiSU / KernelSU, or MMRL / KSU WebUI Standalone on Magisk. The module itself works without it
+* Private DNS, IPv6 and firewall handling are unchanged in the default IPv4 mode
+
+---
+
 ## 2.1.18-r11.6
 
 Fixes the long-standing problem where a reboot or flashing another module left the device with no DNS until this module was reflashed.
