@@ -394,8 +394,19 @@ _hs_reject() { # <cmd> <iface> <proto> <port>
 # jump netd dropped is back within one tick.
 _hs_hook() { # <cmd> <table> <parent> <chain>
   "$1" -t "$2" -N "$4" 2>/dev/null
-  "$1" -t "$2" -C "$3" -j "$4" 2>/dev/null || \
+  # Count the jumps from one listing instead of trusting "-C": a listing
+  # that fails (lock held too long) changes nothing - next tick retries.
+  _hk_s=$("$1" -t "$2" -S "$3" 2>/dev/null) || { unset _hk_s; return 0; }
+  _hk_n=$(printf '%s\n' "$_hk_s" | awk -v j="-A $3 -j $4" '$0 == j { c++ } END { print c + 0 }')
+  if [ "$_hk_n" = "0" ]; then
     "$1" -t "$2" -I "$3" 1 -j "$4" 2>/dev/null
+  elif [ "$_hk_n" -gt 1 ] 2>/dev/null; then
+    # r15 could jump twice (lock race). Remove all, put one back on top.
+    while "$1" -t "$2" -D "$3" -j "$4" 2>/dev/null; do :; done
+    "$1" -t "$2" -I "$3" 1 -j "$4" 2>/dev/null
+    log_warn "hotspot: removed $((_hk_n - 1)) duplicate $4 jump(s) in $1 $2 $3"
+  fi
+  unset _hk_s _hk_n
 }
 
 # ip6tables usable at all? (Always on Android; not in every test sandbox,

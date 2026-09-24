@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.18-r16
+
+A small fix release, found while building a companion module (VPN for hotspot clients).
+
+* **Fixed: the hotspot rule could be hooked in twice.** Android's firewall tool (`iptables`) has a global lock; while netd or another module held it, the module's "is the rule already there?" check failed and was read as *missing*, so the jump to `DNSC_HS_FWD` was added a second time (seen on the phone in both IPv4 and IPv6). Harmless for filtering, but wrong. Now:
+  * every `iptables` / `ip6tables` call waits for the lock (`-w`, the form this device supports is detected once per boot) instead of failing at once
+  * the hotspot jump is counted from one listing; a duplicate left by r15 is removed on the next watchdog tick and logged as `hotspot: removed N duplicate … jump(s)`
+  * the uninstaller waits for the lock too, so it can no longer stop half-way and leave rules behind
+
 ## 2.1.18-r15
 
 ### New: hotspot client protection

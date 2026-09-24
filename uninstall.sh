@@ -66,6 +66,19 @@ unset MODDIR
 # ===============================================
 # STEP 2: Remove all DNS rules (r11 set + legacy r10 set)
 # ===============================================
+# Wait for the xtables lock: a "-D" that fails because netd holds the lock
+# would stop the while-loops below early and leave rules behind.
+_UW=""
+_U4=$(command -v iptables 2>/dev/null); _U6=$(command -v ip6tables 2>/dev/null)
+for _w in "-w 5" "-w"; do
+  # shellcheck disable=SC2086
+  if [ -n "$_U4" ] && "$_U4" $_w -S OUTPUT >/dev/null 2>&1; then _UW=$_w; break; fi
+done
+# shellcheck disable=SC2086
+iptables()  { [ -n "$_U4" ] || return 127; "$_U4" $_UW "$@"; }
+# shellcheck disable=SC2086
+ip6tables() { [ -n "$_U6" ] || return 127; "$_U6" $_UW "$@"; }
+unset _w
 iptables -t nat -D OUTPUT -p tcp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null
 iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null
 iptables -D OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null

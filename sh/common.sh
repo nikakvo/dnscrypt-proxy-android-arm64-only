@@ -50,6 +50,67 @@ for _b in /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox /data/adb/magisk/bu
 done
 unset _b
 
+# iptables / ip6tables always wait for the xtables lock.
+# Without -w a command fails at once while netd or another module holds the
+# lock. A failed "-C" then reads as "rule missing" and the rule gets
+# inserted a second time (seen on the phone: DNSC_HS_FWD jumped to twice).
+# The functions below shadow the binaries for every script that sources
+# this file; which -w form works is probed once per boot (cache reset by
+# post-fs-data.sh). Resolved only once, so sourcing twice cannot make the
+# function call itself.
+IPT_WAIT_FILE="$STATE_DIR/ipt_wait"
+if [ -z "$IPT4_BIN" ]; then
+  IPT4_BIN=$(command -v iptables 2>/dev/null)
+  case "$IPT4_BIN" in /*) ;; *) IPT4_BIN="" ;; esac
+  IPT6_BIN=$(command -v ip6tables 2>/dev/null)
+  case "$IPT6_BIN" in /*) ;; *) IPT6_BIN="" ;; esac
+  IPT_W="-"
+fi
+
+_ipt_wait_init() {
+  [ "$IPT_W" != "-" ] && return 0
+  if [ -f "$IPT_WAIT_FILE" ]; then
+    IPT_W=""
+    read -r IPT_W 2>/dev/null < "$IPT_WAIT_FILE"
+    return 0
+  fi
+  [ -n "$IPT4_BIN" ] || { IPT_W=""; return 0; }
+  for _iw in "-w 5" "-w"; do
+    # shellcheck disable=SC2086
+    if "$IPT4_BIN" $_iw -S OUTPUT >/dev/null 2>&1; then
+      IPT_W=$_iw
+      mkdir -p "$STATE_DIR" 2>/dev/null
+      echo "$IPT_W" > "$IPT_WAIT_FILE" 2>/dev/null
+      unset _iw
+      return 0
+    fi
+  done
+  # Neither form worked (no iptables, or held > 5s): run without -w now,
+  # probe again next time instead of caching a guess.
+  IPT_W=""; unset _iw
+  _ipt_w_retry=1
+}
+
+iptables() {
+  _ipt_wait_init
+  [ -n "$IPT4_BIN" ] || return 127
+  # shellcheck disable=SC2086
+  "$IPT4_BIN" $IPT_W "$@"
+  _ipt_rc=$?
+  [ -n "$_ipt_w_retry" ] && { IPT_W="-"; unset _ipt_w_retry; }
+  return $_ipt_rc
+}
+
+ip6tables() {
+  _ipt_wait_init
+  [ -n "$IPT6_BIN" ] || return 127
+  # shellcheck disable=SC2086
+  "$IPT6_BIN" $IPT_W "$@"
+  _ipt_rc=$?
+  [ -n "$_ipt_w_retry" ] && { IPT_W="-"; unset _ipt_w_retry; }
+  return $_ipt_rc
+}
+
 # ── Settings ─────────────────────────────────────────────────────────────────
 # /data/adb/dnscrypt-proxy-android.conf used to be sourced with `.`, which
 # executes whatever is in it. It is now parsed: only known keys, only plain
