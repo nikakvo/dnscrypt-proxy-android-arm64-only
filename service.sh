@@ -58,14 +58,18 @@ MYPID=$$
 for _p in /proc/[0-9]*; do
   _pid=${_p#/proc/}
   [ "$_pid" = "$MYPID" ] && continue
-  case "$(tr '\0' ' ' < "$_p/cmdline" 2>/dev/null)" in
+  case "$(tr '\0' ' ' 2>/dev/null < "$_p/cmdline")" in
     *dnscrypt-proxy-android/service.sh*) kill "$_pid" 2>/dev/null ;;
   esac
 done
 unset _p _pid
 echo "$MYPID" > "$WATCHDOG_PIDFILE"
+# USR1 = "the daemon was just stopped, look now" (see wake_watchdog). The
+# trap only has to exist: it interrupts the wait at the end of the loop.
+trap ':' USR1
+echo "$MYPID" > "$WATCHDOG_WAKE"
 
-if pidof dnscrypt-proxy >/dev/null 2>&1; then
+if daemon_any; then
   log_info "stopping dnscrypt-proxy left over from a previous instance"
   stop_daemon
 fi
@@ -221,15 +225,26 @@ start_daemon() {
   failsafe_clear
   # Publish right away: the resolution wait below can take half a minute,
   # and the WebUI should not show "failsafe" for a daemon that is back.
-  compute_state
+  # "starting", not the computed state: a fresh daemon has no certificates
+  # yet, and its first queries fail for a few seconds on every restart -
+  # that is not "nothing resolves".
+  H_STATE="starting"
   update_module_status
   write_health
 
+  # Up to ~60s without upstream. Keep the health file fresh meanwhile, or
+  # the WebUI reports the watchdog as stalled while it is only waiting.
+  # Short probes, close together: the daemon usually has its servers within
+  # two or three seconds, and r13's first build (3s probes, 3s apart - a
+  # busybox nc waits out its whole -w even after the reply) kept the WebUI
+  # on "Starting" for ~10s after that. Same ~60s budget as before.
   _i=0
-  while [ "$_i" -lt 10 ]; do
-    probe_resolution
+  while [ "$_i" -lt 20 ]; do
+    probe_resolution 1
     [ "$RESOLVING" = "ok" ] && break
-    sleep 3
+    NOW=$(mono_now)
+    write_health
+    sleep 1
     _i=$((_i + 1))
   done
   if [ "$RESOLVING" = "ok" ]; then
@@ -372,6 +387,11 @@ sync_from_sdcard() {
 
   if [ "$_toml_changed" -eq 1 ]; then
     log_info "config changed, restarting dnscrypt-proxy"
+    # listen_addresses and block_ipv6 belong to the IP mode. A toml edited
+    # on the sdcard (or copied from another phone) can carry the other
+    # mode's values - ::1 in ipv4 mode, where loopback has no IPv6 and the
+    # daemon cannot bind, so it never started and the failsafe opened DNS.
+    apply_ip_mode
     stop_daemon
     check_health_prereqs
   elif [ "$_lists_changed" -eq 1 ]; then
@@ -398,6 +418,7 @@ update_module_status() {
     hung)     _s="Not responding ⚠️ restarting" ;;
     failsafe) _s="Failsafe 📵 DNS unprotected" ;;
     paused)   _s="Paused ⏸ DNS unencrypted for now" ;;
+    starting) _s="Starting ⏳" ;;
     *)        _s="Not Working 📵❌📵" ;;
   esac
   if [ "$_s" != "$LAST_STATUS" ]; then
@@ -428,8 +449,7 @@ auto_update_check() {
   _att=$(cat "$BL_LAST_ATTEMPT" 2>/dev/null); _att=$((_att + 0))
   if [ $((_now - _last)) -ge "$_iv" ] && [ $((_now - _att)) -ge 3600 ] && ! update_running; then
     log_info "automatic blocklist update ($BLOCKLIST_AUTO) starting"
-    setsid sh "$MODDIR/update-blocklist.sh" --auto < /dev/null > "$ACTION_LOG" 2>&1 &
-    echo "$!" > "$UPDATE_PIDFILE"
+    start_update_worker --auto
   fi
   unset _iv _now _last _att
 }
@@ -457,7 +477,7 @@ compute_state() {
 # -----------------------------------------------
 if [ -f "$HTTPD_PIDFILE" ]; then
   _old=$(cat "$HTTPD_PIDFILE" 2>/dev/null)
-  if [ -n "$_old" ] && tr '\0' ' ' < "/proc/$_old/cmdline" 2>/dev/null | grep -q 'httpd.*5556'; then
+  if [ -n "$_old" ] && tr '\0' ' ' 2>/dev/null < "/proc/$_old/cmdline" | grep -q 'httpd.*5556'; then
     kill "$_old" 2>/dev/null
   fi
   rm -f "$HTTPD_PIDFILE"
@@ -545,7 +565,7 @@ while true; do
       if is_paused; then
         # Paused from the WebUI: keep the redirect off, and make sure it
         # is off even if something else reinstalled it meanwhile.
-        rules_dns_present && rules_remove_dns
+        rules_dns_any_present && rules_remove_dns
       else
         rm -f "$PAUSE_FILE"
         log_info "pause ended - protection resumed"
@@ -614,5 +634,10 @@ while true; do
     auto_update_check
   fi
 
-  sleep "$TICK"
+  # Interruptible: wake_watchdog (USR1) ends the wait early.
+  sleep "$TICK" &
+  _slp=$!
+  wait "$_slp" 2>/dev/null
+  kill "$_slp" 2>/dev/null
+  unset _slp
 done

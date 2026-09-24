@@ -4,8 +4,12 @@
   <title>DNSCrypt Monitor</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!-- Loaded without blocking: an @import inside <style> held back every
+       script after it until the font request finished or failed. With
+       DNS down - exactly when this page is needed - that was a blank
+       page until the request timed out. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" media="print" onload="this.media='all'">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
     :root {
       --green:  #00ff88;
@@ -274,6 +278,8 @@
     #sheet .btn-row2 button { flex: 1; padding: 10px; }
     .d-row, .d-bar-row.tap { cursor: pointer; }
     #ipm-seg.busy { opacity: 0.5; pointer-events: none; }
+    body.locked button:not(.tab):not(.fbtn):not(#src-btn):not(#refresh-btn):not(.working),
+    body.locked label.sw, body.locked .src-row { opacity: 0.5; transition: opacity .15s; }
     #ipm-desc { font-size: 9px; color: var(--text); line-height: 1.6; margin: 10px 0 4px; min-height: 30px; }
     #ipm-desc b { color: var(--green); font-weight: normal; }
     .d-stat.wrap { align-items: flex-start; }
@@ -607,7 +613,7 @@
 <footer>
   <span id="last-refresh">—</span>
   <span id="src-info"></span>
-  <button onclick="refreshNow()">↺ Refresh</button>
+  <button id="refresh-btn" onclick="refreshNow()">↺ Refresh</button>
 </footer>
 
 <div id="sheet-bg" onclick="closeSheet()"></div>
@@ -710,6 +716,27 @@ document.addEventListener('pointerdown', e => {
 }, true);
 const BG_CMD = /^(poll|status|log \d|update poll|sources$|rules-list|resolvers$)/;
 
+// ── One action at a time ────────────────────────────────────────────────
+// While a command started by a tap is running, every other action is
+// ignored. Two things this stops: a second action racing the first (IP
+// mode switched three times in a row, each one restarting the daemon),
+// and taps made while the page was frozen - Android queues them and
+// delivers them all once it thaws. Those carry the time they were made,
+// so a tap from before the last command finished is dropped too.
+// Navigation stays free: tabs, log filters, the source list, Refresh.
+let _fgEndedAt = 0;
+const LOCK_FREE = '.tab, .fbtn:not(.danger), #src-btn, #refresh-btn';
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('button, label.sw, .src-row, input[type=checkbox]');
+  if (!t || t.matches(LOCK_FREE)) return;
+  if (_busyN > 0 || e.timeStamp < _fgEndedAt) {
+    _pressed = null;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (_busyN > 0) toast('Wait — the previous action is still running', 'err');
+  }
+}, true);
+
 async function ctl(args, timeoutMs) {
   const fg = !BG_CMD.test(args);
   let btn = null;
@@ -717,14 +744,18 @@ async function ctl(args, timeoutMs) {
     if (_pressed && Date.now() - _pressedAt < 60000 && document.body.contains(_pressed)) btn = _pressed;
     _pressed = null;
     if (btn) btn.classList.add('working');
-    if (++_busyN === 1) $('busy-bar').classList.add('on');
+    if (++_busyN === 1) { $('busy-bar').classList.add('on'); document.body.classList.add('locked'); }
   }
   try {
     return await sh(CTL + ' ' + args, timeoutMs);
   } finally {
     if (fg) {
       if (btn) btn.classList.remove('working');
-      if (--_busyN <= 0) { _busyN = 0; $('busy-bar').classList.remove('on'); }
+      if (--_busyN <= 0) {
+        _busyN = 0; $('busy-bar').classList.remove('on');
+        document.body.classList.remove('locked');
+        _fgEndedAt = performance.now();
+      }
     }
   }
 }
@@ -817,11 +848,16 @@ function renderBanner(st, m) {
   }
   const total = (m && m.total_queries) || 0, blocked = (m && m.blocked_queries) || 0;
   switch (st.state) {
+    // Counts only when the daemon's monitoring API answered: right after a
+    // restart it has not started yet, and "0 total · 0 blocked · up —"
+    // read like the protection had reset to nothing.
     case 'working':
-      setBanner('', `Protected — ${total.toLocaleString()} total · ${blocked.toLocaleString()} blocked · up ${fmtDur(st.daemon_uptime)}`);
+      setBanner('', m && m.total_queries != null
+        ? `Protected — ${total.toLocaleString()} total · ${blocked.toLocaleString()} blocked · up ${fmtDur(st.daemon_uptime)}`
+        : 'Protected');
       break;
     case 'running':
-      setBanner('', `Running — ${total.toLocaleString()} total · resolution not verifiable on this device`);
+      setBanner('', (m && m.total_queries != null ? `Running — ${total.toLocaleString()} total` : 'Running') + ' · resolution not verifiable on this device');
       break;
     case 'degraded':
       setBanner('b-warn', 'Nothing resolves — no internet or upstream down. Wi-Fi login page? System → Pause');
@@ -866,6 +902,15 @@ function barHTML(label, count, total, colorClass) {
 
 const stat = (k, v, cls) => `<div class="d-stat"><span class="k">${k}</span><span class="v ${cls || ''}">${v}</span></div>`;
 
+// The API stamps its snapshot in UTC; show it in the phone's own time.
+function fmtSnap(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return esc(iso);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 function nxCount(m) {
   if (m.nxdomain_queries != null) return m.nxdomain_queries;
   return (m.recent_queries || []).filter(q => (q.response_code || '').toUpperCase() === 'NXDOMAIN').length;
@@ -907,7 +952,7 @@ function renderDashboard(st, m) {
     stat('Queries/sec', m.queries_per_second != null ? m.queries_per_second.toFixed(2) : '—') +
     stat('Cache Hit Ratio', hit) +
     stat('Uptime', fmtDur(m.uptime_seconds)) +
-    stat('Last Snapshot', m.generated_at ? m.generated_at.replace('T', ' ').slice(0, 19) + ' UTC' : '—', 'm') +
+    stat('Last Snapshot', fmtSnap(m.generated_at), 'm') +
     (m._probes ? stat('Health checks excluded', m._probes.toLocaleString(), 'm') : '');
 
   // Cache
@@ -1098,8 +1143,14 @@ function renderStatus(s) {
   let y = '';
   y += row('Module', esc(s.version || '—') + ' · versionCode ' + esc(s.version_code || '—'), 'skip', 'info');
   y += row('SELinux', esc(s.selinux || '—'), s.selinux === 'Enforcing' ? 'ok' : 'warn', (s.selinux || '—').toLowerCase());
-  y += row('Android Private DNS', pdns === 'off' ? 'off — DNS stays with this module' : 'on — Android may send DNS around the proxy',
-    pdns === 'off' ? 'ok' : 'warn', pdns);
+  // Android's Private DNS (DNS-over-TLS on port 853) is not covered by the
+  // port-53 redirect: when it is on, Android may resolve around the proxy
+  // and the blocklist. The installer turns it off; Android settings can
+  // turn it back on, so offer the switch right here.
+  y += pdns === 'off'
+    ? row('Android Private DNS', 'off — DNS stays with this module', 'ok', pdns)
+    : rowCtl('Android Private DNS', `<span class="c-a">${esc(pdns)} — Android may send DNS around the proxy</span>`,
+        `<button class="btn-s r" id="pdns-off" onclick="privateDnsOff()">Turn off</button>`);
   y += row('Network', onoff(s.live_interface) ? 'an interface is up' : 'no interface up (airplane mode?)',
     onoff(s.live_interface) ? 'ok' : 'skip', onoff(s.live_interface) ? 'up' : 'down');
   y += row('Busybox', esc(s.busybox || 'none'), s.busybox && s.busybox !== 'none' ? 'ok' : 'warn', s.busybox && s.busybox !== 'none' ? 'found' : 'missing');
@@ -1119,6 +1170,14 @@ function renderStatus(s) {
   st2 += rowCtl('Log size', 'lines kept in /data/adb/dnscrypt-proxy.log',
     `<select class="log-sel" onchange="setSetting('LOG_KEEP_LINES', this.value)">${['500', '1500', '3000', '5000'].concat([kl]).filter((v, i, a) => a.indexOf(v) === i).map(v => `<option value="${v}" ${v === kl ? 'selected' : ''}>${v}</option>`).join('')}</select>`);
   $('sys-set').innerHTML = st2;
+}
+
+async function privateDnsOff() {
+  try {
+    const r = parseKV(await ctl('private-dns-off'));
+    toast(r.ok === '1' ? 'Private DNS turned off' : (r.error || 'Could not change it'), r.ok === '1' ? 'ok' : 'err');
+  } catch (e) { toast(e.message, 'err'); }
+  loadStatus();
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -1196,18 +1255,25 @@ function renderPause() {
 }
 setInterval(() => { if (_pauseLeft > 0) { renderPause(); if (pauseRemaining() > 0) renderBanner(_lastState, null); } }, 1000);
 
+// Every tap handler below catches a failed or timed-out command itself:
+// an unhandled rejection left the page half-updated ("Searching…" forever)
+// with nothing on screen to say why.
 async function pauseFor(min) {
   if (!confirm(`Pause protection for ${min} minutes?\n\nDNS will go to the network unencrypted until then.`)) return;
-  const r = parseKV(await ctl('pause ' + min));
-  if (r.ok === '1') { _pauseLeft = num(r.paused_left); _pauseAt = Date.now(); renderPause(); toast(`Paused for ${min} min`, 'ok'); }
-  else toast(r.error || 'Could not pause', 'err');
+  try {
+    const r = parseKV(await ctl('pause ' + min));
+    if (r.ok === '1') { _pauseLeft = num(r.paused_left); _pauseAt = Date.now(); renderPause(); toast(`Paused for ${min} min`, 'ok'); }
+    else toast(r.error || 'Could not pause', 'err');
+  } catch (e) { toast(e.message, 'err'); }
   poll();
 }
 
 async function resumeNow() {
-  const r = parseKV(await ctl('resume'));
-  _pauseLeft = 0; renderPause();
-  toast(r.ok === '1' ? 'Protection resumed' : (r.error || 'Could not resume'), r.ok === '1' ? 'ok' : 'err');
+  try {
+    const r = parseKV(await ctl('resume'));
+    if (r.ok === '1') { _pauseLeft = 0; renderPause(); }
+    toast(r.ok === '1' ? 'Protection resumed' : (r.error || 'Could not resume'), r.ok === '1' ? 'ok' : 'err');
+  } catch (e) { toast(e.message, 'err'); }
   poll();
 }
 
@@ -1404,7 +1470,11 @@ async function searchResolvers() {
   const q = $('res-q').value.trim();
   if (q.length < 2) return;
   $('res-found').innerHTML = '<div class="empty">Searching…</div>';
-  const out = await ctl('resolvers-search ' + shq(q), 20000);
+  let out;
+  try { out = await ctl('resolvers-search ' + shq(q), 20000); }
+  catch (e) { $('res-found').innerHTML = `<div class="empty c-r">${esc(e.message)}</div>`; return; }
+  const kv = parseKV(out);
+  if (kv.ok !== '1') { $('res-found').innerHTML = `<div class="empty c-r">${esc(kv.error || 'search failed')}</div>`; return; }
   const found = out.split('\n').filter(l => l.startsWith('res=')).map(parseRes).filter(f => !RES.list.some(r => r.name === f.name));
   $('res-found').innerHTML = found.length ? found.map(f => `<div class="rule-row">
       <span title="${esc(f.desc)}">${esc(f.name)} <span class="c-m">· ${esc(f.proto)} · ${f.nolog ? 'no-log' : 'logs'}${f.nofilter ? '' : ' · filters'}</span></span>
@@ -1541,8 +1611,10 @@ async function loadLog(force) {
 
 async function clearLog() {
   if (!confirm('Clear the module log?')) return;
-  const r = parseKV(await ctl('log-clear'));
-  toast(r.ok === '1' ? 'Log cleared' : 'Could not clear the log', r.ok === '1' ? 'ok' : 'err');
+  try {
+    const r = parseKV(await ctl('log-clear'));
+    toast(r.ok === '1' ? 'Log cleared' : 'Could not clear the log', r.ok === '1' ? 'ok' : 'err');
+  } catch (e) { toast(e.message, 'err'); }
   loadLog(true);
 }
 
@@ -1764,32 +1836,41 @@ function onSrcToggle() {
   renderSources();
   clearTimeout(_srcSaveTimer);
   _srcSaveTimer = setTimeout(async () => {
-    const r = parseKV(await ctl('sources-set ' + shq(ids.join(','))));
-    if (r.ok === '1') toast('Sources saved — tap Update to apply', 'ok');
-    else { toast(r.error || 'Could not save', 'err'); loadSources(); }
+    try {
+      const r = parseKV(await ctl('sources-set ' + shq(ids.join(','))));
+      if (r.ok === '1') { toast('Sources saved — tap Update to apply', 'ok'); return; }
+      toast(r.error || 'Could not save', 'err');
+    } catch (e) { toast(e.message, 'err'); }
+    loadSources();
   }, 600);
 }
 
 async function addUrl() {
   const u = $('url-in').value.trim();
   if (!u) return;
-  const r = parseKV(await ctl('sources-add-url ' + shq(u)));
-  if (r.ok === '1') { $('url-in').value = ''; toast('List added and selected', 'ok'); }
-  else toast(r.error || 'Could not add', 'err');
+  try {
+    const r = parseKV(await ctl('sources-add-url ' + shq(u)));
+    if (r.ok === '1') { $('url-in').value = ''; toast('List added and selected', 'ok'); }
+    else toast(r.error || 'Could not add', 'err');
+  } catch (e) { toast(e.message, 'err'); }
   loadSources();
 }
 
 async function delUrl(id) {
   if (!confirm('Remove this list?')) return;
-  const r = parseKV(await ctl('sources-del-url ' + shq(id)));
-  toast(r.ok === '1' ? 'List removed — tap Update to apply' : (r.error || 'Could not remove'), r.ok === '1' ? 'ok' : 'err');
+  try {
+    const r = parseKV(await ctl('sources-del-url ' + shq(id)));
+    toast(r.ok === '1' ? 'List removed — tap Update to apply' : (r.error || 'Could not remove'), r.ok === '1' ? 'ok' : 'err');
+  } catch (e) { toast(e.message, 'err'); }
   loadSources();
 }
 
 async function setAuto(mode) {
-  const r = parseKV(await ctl('auto-set ' + shq(mode)));
-  if (r.ok === '1') { toast(mode === 'off' ? 'Automatic update off' : `Automatic update: ${mode}`, 'ok'); loadSources(); }
-  else toast(r.error || 'Could not save', 'err');
+  try {
+    const r = parseKV(await ctl('auto-set ' + shq(mode)));
+    if (r.ok === '1') { toast(mode === 'off' ? 'Automatic update off' : `Automatic update: ${mode}`, 'ok'); loadSources(); }
+    else toast(r.error || 'Could not save', 'err');
+  } catch (e) { toast(e.message, 'err'); }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -1804,7 +1885,7 @@ function refreshNow() {
 function fatal(msg) {
   setBanner('b-error', 'No root access');
   $('tab-dash').innerHTML = `<div class="fatal">${msg}</div>`;
-  ['tab-sys', 'tab-log'].forEach(id => { $(id).innerHTML = ''; });
+  ['tab-tools', 'tab-sys', 'tab-log'].forEach(id => { $(id).innerHTML = ''; });
   $('src-info').textContent = '';
 }
 

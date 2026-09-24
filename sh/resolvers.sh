@@ -158,13 +158,16 @@ res_latency() { # <name> ...
     (
       _a=$(res_decode "$(res_stamp "$_n")" | cut -d'|' -f5)
       case "$_a" in
-        \[*) echo na > "$_dir/$_n"; exit 0 ;;
+        # No address in the stamp (a DoH server known only by host name) or
+        # an IPv6 one: nothing to time without a DNS lookup - say so
+        # instead of reporting a failure.
+        '' | \[*) echo na > "$_dir/$_n"; exit 0 ;;
         *:*) _h=${_a%:*}; _p=${_a##*:} ;;
         *)   _h=$_a; _p=443 ;;
       esac
       _t0=$(cs_now)
       # shellcheck disable=SC2086
-      if $_nc -z -w 2 "$_h" "$_p" < /dev/null > /dev/null 2>&1; then
+      if _nc_run 2 $_nc -z -w 2 "$_h" "$_p" < /dev/null > /dev/null; then
         echo "$(( ($(cs_now) - _t0) * 10 ))" > "$_dir/$_n"
       else
         echo fail > "$_dir/$_n"

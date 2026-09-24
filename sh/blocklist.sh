@@ -240,7 +240,11 @@ bl_build() {
     : > "$_w/custom"
   fi
 
-  if [ "$_raw" -eq 0 ] && [ "$_custom_n" -eq 0 ]; then
+  # Sources selected but none of them cached: that is a failure, keep the
+  # current list. Nothing selected and an empty custom list is not - the
+  # right list is then an empty one. r12 refused that too, so removing the
+  # last custom rule with no sources selected never unblocked it.
+  if [ "$_raw" -eq 0 ] && [ "$_custom_n" -eq 0 ] && [ -n "$(bl_selected)" ]; then
     rm -rf "$_w"
     echo "! Nothing to build: no source is cached and the custom list is empty."
     return 1
@@ -398,9 +402,11 @@ bl_update() {
       echo "$_id|ok|$BL_DL_COUNT|" >> "$BL_REPORT.tmp"
       _fresh=$((_fresh + 1))
     elif [ -s "$BL_SRC_DIR/$_id.txt" ]; then
-      _meta=$(cat "$BL_SRC_DIR/$_id.meta" 2>/dev/null)
-      echo "  ! $BL_DL_REASON - using the copy from ${_meta%%|*}"
-      echo "$_id|cached|${_meta##*|}|$BL_DL_REASON" >> "$BL_REPORT.tmp"
+      # "date|count" - IFS read: mksh treats a | inside ${x%%...} as alternation.
+      _mdate=""; _mn=""
+      [ -f "$BL_SRC_DIR/$_id.meta" ] && IFS='|' read -r _mdate _mn 2>/dev/null < "$BL_SRC_DIR/$_id.meta"
+      echo "  ! $BL_DL_REASON - using the copy from ${_mdate:-an earlier update}"
+      echo "$_id|cached|${_mn:-0}|$BL_DL_REASON" >> "$BL_REPORT.tmp"
       _cached=$((_cached + 1))
     else
       echo "  ! FAILED: $BL_DL_REASON - no earlier copy, skipped"
@@ -416,7 +422,7 @@ bl_update() {
     echo "! Check the internet connection."
     log_warn "blocklist update: all sources failed, kept the current list"
     bl_unlock
-    unset _sel _fresh _cached _failed _id _label _meta
+    unset _sel _fresh _cached _failed _id _label _mdate _mn
     return 1
   fi
 
@@ -442,7 +448,7 @@ bl_update() {
   _old=$(blocklist_domains)
   if ! bl_build; then
     bl_unlock
-    unset _sel _fresh _cached _failed _id _label _meta _f _all_real _old
+    unset _sel _fresh _cached _failed _id _label _mdate _mn _f _all_real _old
     return 1
   fi
   bl_unlock
@@ -452,7 +458,7 @@ bl_update() {
   echo "-----------------------------------------------"
   echo "  Sources: $_fresh fresh, $_cached from cache, $_failed failed"
   log_info "blocklist updated: $_old -> $BL_FINAL rules ($_fresh fresh, $_cached cached, $_failed failed)"
-  unset _sel _fresh _cached _failed _id _label _meta _f _all_real _old
+  unset _sel _fresh _cached _failed _id _label _mdate _mn _f _all_real _old
   return 0
 }
 
@@ -480,7 +486,14 @@ bl_rebuild_custom() {
   _before=$(blocklist_domains); _before=$((_before + 0))
   # Compare SELECTIONS, not what ended up used: a selected source whose
   # cache broke drops out of "used", and that is exactly the case to catch.
-  _prev_src=$(sed -n 's/^# Selected: *//p' "$BLOCKLIST" 2>/dev/null | head -n 1)
+  # A list from before r13 has no "# Selected:" line at all, and "no line"
+  # must not read as "nothing was selected": with no sources selected now,
+  # the two compared equal and the guard refused a legitimately empty list.
+  if grep -q '^# Selected:' "$BLOCKLIST" 2>/dev/null; then
+    _prev_src=$(sed -n 's/^# Selected: *//p' "$BLOCKLIST" 2>/dev/null | head -n 1)
+  else
+    _prev_src="(unknown)"
+  fi
   cp -f "$BLOCKLIST" "$STATE_DIR/.blocklist.prev" 2>/dev/null
   bl_build > "$STATE_DIR/.rebuild.out" 2>&1
   _rc=$?
@@ -495,7 +508,9 @@ bl_rebuild_custom() {
   fi
   rm -f "$STATE_DIR/.blocklist.prev"
   unset _before _prev_src
-  _rc=$?
+  # (_rc is bl_build's result. r12 re-read $? here - the exit status of
+  # `unset`, always 0 - so a failed rebuild was logged and reported as
+  # applied and the caller reloaded for nothing.)
   bl_unlock
   if [ "$_rc" -eq 0 ]; then
     log_info "custom list applied: blocklist rebuilt from cache, $BL_FINAL rules"

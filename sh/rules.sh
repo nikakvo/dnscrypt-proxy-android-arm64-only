@@ -102,7 +102,7 @@ have_ip6_nat() {
 
 ip6_redirect_wanted() {
   _w=0
-  [ -f "$IP6_REDIRECT_FILE" ] && read -r _w < "$IP6_REDIRECT_FILE" 2>/dev/null
+  [ -f "$IP6_REDIRECT_FILE" ] && read -r _w 2>/dev/null < "$IP6_REDIRECT_FILE"
   [ "$_w" = "1" ]
   _r=$?; unset _w; return $_r
 }
@@ -143,19 +143,32 @@ rules_flush_all() {
 #   filter OUTPUT: [bootstrap ACCEPTs] [udp DROP] [tcp DROP] ...
 # -----------------------------------------------------------------
 rules_install_dns() {
-  iptables -t nat -C OUTPUT -p tcp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null || \
-    iptables -t nat -I OUTPUT 1 -p tcp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null
-  iptables -t nat -C OUTPUT -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null || \
-    iptables -t nat -I OUTPUT 1 -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null
+  # The exemptions (RETURN in nat, ACCEPT in filter) only work ABOVE the
+  # rule they exempt from. On a fresh install that falls out of the insert
+  # order, but a repair is different: when netd or a VPN takes out only
+  # the DNAT or only the DROP, r12 re-inserted it at position 1 - above
+  # the exemptions, which then never matched, and the daemon's own
+  # bootstrap queries went into the redirect (nat) or were dropped
+  # (filter). So whenever a DNAT or DROP had to be (re)inserted, the
+  # exemptions are re-seated at the top afterwards. The DNAT and DROP
+  # themselves are never taken down for this, so protection has no gap.
+  _nat_new=0
+  iptables -t nat -C OUTPUT -p tcp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null || {
+    iptables -t nat -I OUTPUT 1 -p tcp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null; _nat_new=1; }
+  iptables -t nat -C OUTPUT -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null || {
+    iptables -t nat -I OUTPUT 1 -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null; _nat_new=1; }
 
   if have_owner_match; then
     for _ip in $BOOTSTRAP_IPS; do
-      iptables -t nat -C OUTPUT -p tcp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null || \
-        iptables -t nat -I OUTPUT 1 -p tcp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
-      iptables -t nat -C OUTPUT -p udp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null || \
-        iptables -t nat -I OUTPUT 1 -p udp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
+      for _pr in tcp udp; do
+        if [ "$_nat_new" -eq 1 ]; then
+          iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
+        fi
+        iptables -t nat -C OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null || \
+          iptables -t nat -I OUTPUT 1 -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
+      done
     done
-    unset _ip
+    unset _ip _pr
   fi
 
   # Leak guard: anything on port 53 that did NOT get redirected and is
@@ -165,18 +178,23 @@ rules_install_dns() {
   # daemon itself if sources were ever re-enabled, and failing open beats
   # bricking DNS.
   if have_owner_match; then
-    iptables -C OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null || \
-      iptables -I OUTPUT 1 ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null
-    iptables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null || \
-      iptables -I OUTPUT 1 ! -o lo -p udp --dport 53 -j DROP 2>/dev/null
+    _flt_new=0
+    iptables -C OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null || {
+      iptables -I OUTPUT 1 ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null; _flt_new=1; }
+    iptables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null || {
+      iptables -I OUTPUT 1 ! -o lo -p udp --dport 53 -j DROP 2>/dev/null; _flt_new=1; }
     for _ip in $BOOTSTRAP_IPS; do
-      iptables -C OUTPUT ! -o lo -p tcp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || \
-        iptables -I OUTPUT 1 ! -o lo -p tcp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
-      iptables -C OUTPUT ! -o lo -p udp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || \
-        iptables -I OUTPUT 1 ! -o lo -p udp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+      for _pr in tcp udp; do
+        if [ "$_flt_new" -eq 1 ]; then
+          iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+        fi
+        iptables -C OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || \
+          iptables -I OUTPUT 1 ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+      done
     done
-    unset _ip
+    unset _ip _pr _flt_new
   fi
+  unset _nat_new
 
   # IPv6 DNS never goes through this proxy. If the IPv6 killswitch is off
   # or has been lifted, port-53 over IPv6 would be a wide open side door.
@@ -236,6 +254,20 @@ rules_dns_present() {
     ip6tables -t nat -C OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null || return 1
   fi
   return 0
+}
+
+# Is ANY part of the redirect still in place? While protection is paused
+# everything has to go, and "not all present" (above) is not "none
+# present": with only the DROP gone, r12 left the DNAT in place for the
+# whole pause and DNS stayed redirected.
+rules_dns_any_present() {
+  iptables -t nat -C OUTPUT -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null && return 0
+  iptables -t nat -C OUTPUT -p tcp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null && return 0
+  iptables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null && return 0
+  iptables -C OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null && return 0
+  ip6tables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null && return 0
+  ip6tables -t nat -C OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null && return 0
+  return 1
 }
 
 # -----------------------------------------------------------------

@@ -107,7 +107,7 @@ cmd_status() {
 
   # Blocklist
   if [ -f "$BLOCKLIST" ]; then
-    _n=$(wc -l < "$BLOCKLIST" 2>/dev/null); echo "blocklist_lines=$((_n + 0))"
+    _n=$(wc -l 2>/dev/null < "$BLOCKLIST"); echo "blocklist_lines=$((_n + 0))"
   else
     echo "blocklist_lines=0"
   fi
@@ -254,14 +254,14 @@ cmd_poll() {
   echo "blocklist_domains=$(blocklist_domains)"
   echo "blocklist_updated=$(cat "$LAST_UPDATE_FILE" 2>/dev/null)"
   echo "update_running=$(update_running && echo 1 || echo 0)"
-  _pq=0; [ -f "$PROBE_COUNT_FILE" ] && read -r _pq < "$PROBE_COUNT_FILE"
-  echo "probe_queries=${_pq:-0}"
-  echo "paused_left=$(pause_left)"
+  _pq=0; [ -f "$PROBE_COUNT_FILE" ] && read -r _pq 2>/dev/null < "$PROBE_COUNT_FILE"
+  case "$_pq" in '' | *[!0-9]*) _pq=0 ;; esac
+  echo "probe_queries=$_pq"
   echo "ip_mode_effective=$(ip_mode_applied)"
   echo "version=$(sed -n 's/^version=//p' "$MODPROP" 2>/dev/null)"
   echo "@@METRICS@@"
   fetch_metrics_json || echo "{}"
-  unset _now _dp _started _tick _res
+  unset _now _dp _started _tick _res _pq
 }
 
 # ── update: blocklist download, run detached ────────────────────────────────
@@ -274,12 +274,7 @@ cmd_update() {
       if [ ! -f "$MODDIR/update-blocklist.sh" ]; then
         echo "ok=0"; echo "error=update-blocklist.sh missing"; return 1
       fi
-      mkdir -p "$STATE_DIR"
-      # Fully detached: its own session, no inherited stdio. The root
-      # manager's exec waits for stdout to close, so anything still holding
-      # it would freeze the WebUI until the download finished.
-      setsid sh "$MODDIR/update-blocklist.sh" < /dev/null > "$ACTION_LOG" 2>&1 &
-      echo "$!" > "$UPDATE_PIDFILE"
+      start_update_worker
       log_info "blocklist update started via ctl.sh"
       echo "ok=1"
       ;;
@@ -315,18 +310,21 @@ cmd_sources() {
   bl_all_sources | while IFS='|' read -r _id _grp _lbl _url _min _desc; do
     [ -n "$_id" ] || continue
     case "$_sel" in *",$_id,"*) _on=1 ;; *) _on=0 ;; esac
-    _meta=$(cat "$BL_SRC_DIR/$_id.meta" 2>/dev/null)
+    # .meta is "date|count". Read with IFS, never a | inside ${x%%...}: in mksh (the
+    # shell ksu.exec runs) a | inside a pattern is alternation, and both
+    # fields came out empty for every source.
     _date=""; _n=""
-    [ -n "$_meta" ] && { _date=${_meta%%|*}; _n=${_meta##*|}; }
+    [ -f "$BL_SRC_DIR/$_id.meta" ] && IFS='|' read -r _date _n 2>/dev/null < "$BL_SRC_DIR/$_id.meta"
     echo "src=$_id|$_grp|$_lbl|$_on|$_n|$_date|$_desc|$_url"
   done
   if [ -f "$BL_SRC_DIR/legacy.txt" ]; then
-    _meta=$(cat "$BL_SRC_DIR/legacy.meta" 2>/dev/null)
-    echo "legacy=${_meta##*|}|${_meta%%|*}"
+    _date=""; _n=""
+    [ -f "$BL_SRC_DIR/legacy.meta" ] && IFS='|' read -r _date _n 2>/dev/null < "$BL_SRC_DIR/legacy.meta"
+    echo "legacy=$_n|$_date"
   fi
   [ -f "$BL_REPORT" ] && sed 's/^/report=/' "$BL_REPORT"
   echo "ok=1"
-  unset _sel _id _grp _lbl _url _min _desc _on _meta _date _n
+  unset _sel _id _grp _lbl _url _min _desc _on _date _n
 }
 
 cmd_sources_set() { # <comma-separated ids>
@@ -568,6 +566,19 @@ cmd_set() { # <KEY> <VALUE>
   echo "ok=1"
 }
 
+# ── private-dns-off: Android's own DNS-over-TLS goes around the redirect ────
+cmd_private_dns_off() {
+  settings put global private_dns_mode off 2>/dev/null
+  _pd=$(settings get global private_dns_mode 2>/dev/null)
+  if [ "$_pd" = "off" ]; then
+    log_info "Android Private DNS turned off via WebUI"
+    echo "private_dns=off"; echo "ok=1"
+  else
+    echo "ok=0"; echo "error=Android did not accept the change (now: ${_pd:-unknown})"
+  fi
+  unset _pd
+}
+
 # ── resolvers ────────────────────────────────────────────────────────────────
 cmd_resolvers() {
   res_list
@@ -669,6 +680,7 @@ usage: ctl.sh <command>
   set KEY VALUE   QUIC_BLOCK, HEALTH_RESTART, IPV6_PER_IFACE_ENFORCE (0/1),
                   LOG_KEEP_LINES (100-20000)
   resolvers / resolvers-search T / resolvers-set A,B / resolvers-test A,B
+  private-dns-off turn Android Private DNS off (it bypasses the redirect)
   log [N]         last N log lines (default 200)
   log-clear       empty the log
 EOF
@@ -701,6 +713,7 @@ case "$cmd" in
   resolvers-set) cmd_resolvers_set "$1" ;;
   resolvers-test) cmd_resolvers_test "$1" ;;
   probe)         cmd_probe ;;
+  private-dns-off) cmd_private_dns_off ;;
   restart)       cmd_restart ;;
   reload)        cmd_reload ;;
   reapply-rules) cmd_reapply_rules ;;

@@ -29,7 +29,8 @@ rm -f "$STATE_DIR/ipv6_killswitch_lifted" \
       "$HEALTH_FILE" "$HEALTH_FILE.tmp" \
       "$DAEMON_PIDFILE" "$WATCHDOG_PIDFILE" "$UPDATE_PIDFILE" \
       "$STATE_DIR/probe_queries" "$STATE_DIR/ip_mode_applied" \
-      "$STATE_DIR/ip6_nat" "$STATE_DIR/paused_until"
+      "$STATE_DIR/ip6_nat" "$STATE_DIR/paused_until" \
+      "$STATE_DIR/update.pending" "$STATE_DIR/watchdog.wake"
 # A lock or a half-finished build from before the reboot is meaningless now,
 # and the pid inside the lock may already belong to something else.
 rm -rf "$STATE_DIR/blocklist.lock" "$DATA_DIR/sources/.work" 2>/dev/null

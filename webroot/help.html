@@ -4,8 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DNSCrypt Proxy — Help</title>
+  <!-- Loaded without blocking: an @import inside <style> held back every
+       script after it until the font request finished or failed. With
+       DNS down - exactly when this page is needed - that was a blank
+       page until the request timed out. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" media="print" onload="this.media='all'">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
     :root {
       --bg: #000; --bg2: #040a06; --surface: #030d06; --surface2: #061209;
       --border: #0d2a1a; --border2: #164a2e;
@@ -178,6 +182,7 @@
   <div class="tw"><table>
     <tr><td><span class="pill ok">Protected</span></td><td>Everything works.</td></tr>
     <tr><td><span class="pill warn">Nothing resolves</span></td><td>DNS is still protected, but no answers come back: no internet, a Wi-Fi login page, or the resolvers are unreachable. See <a href="#pause" style="color:var(--blue)">Pause</a>.</td></tr>
+    <tr><td><span class="pill warn">Starting</span></td><td>dnscrypt-proxy was just (re)started and is fetching its resolvers' certificates — usually a few seconds. DNS stays protected meanwhile.</td></tr>
     <tr><td><span class="pill warn">Not responding</span></td><td>dnscrypt-proxy hung and is being restarted.</td></tr>
     <tr><td><span class="pill warn">Paused</span></td><td>You paused protection; a countdown shows when it returns.</td></tr>
     <tr><td><span class="pill bad">Failsafe</span></td><td>The daemon could not start — DNS is unencrypted until it recovers.</td></tr>
@@ -295,7 +300,9 @@
   <p>Every rule the module needs, checked live: DNS redirect (IPv4 / IPv6), leak guards, QUIC block, the IPv6 killswitch, and whether the kernel has the <code>xt_owner</code> match the IPv4 leak guard needs. <span class="pill ok">active</span> is good, <span class="pill bad">missing</span> is not — Reapply rules fixes it, and the watchdog does too within seconds. <span class="pill skip">off</span> means switched off by a setting.</p>
   <h3>System</h3>
   <p>Module version, SELinux, Android Private DNS (should be <span class="pill ok">off</span>), network, busybox and the blocklist size.</p>
+  <p>Android's <strong>Private DNS</strong> uses its own encrypted channel (port 853) and would go around this module and its blocklists. The installer switches it off; if it is on again — Android settings, a restore, another app — a <strong>Turn off</strong> button appears in that row.</p>
   <p>A red or amber dot on the <strong>System</strong> tab means something there needs attention.</p>
+  <p><strong>One action at a time:</strong> while a button's command runs, the other buttons are dimmed and taps on them are ignored — including taps made while the screen was busy, which Android would otherwise deliver all at once afterwards. Tabs, log filters and Refresh always work.</p>
 </div>
 
 <!-- 10 -->
@@ -379,6 +386,7 @@
     <tr><td>resolvers-set A,B</td><td>Select resolvers</td></tr>
     <tr><td>ipmode-set M</td><td><code>ipv4</code> · <code>compat</code> · <code>dual</code></td></tr>
     <tr><td>pause MIN · resume</td><td>Pause protection</td></tr>
+    <tr><td>private-dns-off</td><td>Switch Android Private DNS off</td></tr>
     <tr><td>log N</td><td>Last N log lines</td></tr>
   </table></div>
   <p><code>ctl.sh help</code> lists every command.</p>
@@ -427,7 +435,7 @@
 <div class="sec-title" id="uninstall">17 · update &amp; uninstall</div>
 <div class="box">
   <h3>Updating the module</h3>
-  <p>Your settings, custom list, allow list, chosen resolvers and cached blocklists are kept. The old config is backed up with a date in <code>/data/adb/dnscrypt-proxy/</code>.</p>
+  <p>Your settings, custom list, allow list, IP lists (<code>allowed-ips.txt</code>, <code>blocked-ips.txt</code>), chosen resolvers and cached blocklists are kept. The old config is backed up with a date in <code>/data/adb/dnscrypt-proxy/</code>.</p>
   <h3>Uninstall</h3>
   <p>Remove the module in your root manager and reboot. Every firewall rule is removed, IPv6 and Android Private DNS are restored to how they were, and the module's files are deleted.</p>
 </div>

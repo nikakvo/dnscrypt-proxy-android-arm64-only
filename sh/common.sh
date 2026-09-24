@@ -112,14 +112,14 @@ set_setting() { # <KEY> <VALUE>
 # backwards jump. /proc/uptime only ever moves forward, at one second per
 # second, whatever the clock does.
 mono_now() {
-  read -r _u _r < /proc/uptime 2>/dev/null
+  read -r _u _r 2>/dev/null < /proc/uptime
   echo "${_u%%.*}"
   unset _u _r
 }
 
 # Centiseconds since boot - for latency measurements, 10 ms resolution.
 cs_now() {
-  read -r _u _r < /proc/uptime 2>/dev/null
+  read -r _u _r 2>/dev/null < /proc/uptime
   _s=${_u%%.*}; _f=${_u#*.}
   case "$_f" in ?) _f="${_f}0" ;; esac
   echo "$((_s * 100 + ${_f#0}))"
@@ -135,7 +135,7 @@ PAUSE_FILE="$STATE_DIR/paused_until"
 
 pause_left() {
   _pu=0
-  [ -f "$PAUSE_FILE" ] && read -r _pu < "$PAUSE_FILE" 2>/dev/null
+  [ -f "$PAUSE_FILE" ] && read -r _pu 2>/dev/null < "$PAUSE_FILE"
   case "$_pu" in '' | *[!0-9]*) _pu=0 ;; esac
   _pl=$((_pu - $(mono_now)))
   [ "$_pl" -lt 0 ] && _pl=0
@@ -170,7 +170,7 @@ rotate_log() {
   _keep=${LOG_KEEP_LINES:-1500}
   case "$_keep" in '' | *[!0-9]*) _keep=1500 ;; esac
   [ "$_keep" -lt 100 ] && _keep=100
-  _lines=$(wc -l < "$LOG" 2>/dev/null)
+  _lines=$(wc -l 2>/dev/null < "$LOG")
   _lines=$((_lines + 0))
   if [ "$_lines" -gt $((_keep * 2)) ]; then
     tail -n "$_keep" "$LOG" > "$LOG.tmp" 2>/dev/null && cat "$LOG.tmp" > "$LOG" 2>/dev/null
@@ -216,9 +216,32 @@ else
   rules_install_quic() { :; }
   rules_remove_quic()  { :; }
   rules_dns_present()  { return 0; }
+  rules_dns_any_present() { return 1; }
 fi
 
 # ── Process helpers ──────────────────────────────────────────────────────────
+# Every live dnscrypt-proxy, by /proc/PID/comm. Not pidof / pkill -x:
+# busybox (KernelSU runs module scripts with its busybox ash) matches -x
+# against argv[0], which is the daemon's full path, so `pkill -x
+# dnscrypt-proxy` found nothing - reloads never reached the daemon and
+# every one of them turned into a restart - while pidof and toybox pgrep
+# also report zombies. read/case only: no process spawned per /proc entry.
+daemon_pids() {
+  for _dd in /proc/[0-9]*; do
+    read -r _dc 2>/dev/null < "$_dd/comm" || continue
+    [ "$_dc" = "dnscrypt-proxy" ] || continue
+    read -r _ds 2>/dev/null < "$_dd/stat" || continue
+    case "${_ds##*) }" in Z* | X*) continue ;; esac
+    echo "${_dd#/proc/}"
+  done
+  unset _dd _dc _ds
+}
+daemon_any() { [ -n "$(daemon_pids)" ]; }
+daemon_signal() { # <signal>
+  for _sp in $(daemon_pids); do kill "-$1" "$_sp" 2>/dev/null; done
+  unset _sp
+}
+
 # Matched on /proc/PID/comm, not cmdline: the watchdog's own cmdline
 # contains "dnscrypt-proxy-android/service.sh" and would match a grep.
 daemon_pid() {
@@ -226,8 +249,8 @@ daemon_pid() {
   if [ -n "$_p" ] && [ "$(cat "/proc/$_p/comm" 2>/dev/null)" = "dnscrypt-proxy" ]; then
     echo "$_p"; unset _p; return 0
   fi
-  _p=$(pidof dnscrypt-proxy 2>/dev/null)
-  _p=${_p%% *}
+  _p=$(daemon_pids)
+  _p=${_p%%[!0-9]*}
   if [ -n "$_p" ]; then echo "$_p"; unset _p; return 0; fi
   unset _p
   return 1
@@ -235,7 +258,7 @@ daemon_pid() {
 
 watchdog_pid() {
   _p=$(cat "$WATCHDOG_PIDFILE" 2>/dev/null)
-  if [ -n "$_p" ] && tr '\0' ' ' < "/proc/$_p/cmdline" 2>/dev/null | grep -q 'service\.sh'; then
+  if [ -n "$_p" ] && tr '\0' ' ' 2>/dev/null < "/proc/$_p/cmdline" | grep -q 'service\.sh'; then
     echo "$_p"; unset _p; return 0
   fi
   unset _p
@@ -244,18 +267,41 @@ watchdog_pid() {
 
 # Stop the daemon and make sure it is gone, including any copy that is not
 # ours (a previous module version still holding the port).
+# Waits for the processes it signalled, and only for them: the watchdog
+# may start a fresh daemon within the same second, and that one must not
+# be waited on - or killed - as if it were the old one.
 stop_daemon() {
-  _p=$(daemon_pid)
-  [ -n "$_p" ] && kill "$_p" 2>/dev/null
-  pkill -x dnscrypt-proxy 2>/dev/null
+  _sd=$(daemon_pids)
+  for _p in $_sd; do kill -TERM "$_p" 2>/dev/null; done
   _i=0
-  while [ "$_i" -lt 5 ] && pidof dnscrypt-proxy >/dev/null 2>&1; do
-    sleep 1
+  while [ "$_i" -lt 10 ]; do
+    _alive=""
+    for _p in $_sd; do
+      read -r _st 2>/dev/null < "/proc/$_p/stat" || continue
+      case "${_st##*) }" in Z* | X*) continue ;; esac
+      _alive="$_alive $_p"
+    done
+    [ -n "$_alive" ] || break
+    sleep 0.5 2>/dev/null || sleep 1
     _i=$((_i + 1))
   done
-  pkill -9 -x dnscrypt-proxy 2>/dev/null
+  for _p in $_alive; do kill -KILL "$_p" 2>/dev/null; done
   rm -f "$DAEMON_PIDFILE"
-  unset _p _i
+  unset _sd _p _i _alive _st
+  wake_watchdog
+}
+
+# The watchdog sleeps 10s between ticks. When ctl.sh stops the daemon for a
+# restart, an IP mode switch or new resolvers, it wakes the watchdog so the
+# daemon is back in a second instead of after up to ten. Only a watchdog
+# that registered itself in $WATCHDOG_WAKE (and so traps USR1) is woken:
+# to a watchdog without the trap, USR1 would be fatal.
+WATCHDOG_WAKE="$STATE_DIR/watchdog.wake"
+wake_watchdog() {
+  _wp=$(cat "$WATCHDOG_WAKE" 2>/dev/null)
+  [ -n "$_wp" ] && [ "$_wp" != "$$" ] && [ "$_wp" = "$(watchdog_pid)" ] && kill -USR1 "$_wp" 2>/dev/null
+  unset _wp
+  return 0
 }
 
 # Reload the lists with SIGHUP and CONFIRM it happened.
@@ -267,10 +313,10 @@ stop_daemon() {
 # daemon to signal. Callers decide what to do about 1 - normally a restart,
 # which reads every list from scratch.
 reload_daemon() {
-  pidof dnscrypt-proxy >/dev/null 2>&1 || return 2
-  _before=$(wc -l < "$LOG" 2>/dev/null)
+  daemon_any || return 2
+  _before=$(wc -l 2>/dev/null < "$LOG")
   _before=$((_before + 0))
-  pkill -HUP -x dnscrypt-proxy 2>/dev/null
+  daemon_signal HUP
   _i=0
   while [ "$_i" -lt 8 ]; do
     sleep 1
@@ -285,23 +331,57 @@ reload_daemon() {
 }
 
 # Is a blocklist download running right now?
+#
+# Starting one is not instant: the spawner forks, the child execs setsid,
+# setsid execs sh, and only then does /proc/PID/cmdline say
+# update-blocklist. A poll that landed in that window got "not running"
+# and the WebUI stopped following an update that had just started. So
+# the spawner leaves a pending marker (its time, seconds since boot)
+# before it forks; the worker removes it once its pid file is written.
+# A marker older than 20s belongs to a worker that died at birth.
+UPDATE_PENDING="$STATE_DIR/update.pending"
+
 update_running() {
   _p=$(cat "$UPDATE_PIDFILE" 2>/dev/null)
-  [ -n "$_p" ] || { unset _p; return 1; }
-  if tr '\0' ' ' < "/proc/$_p/cmdline" 2>/dev/null | grep -q 'update-blocklist'; then
+  if [ -n "$_p" ] && tr '\0' ' ' 2>/dev/null < "/proc/$_p/cmdline" | grep -q 'update-blocklist'; then
     unset _p; return 0
   fi
   unset _p
+  if [ -f "$UPDATE_PENDING" ]; then
+    _p=$(cat "$UPDATE_PENDING" 2>/dev/null)
+    case "$_p" in '' | *[!0-9]*) _p=0 ;; esac
+    if [ $(( $(mono_now) - _p )) -lt 20 ]; then unset _p; return 0; fi
+    rm -f "$UPDATE_PENDING"
+    unset _p
+  fi
   return 1
+}
+
+# Start update-blocklist.sh fully detached. Its own session, no inherited
+# stdio: the root manager's exec waits for stdout to close, so anything
+# still holding it would freeze the WebUI until the download finished.
+start_update_worker() { # [--auto]
+  mkdir -p "$STATE_DIR"
+  mono_now > "$UPDATE_PENDING"
+  # The worker writes its own pid. $! is not written here: when setsid has
+  # to fork (it does if it starts as a process-group leader), $! is the
+  # short-lived setsid, and writing it after the worker wrote its pid
+  # would make a running update look finished.
+  setsid sh "$MODDIR/update-blocklist.sh" "$@" < /dev/null > "$ACTION_LOG" 2>&1 &
 }
 
 # ── Listener ─────────────────────────────────────────────────────────────────
 # /proc/net first: always present, no tool dependency. The local address is
 # column 2; pinning the match there stops 14EA (5354) matching a remote port
 # or address bytes. udp6/tcp6 are included for the dual-stack listener.
+# Column 4 is the socket state, and only a listener counts: 0A (LISTEN) for
+# TCP, 07 (unconnected) for UDP. r12 took any socket with local port 5354,
+# and the server side of a finished DNS-over-TCP query sits in TIME_WAIT
+# on that port for a minute after the daemon is gone - so a restart could
+# be reported as done before the new daemon had even started.
 is_listening() {
   for _t in udp tcp udp6 tcp6; do
-    if awk 'NR>1 && $2 ~ /:14EA$/ {f=1; exit} END {exit !f}' "/proc/net/$_t" 2>/dev/null; then
+    if awk 'NR>1 && $2 ~ /:14EA$/ && ($4 == "0A" || $4 == "07") {f=1; exit} END {exit !f}' "/proc/net/$_t" 2>/dev/null; then
       unset _t; return 0
     fi
   done
@@ -355,16 +435,46 @@ PROBE_COUNT_FILE="$STATE_DIR/probe_queries"
 # module's own traffic. start_daemon resets it. read/echo only: no spawns.
 _count_probe() {
   _pc=0
-  [ -f "$PROBE_COUNT_FILE" ] && read -r _pc < "$PROBE_COUNT_FILE" 2>/dev/null
+  [ -f "$PROBE_COUNT_FILE" ] && read -r _pc 2>/dev/null < "$PROBE_COUNT_FILE"
   case "$_pc" in '' | *[!0-9]*) _pc=0 ;; esac
   echo $((_pc + 1)) > "$PROBE_COUNT_FILE" 2>/dev/null
   unset _pc
 }
 
+# How to make a UDP netcat stop waiting for the reply. The two netcats on
+# a rooted phone disagree about -w:
+#   busybox nc   -w SEC  "timeout for connects and final net reads"
+#   toybox nc    -w SEC  connect timeout only. A UDP "connection" never
+#                        closes, so after the reply (or none) it waits
+#                        forever. Its -q SEC ("quit SEC after EOF on
+#                        stdin") is what ends it.
+# r12 passed -w to both: with Android's own nc as the only UDP-capable
+# tool, the first probe never returned and the watchdog stopped ticking.
+# The flag is chosen from the tool's own help, and `timeout` (toybox and
+# busybox both have it) is a second guard around every probe.
+_nc_wait_flag() { # <nc command...> -> q or w
+  if { "$@" --help; "$@" -h; } 2>&1 | grep -qE '^[[:space:]]*-q[[:space:]]'; then echo q; else echo w; fi
+}
+NC_FLAG_bbnc=""
+NC_FLAG_nc=""
+
+_nc_run() { # <wait> <nc command...>   stdin: packet, stdout: reply
+  _w=$1; shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$((_w + 2))" "$@" 2>/dev/null
+  else
+    "$@" 2>/dev/null
+  fi
+}
+
 _nc_query() { # <tool> <packet-fn> <wait-seconds>
   case "$1" in
-    bbnc) "$2" | "$BB" nc -u -w "$3" "$LISTEN_ADDR" "$LISTEN_PORT" 2>/dev/null | wc -c ;;
-    nc)   "$2" | nc -u -w "$3" "$LISTEN_ADDR" "$LISTEN_PORT" 2>/dev/null | wc -c ;;
+    bbnc)
+      [ -n "$NC_FLAG_bbnc" ] || NC_FLAG_bbnc=$(_nc_wait_flag "$BB" nc)
+      "$2" | _nc_run "$3" "$BB" nc -u "-$NC_FLAG_bbnc" "$3" "$LISTEN_ADDR" "$LISTEN_PORT" | wc -c ;;
+    nc)
+      [ -n "$NC_FLAG_nc" ] || NC_FLAG_nc=$(_nc_wait_flag nc)
+      "$2" | _nc_run "$3" nc -u "-$NC_FLAG_nc" "$3" "$LISTEN_ADDR" "$LISTEN_PORT" | wc -c ;;
     *)    echo 0 ;;
   esac
 }
@@ -404,8 +514,11 @@ dns_query() { # <packet-fn> <wait-seconds>
   for _t in $_tools; do
     _n=$(_nc_query "$_t" "$1" "$2")
     _n=$((_n + 0))
-    # A tool that has worked before did send the packet, reply or not.
-    if [ "$_n" -gt 0 ] || [ "$PROBE_PROVEN" -eq 1 ]; then _count_probe; fi
+    # The packet was sent whether or not a reply came back (the tool was
+    # checked for UDP support), and dnscrypt-proxy counts it either way.
+    # r12 only counted unanswered probes once the tool had been proven, so
+    # the queries of a daemon still starting up stayed in the totals.
+    _count_probe
     if [ "$_n" -gt 0 ]; then
       Q_LEN=$_n
       PROBE_TOOL=$_t
@@ -438,8 +551,8 @@ probe_liveness() {
 #   noanswer  a reply, but no answer in it (SERVFAIL / upstream unreachable)
 #   silent    no reply at all, from a probe that has worked before
 #   unknown   nothing on this device can ask, or the tool was never proven
-probe_resolution() {
-  if dns_query _pkt_resolve 3; then
+probe_resolution() { # [wait-seconds, default 3]
+  if dns_query _pkt_resolve "${1:-3}"; then
     if [ "$Q_LEN" -gt 29 ]; then
       RESOLVING=ok
     elif [ "$Q_LEN" -gt 0 ]; then
@@ -486,7 +599,7 @@ IP_MODE_FILE="$STATE_DIR/ip_mode_applied"
 # The mode the system is actually in right now (what apply_ip_mode did).
 ip_mode_applied() {
   _m=""
-  [ -f "$IP_MODE_FILE" ] && read -r _m < "$IP_MODE_FILE" 2>/dev/null
+  [ -f "$IP_MODE_FILE" ] && read -r _m 2>/dev/null < "$IP_MODE_FILE"
   echo "${_m:-none}"
   unset _m
 }

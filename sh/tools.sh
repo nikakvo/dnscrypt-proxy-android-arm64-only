@@ -93,6 +93,19 @@ _qname_bytes() { # <domain> -> DNS wire-format name, octal-escaped for printf
   unset _qn _rest _lab
 }
 
+# Stop a background probe pipeline stage and everything under it (the
+# subshell, timeout, nc - and busybox timeout's own watcher process).
+# Children are found through /proc/PID/task/PID/children; on a kernel
+# without it only the stage itself is stopped and nc ends at its timeout.
+_lq_kill() { # <pid> [depth]
+  if [ "${2:-0}" -lt 4 ]; then
+    for _c in $(cat "/proc/$1/task/$1/children" 2>/dev/null); do
+      _lq_kill "$_c" $((${2:-0} + 1))
+    done
+  fi
+  kill "$1" 2>/dev/null
+}
+
 live_query() { # <domain> -> key=value lines
   _tool=""
   [ -n "$BB" ] && _nc_has_udp "$BB" nc && _tool="bb"
@@ -100,13 +113,28 @@ live_query() { # <domain> -> key=value lines
   if [ -z "$_tool" ]; then echo "live=unavailable"; unset _tool; return 0; fi
   # shellcheck disable=SC2059
   _pkt="\\022\\064\\001\\000\\000\\001\\000\\000\\000\\000\\000\\000$(_qname_bytes "$1")\\000\\001\\000\\001"
+  # -w for busybox nc, -q for toybox nc: see _nc_wait_flag in common.sh.
+  # Both keep waiting for more data after the reply is in, so nc runs in
+  # the background and is stopped as soon as the answer has arrived: the
+  # Check button answers in a fraction of a second instead of 3-6.
   if [ "$_tool" = "bb" ]; then
-    # shellcheck disable=SC2059
-    printf "$_pkt" | "$BB" nc -u -w 3 "$LISTEN_ADDR" "$LISTEN_PORT" 2>/dev/null > "$STATE_DIR/.lq"
+    set -- "$BB" nc
   else
-    # shellcheck disable=SC2059
-    printf "$_pkt" | nc -u -w 3 "$LISTEN_ADDR" "$LISTEN_PORT" 2>/dev/null > "$STATE_DIR/.lq"
+    set -- nc
   fi
+  _fl=$(_nc_wait_flag "$@")
+  rm -f "$STATE_DIR/.lq"
+  # shellcheck disable=SC2059
+  printf "$_pkt" | _nc_run 3 "$@" -u "-$_fl" 3 "$LISTEN_ADDR" "$LISTEN_PORT" > "$STATE_DIR/.lq" &
+  _lqp=$!
+  _i=0
+  while [ "$_i" -lt 40 ] && kill -0 "$_lqp" 2>/dev/null; do
+    [ -s "$STATE_DIR/.lq" ] && { sleep 0.1 2>/dev/null; break; }
+    sleep 0.1 2>/dev/null || sleep 1
+    _i=$((_i + 1))
+  done
+  _lq_kill "$_lqp"
+  wait "$_lqp" 2>/dev/null
   if [ ! -s "$STATE_DIR/.lq" ]; then
     echo "live=noreply"
   else
@@ -131,7 +159,7 @@ live_query() { # <domain> -> key=value lines
       }'
   fi
   rm -f "$STATE_DIR/.lq"
-  unset _tool _pkt
+  unset _tool _pkt _fl _lqp _i
 }
 
 # ── Allow / block ────────────────────────────────────────────────────────────

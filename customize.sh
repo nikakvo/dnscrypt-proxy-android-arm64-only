@@ -2,7 +2,7 @@ ui_print " "
 ui_print "******************************"
 ui_print "*   dnscrypt-proxy-android   *"
 ui_print "*        Аrm64 ONLY          *"
-ui_print "*         2.1.18-r12         *"
+ui_print "*         2.1.18-r13         *"
 ui_print "******************************"
 ui_print "*        Tears Burn          *"
 ui_print "******************************"
@@ -85,7 +85,7 @@ for dir in "$MODDIR_ROOT"/*/; do
   MOD_ID=$(grep   '^id='   "${dir}module.prop" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
   MOD_NAME=$(grep '^name=' "${dir}module.prop" 2>/dev/null | cut -d= -f2)
 
-  case "$MOD_ID" in *dnscrypt*|*dnscrypt_proxy*) continue ;; esac
+  case "$MOD_ID" in *dnscrypt*) continue ;; esac
 
   MOD_ID_LOWER=$(echo "$MOD_ID"   | tr '[:upper:]' '[:lower:]')
   MOD_NM_LOWER=$(echo "$MOD_NAME" | tr '[:upper:]' '[:lower:]')
@@ -214,11 +214,18 @@ SD_DIR="/storage/emulated/0/dnscrypt-proxy"
 CONFIG_FILE="$DATA_DIR/dnscrypt-proxy.toml"
 SYNC_FILES="dnscrypt-proxy.toml custom-blocked-names.txt allowed-names.txt allowed-ips.txt blocked-ips.txt"
 
-if pgrep -x dnscrypt-proxy >/dev/null 2>&1; then
-  ui_print "* Stopping running dnscrypt-proxy instance."
-  pkill -x dnscrypt-proxy 2>/dev/null
+# By /proc/PID/comm: the installer runs in busybox ash, whose pkill -x
+# compares against argv[0] - the daemon's full path - and never matched.
+_stopped=0
+for _d in /proc/[0-9]*; do
+  [ "$(cat "$_d/comm" 2>/dev/null)" = "dnscrypt-proxy" ] || continue
+  kill "${_d#/proc/}" 2>/dev/null && _stopped=1
+done
+if [ "$_stopped" -eq 1 ]; then
+  ui_print "* Stopped the running dnscrypt-proxy instance."
   sleep 1
 fi
+unset _d _stopped
 
 ui_print "* Creating the binary path."
 mkdir -p "$MODPATH/system/bin"
@@ -274,9 +281,13 @@ fi
   mv -f "$DATA_DIR/blocked-names.txt" "$DATA_DIR/.blocked-names.preserve" 2>/dev/null
 [ -f "$DATA_DIR/custom-blocked-names.txt" ] && \
   mv -f "$DATA_DIR/custom-blocked-names.txt" "$DATA_DIR/.custom-blocked-names.preserve" 2>/dev/null
-# Your allow list (WebUI -> Allow) is user data too.
-[ -f "$DATA_DIR/allowed-names.txt" ] && \
-  mv -f "$DATA_DIR/allowed-names.txt" "$DATA_DIR/.allowed-names.preserve" 2>/dev/null
+# Your allow list (WebUI -> Allow) is user data too, and so are the two IP
+# lists: they are mirrored to the sdcard for editing, and up to r12 every
+# update replaced them with the empty templates.
+for _keep in allowed-names.txt allowed-ips.txt blocked-ips.txt; do
+  [ -f "$DATA_DIR/$_keep" ] && \
+    mv -f "$DATA_DIR/$_keep" "$DATA_DIR/.$_keep.preserve" 2>/dev/null
+done
 
 if [ -d "$CONFIG_PATH" ]; then
   ui_print "* Installing configuration into $DATA_DIR"
@@ -296,10 +307,13 @@ if [ -f "$DATA_DIR/.custom-blocked-names.preserve" ]; then
   mv -f "$DATA_DIR/.custom-blocked-names.preserve" "$DATA_DIR/custom-blocked-names.txt"
   ui_print "* Restored your existing custom-blocked-names.txt"
 fi
-if [ -f "$DATA_DIR/.allowed-names.preserve" ]; then
-  mv -f "$DATA_DIR/.allowed-names.preserve" "$DATA_DIR/allowed-names.txt"
-  ui_print "* Restored your existing allowed-names.txt"
-fi
+for _keep in allowed-names.txt allowed-ips.txt blocked-ips.txt; do
+  if [ -f "$DATA_DIR/.$_keep.preserve" ]; then
+    mv -f "$DATA_DIR/.$_keep.preserve" "$DATA_DIR/$_keep"
+    ui_print "* Restored your existing $_keep"
+  fi
+done
+unset _keep
 rm -f "$DATA_DIR/gustum-blocked-names.txt" 2>/dev/null
 
 # -----------------------------------------------
@@ -472,6 +486,10 @@ fi
 # Settings file, created once and never overwritten.
 # -----------------------------------------------
 CONF="/data/adb/dnscrypt-proxy-android.conf"
+# No settings file = this module was never installed here (it is created
+# below, and uninstall removes it). Used for the Private DNS record.
+FIRST_INSTALL=0
+[ -f "$CONF" ] || FIRST_INSTALL=1
 if [ ! -f "$CONF" ]; then
   cat > "$CONF" << 'CONFEOF'
 # dnscrypt-proxy-android settings
@@ -594,11 +612,22 @@ fi
 ui_print "* Disabling Android 9+ Private DNS mode."
 # Remember what it was, so uninstall can put it back instead of
 # guessing "opportunistic" for everybody.
-PREV_PDNS=$(settings get global private_dns_mode 2>/dev/null)
-case "$PREV_PDNS" in
-  ""|null|off) : ;;
-  *) echo "$PREV_PDNS" > /data/adb/dnscrypt-prev-private-dns 2>/dev/null ;;
-esac
+#
+# Recorded on the FIRST install only (no settings file yet), and always -
+# "off" included. r12 skipped "off", so uninstall found no record and
+# switched Private DNS on for someone who had it off. On an update the
+# current value is the module's own "off", so it is not recorded then; a
+# record from the first install is kept as it is.
+PREV_PDNS_FILE=/data/adb/dnscrypt-prev-private-dns
+if [ "$FIRST_INSTALL" -eq 1 ] && [ ! -f "$PREV_PDNS_FILE" ]; then
+  PREV_PDNS=$(settings get global private_dns_mode 2>/dev/null)
+  # "null" = never set: the Android default, which is opportunistic.
+  case "$PREV_PDNS" in
+    off | opportunistic | hostname) : ;;
+    *) PREV_PDNS=opportunistic ;;
+  esac
+  echo "$PREV_PDNS" > "$PREV_PDNS_FILE" 2>/dev/null
+fi
 settings put global private_dns_mode off
 
 ui_print "* Cleaning up unnecessary files."

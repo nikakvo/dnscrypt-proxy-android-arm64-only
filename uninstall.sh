@@ -18,11 +18,15 @@ BOOTSTRAP_IPS="9.9.9.9 149.112.112.112 45.11.45.11"
 # ===============================================
 # STEP 1: Kill dnscrypt-proxy
 # ===============================================
-if pgrep -x dnscrypt-proxy >/dev/null 2>&1; then
-  pkill -x dnscrypt-proxy 2>/dev/null
-  sleep 2
-  pkill -9 -x dnscrypt-proxy 2>/dev/null
-fi
+# By /proc/PID/comm, not pkill -x: busybox matches -x against argv[0],
+# the daemon's full path, and misses it.
+for _sig in TERM KILL; do
+  for _d in /proc/[0-9]*; do
+    [ "$(cat "$_d/comm" 2>/dev/null)" = "dnscrypt-proxy" ] && kill "-$_sig" "${_d#/proc/}" 2>/dev/null
+  done
+  [ "$_sig" = TERM ] && sleep 2
+done
+unset _sig _d
 
 # ===============================================
 # STEP 1a: Kill busybox httpd (CGI control server of r11 and earlier)
@@ -34,7 +38,7 @@ HTTPD_PIDFILE="/data/adb/dnscrypt-proxy-state/httpd.pid"
 if [ -f "$HTTPD_PIDFILE" ]; then
   HPID=$(cat "$HTTPD_PIDFILE" 2>/dev/null)
   if [ -n "$HPID" ] && [ -d "/proc/$HPID" ]; then
-    case "$(tr '\0' ' ' < "/proc/$HPID/cmdline" 2>/dev/null)" in
+    case "$(tr '\0' ' ' 2>/dev/null < "/proc/$HPID/cmdline")" in
       *httpd*5556*) kill "$HPID" 2>/dev/null; sleep 1; kill -9 "$HPID" 2>/dev/null ;;
     esac
   fi
@@ -119,8 +123,10 @@ resetprop --delete net.ipv6.conf.lo.disable_ipv6          2>/dev/null
 # ===============================================
 PREV_PDNS_FILE="/data/adb/dnscrypt-prev-private-dns"
 if [ -f "$PREV_PDNS_FILE" ]; then
-  PREV=$(cat "$PREV_PDNS_FILE" 2>/dev/null | tr -d '[:space:]')
-  [ -n "$PREV" ] && settings put global private_dns_mode "$PREV" 2>/dev/null
+  PREV=$(tr -d '[:space:]' 2>/dev/null < "$PREV_PDNS_FILE")
+  case "$PREV" in
+    off | opportunistic | hostname) settings put global private_dns_mode "$PREV" 2>/dev/null ;;
+  esac
   rm -f "$PREV_PDNS_FILE"
 else
   settings put global private_dns_mode opportunistic 2>/dev/null

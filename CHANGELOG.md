@@ -1,5 +1,47 @@
 # Changelog
 
+## 2.1.18-r13
+
+A bug-fix release. Every fix was reproduced first — on the phone or in a test harness that runs the module under both Android's own shell (mksh + toybox) and KernelSU's busybox — and verified after. Nothing to configure: settings, lists and resolvers carry over.
+
+### dnscrypt-proxy
+
+* Binary built from the current upstream `main` branch — it reports **2.1.19**, which is not yet a tagged release. The configuration format is unchanged
+* 2.1.19 matches suffix rules only at label boundaries; the WebUI's **Check** already worked that way, so both now agree
+
+### Fixed
+
+* **Blocklist sources showed no rule count and no date.** Android's shell (mksh) treats `|` inside `${var%…}` as "or", so the `date|count` of every cached source came out empty. The WebUI now shows "N rules · date" for each source again
+* **Reloads never reached dnscrypt-proxy from the watchdog.** KernelSU runs module scripts with its busybox, whose `pkill -x` compares against the daemon's full path and matched nothing — every list reload from the sdcard or a custom-list rebuild turned into a restart. Processes are now found by name in `/proc`, which works with every toolset and skips zombies. The installer had the same problem and could not stop the running daemon on an update
+* **The WebUI stayed blank while DNS was down.** The Google font was loaded with an `@import` that held back the page's script until the request finished — with no DNS, until it timed out. The font now loads in the background; the page works instantly with or without it
+* **The watchdog could hang forever without busybox.** Android's own `nc` only uses `-w` for connecting, so a UDP health check never returned. The right option is now picked per tool, with `timeout` as a second guard
+* **Firewall repair put rules in the wrong order.** When Android removed only part of the redirect, the missing rule went back above the bootstrap exemptions, which then never matched. Exemptions are now re-seated on top whenever the redirect is repaired
+* **Pause left a partial redirect in place.** While paused, any leftover rule is now removed, not only a complete set
+* **A restart could be reported as done before the daemon was back.** A finished DNS-over-TCP connection on port 5354 counted as "listening"; only real listeners count now
+* **An update could look finished right after it started**, and the WebUI stopped following it. The start is now marked until the update has taken over. Stopping an update now really stops it, including its downloads, and releases its lock
+* **A failed custom-list rebuild was reported as applied.** Removing the last custom rule with no source selected is now possible (the result is an empty list), and a list from before r13 no longer trips the "list would shrink" guard
+* **Updating the module erased `allowed-ips.txt` and `blocked-ips.txt`.** Both are now kept like the other lists
+* **Uninstall could switch Android Private DNS on** for someone who had it off. The original setting is now recorded at the first install, whatever it was, and restored exactly
+* A `dnscrypt-proxy.toml` from the sdcard with the other IP mode's listener (for example `[::1]` in IPv4 mode) no longer keeps the daemon from starting
+* Error text from a process that exited mid-check could end up in the WebUI's data
+* The watchdog's health-check count missed queries sent while the daemon was starting, which inflated Total slightly
+
+### Faster
+
+* **Restart, IP mode switch and new resolvers**: back in ~1–3 s instead of up to 15 — the WebUI now wakes the watchdog instead of waiting for its next 10-second tick
+* **"Starting…" after a restart** now lasts about as long as dnscrypt-proxy actually needs (2–3 s) instead of ~10 s more
+* **Check a domain** answers in well under a second instead of 3–6 s
+
+### WebUI
+
+* New **Starting…** banner while dnscrypt-proxy is fetching its resolvers' certificates, instead of a false "Nothing resolves"
+* **One action at a time**: while a command runs, other buttons are dimmed and ignored — including taps made while the screen was busy, which Android used to deliver all at once afterwards (switching IP mode several times in a row, each one restarting the daemon)
+* **Android Private DNS**: when it is on (it goes around the module), System shows a **Turn off** button. Also `ctl.sh private-dns-off`
+* "Last Snapshot" is shown in the phone's time instead of UTC
+* The banner no longer shows "0 total · 0 blocked" while dnscrypt-proxy's statistics are not available yet
+* Every action reports a failure or timeout instead of leaving the page half-updated
+* Help updated
+
 ## 2.1.18-r12
 
 The biggest release so far: a new WebUI, blocklist sources, IPv6 support, domain tools, resolver choice and a rebuilt core. Settings, custom lists and cached data carry over from earlier versions automatically.

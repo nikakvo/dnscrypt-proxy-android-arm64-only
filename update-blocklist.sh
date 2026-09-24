@@ -19,7 +19,35 @@ load_settings
 
 mkdir -p "$STATE_DIR" "$DATA_DIR"
 echo $$ > "$UPDATE_PIDFILE"
-trap '[ "$(cat "$UPDATE_PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$UPDATE_PIDFILE"; bl_unlock' EXIT INT TERM
+rm -f "$UPDATE_PENDING"
+
+# The EXIT trap cleans up; INT and TERM must also END the script. r12
+# trapped all three with the cleanup alone, and a trapped signal whose
+# handler does not exit is simply swallowed: the download went on after
+# its lock and pid file had been removed.
+_ub_cleanup() {
+  [ "$(cat "$UPDATE_PIDFILE" 2>/dev/null)" = "$$" ] && rm -f "$UPDATE_PIDFILE"
+  bl_unlock
+}
+# A shell runs a trap only once the command in the foreground returns, so
+# a stop request can wait for the current network call (at most its
+# --max-time). The download itself runs in the background; it and anything
+# else this worker started are in its own session (setsid), and the whole
+# group is taken down with it.
+_ub_stop() { # <exit code>
+  trap - EXIT INT TERM
+  _ub_cleanup
+  # Only as its own process group (started through setsid, as ctl.sh and
+  # the watchdog do). Run by hand from another script, group 0 would
+  # include the caller.
+  _st=$(cat "/proc/$$/stat" 2>/dev/null); _st=${_st##*) }
+  set -- "$1" $_st
+  [ "$4" = "$$" ] && kill -TERM 0 2>/dev/null
+  exit "$1"
+}
+trap '_ub_cleanup' EXIT
+trap '_ub_stop 143' TERM
+trap '_ub_stop 130' INT
 
 echo " "
 echo "************************************"

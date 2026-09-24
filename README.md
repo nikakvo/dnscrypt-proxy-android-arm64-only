@@ -1,6 +1,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.18--r12-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.18--r13-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -38,7 +38,7 @@ dnscrypt-proxy: allow list → blocklist → cache
 encrypted (DoH / DNSCrypt) → Cloudflare · Quad9 · Mullvad
 ```
 
-- Android's Private DNS is switched off at install (it would bypass the module) and restored on uninstall
+- Android's Private DNS is switched off at install (it would bypass the module) and restored on uninstall; if it gets switched on again, **System** offers a one-tap **Turn off**
 - QUIC (UDP/443) is blocked by default so browsers cannot use their own built-in DoH
 - Resolvers are pinned as signed stamps — the daemon starts with no download and no bootstrap DNS
 
@@ -137,7 +137,7 @@ Change them in **Tools → Resolvers**. Protocol, logging, filtering and DNSSEC 
 | `/data/adb/dnscrypt-proxy.log` | Log |
 | `http://127.0.0.1:5555` | dnscrypt-proxy's own monitoring page |
 
-Settings, custom list, allow list, chosen resolvers and cached blocklists are all kept across module updates.
+Settings, custom list, allow list, IP lists, chosen resolvers and cached blocklists are all kept across module updates.
 
 ---
 
@@ -159,6 +159,7 @@ su -c sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status
 | `resolvers-set A,B` · `resolvers-test A,B` | resolvers |
 | `ipmode-set ipv4\|compat\|dual` | IP mode |
 | `pause MIN` · `resume` | pause protection |
+| `private-dns-off` | switch Android Private DNS off |
 | `log N` | last N log lines |
 
 `ctl.sh help` lists everything.
@@ -191,6 +192,7 @@ Remove the module in your root manager and reboot. All firewall rules are remove
 
 ## Notes
 
+- dnscrypt-proxy binary: built from upstream `main` (reports 2.1.19)
 - Built and tested on a Poco F6 Pro with a [GKI KernelSU SUSFS](https://github.com/nikakvo/GKI_KernelSU_SUSFS) kernel, SukiSU Ultra and [Xiaomi.eu](https://xiaomi.eu/community/)
 - Blocklists by [OISD](https://oisd.nl) and [HaGeZi](https://github.com/hagezi/dns-blocklists) · proxy by [DNSCrypt](https://github.com/DNSCrypt/dnscrypt-proxy)
 
