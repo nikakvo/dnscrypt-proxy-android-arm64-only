@@ -8,6 +8,8 @@ A small fix release, found while building a companion module (VPN for hotspot cl
   * every `iptables` / `ip6tables` call waits for the lock (`-w`, the form this device supports is detected once per boot) instead of failing at once
   * the hotspot jump is counted from one listing; a duplicate left by r15 is removed on the next watchdog tick and logged as `hotspot: removed N duplicate … jump(s)`
   * the uninstaller waits for the lock too, so it can no longer stop half-way and leave rules behind
+* **Fixed: the module could not be installed or updated while a hotspot was running.** The installer counted any running `dnsmasq` as a conflicting DNS app — including Android's own tethering DNS forwarder, which netd starts with every hotspot and which the hotspot protection relies on. Android's `dnsmasq` is now recognised and ignored; a `dnsmasq` from another module or app is still reported
+* The installer banner showed a hard-coded old version number; it now reads the version from the module being installed
 
 ## 2.1.18-r15
 

@@ -1,8 +1,14 @@
 ui_print " "
 ui_print "******************************"
 ui_print "*   dnscrypt-proxy-android   *"
-ui_print "*        Аrm64 ONLY          *"
-ui_print "*         2.1.18-r15         *"
+ui_print "*         Arm64 ONLY         *"
+# Version from the module.prop being installed (was hard-coded and went stale)
+_V=$(sed -n 's/^version=//p' "$MODPATH/module.prop" 2>/dev/null)
+[ -n "$_V" ] || _V="?"
+_bl=$(( (28 - ${#_V}) / 2 )); [ "$_bl" -lt 0 ] && _bl=0
+_br=$(( 28 - ${#_V} - _bl )); [ "$_br" -lt 0 ] && _br=0
+ui_print "*$(printf '%*s' "$_bl" '')$_V$(printf '%*s' "$_br" '')*"
+unset _V _bl _br
 ui_print "******************************"
 ui_print "*        Tears Burn          *"
 ui_print "******************************"
@@ -123,9 +129,30 @@ for PKG in $CONFLICT_PKG_LIST; do
   fi
 done
 
+# A running process whose command line contains <name>. Android's own
+# tethering DNS forwarder is NOT a conflict: it is /system/bin/dnsmasq,
+# started by netd (uid dns_tether = 1052, "--listen-mark") whenever a
+# hotspot runs, and the hotspot protection relies on it. Before r16 any
+# dnsmasq counted, so the module could not be installed with the hotspot on.
+_conflict_proc() { # <name>
+  for _cp in /proc/[0-9]*; do
+    [ "$_cp" = "/proc/$$" ] && continue
+    _cc=$(cat "$_cp/cmdline" 2>/dev/null) || continue
+    case "$_cc" in *"$1"*) ;; *) continue ;; esac
+    if [ "$1" = "dnsmasq" ]; then
+      case "$_cc" in /system/bin/dnsmasq*|/apex/*|*--listen-mark*) continue ;; esac
+      grep -q '^Uid:[[:space:]]*1052[[:space:]]' "$_cp/status" 2>/dev/null && continue
+    fi
+    unset _cp _cc
+    return 0
+  done
+  unset _cp _cc
+  return 1
+}
+
 CONFLICT_PROCS_INFO=""
 for PROC in dnsmasq smartdns cloudflared adguard; do
-  if pgrep -f "$PROC" >/dev/null 2>&1; then
+  if _conflict_proc "$PROC"; then
     CONFLICT_PROCS_INFO="${CONFLICT_PROCS_INFO}  [PROC]   ${PROC} (currently running)\n"
   fi
 done
