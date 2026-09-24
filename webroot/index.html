@@ -1220,7 +1220,7 @@ async function setIpMode(mode) {
     if (r.ok === '1') {
       const lim = (r.ip_mode_effective || '').endsWith('-limited');
       toast(lim ? 'Applied — limited (no IPv6 NAT in kernel)' : `IP mode: ${mode}` + (r.restarted === '1' ? ' — daemon restarted' : ''), lim ? 'err' : 'ok');
-      if (mode !== 'ipv4') setTimeout(() => toast('Toggle Wi-Fi / mobile data if IPv6 does not come up', 'ok'), 2800);
+      if (r.net_refresh === '1') setTimeout(() => toast('Checking that Android picks up IPv6 — Wi-Fi or mobile data may reconnect for a moment', 'ok'), 2800);
     } else {
       toast(r.error || 'Could not apply', 'err');
     }

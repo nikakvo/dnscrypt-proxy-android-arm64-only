@@ -319,7 +319,7 @@
     <li><strong>IPv6 compatible</strong> — for carriers that only give IPv6 (464XLAT). On those, "IPv4 only" means no connection at all. Apps keep using IPv4.</li>
     <li><strong>Dual stack</strong> — full IPv6. Websites can see your IPv6 address.</li>
   </ul>
-  <p>Switching applies immediately — no reboot. If IPv6 does not come up, toggle Wi-Fi or mobile data once.</p>
+  <p>Switching applies immediately — no reboot. Coming out of <strong>IPv4 only</strong>, the network gets its IPv6 addresses back within seconds, but Android only notices after it reconnects. The module checks this and, only if Android missed it, reconnects Wi-Fi or mobile data by itself for a moment.</p>
   <h3>Kernel IPv6 NAT</h3>
   <p>Sending IPv6 DNS into the proxy needs IPv6 NAT in the kernel (<code>CONFIG_IP6_NF_NAT</code>). Without it the IPv6 modes run <span class="pill warn">limited</span>: IPv6 DNS is dropped instead — no leak, but apps must use IPv4 DNS, which an IPv6-only network may not have.</p>
   <h3>This network</h3>

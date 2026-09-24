@@ -403,6 +403,7 @@ cmd_ipmode_set() { # ipv4 | compat | dual
     echo "ok=0"; echo "error=watchdog is not running - reboot first"; return 1
   fi
   set_setting IP_MODE "$1" || { echo "ok=0"; echo "error=could not write settings"; return 1; }
+  _was=$(ip_mode_applied)
   IP_MODE=$1
   apply_ip_mode
   _restarted=0
@@ -418,8 +419,19 @@ cmd_ipmode_set() { # ipv4 | compat | dual
   echo "ip6_nat=$(yn have_ip6_nat)"
   echo "restarted=$_restarted"
   echo "listening=$(yn is_listening)"
+  # Coming out of IPv4-only: make sure Android picks IPv6 up again (see
+  # net_refresh_for_ipv6). Detached - it can take ~15s and may reconnect.
+  _nr=0
+  case "$_was" in
+    ipv4 | none)
+      if [ "$IP_MODE" != "ipv4" ]; then
+        setsid sh "$MODDIR/ctl.sh" net-refresh-v6 < /dev/null > /dev/null 2>&1 &
+        _nr=1
+      fi ;;
+  esac
+  echo "net_refresh=$_nr"
   if is_listening; then echo "ok=1"; else echo "ok=0"; echo "error=dnscrypt-proxy did not come back - see the log"; fi
-  unset _restarted _i
+  unset _restarted _i _was _nr
 }
 
 # ── reload with fallback, shared by the rule commands ───────────────────────
@@ -681,6 +693,7 @@ usage: ctl.sh <command>
                   LOG_KEEP_LINES (100-20000)
   resolvers / resolvers-search T / resolvers-set A,B / resolvers-test A,B
   private-dns-off turn Android Private DNS off (it bypasses the redirect)
+  net-refresh-v6  reconnect Wi-Fi / mobile data if Android missed IPv6
   log [N]         last N log lines (default 200)
   log-clear       empty the log
 EOF
@@ -714,6 +727,7 @@ case "$cmd" in
   resolvers-test) cmd_resolvers_test "$1" ;;
   probe)         cmd_probe ;;
   private-dns-off) cmd_private_dns_off ;;
+  net-refresh-v6) net_refresh_for_ipv6; echo "ok=1" ;;
   restart)       cmd_restart ;;
   reload)        cmd_reload ;;
   reapply-rules) cmd_reapply_rules ;;

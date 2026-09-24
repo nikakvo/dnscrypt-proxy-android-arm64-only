@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.18-r14
+
+* **Fixed: IPv6 was not used after leaving IPv4-only mode.** Switching to IPv6 compatible or Dual stack gave the phone its IPv6 addresses back within seconds, but Android kept seeing the network as IPv4-only until Wi-Fi or mobile data reconnected, so sites reported "IPv6 not detected". The module now checks this after the switch and, only if Android missed it, reconnects the network in use for a moment by itself - also under a VPN. Each decision is logged as "IPv6 refresh: …"
+* New command `ctl.sh net-refresh-v6` for the same check by hand
+
 ## 2.1.18-r13
 
 A bug-fix release. Every fix was reproduced first — on the phone or in a test harness that runs the module under both Android's own shell (mksh + toybox) and KernelSU's busybox — and verified after. Nothing to configure: settings, lists and resolvers carry over.

@@ -713,6 +713,72 @@ apply_ip_mode() {
   return 0
 }
 
+# ── Let Android see IPv6 again after IPv4-only mode ─────────────────────────
+# IPv4-only mode switches IPv6 off in the kernel, and the interfaces lose
+# their IPv6 addresses. Switched back on, the kernel gets them again from
+# the router within seconds - but Android keeps the network's old picture
+# (IPv4 only) until the network reconnects, so apps and the browser never
+# try IPv6 ("IPv6 not detected"). This checks, and only if Android is
+# really behind, reconnects the network the phone is using - what toggling
+# Wi-Fi or mobile data by hand does.
+#
+# Runs detached from ctl.sh (it waits up to ~15s); results go to the log.
+_default_iface() {
+  ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n 1
+}
+_kernel_v6_addrs() { # <iface> -> global IPv6 addresses, one per line
+  ip -o -6 addr show dev "$1" scope global 2>/dev/null | \
+    sed -n 's/.* inet6 \([0-9a-fA-F:]*\)\/.*/\1/p'
+}
+net_refresh_for_ipv6() {
+  _if=$(_default_iface)
+  case "$_if" in
+    wlan*) _how=wifi ;;
+    rmnet* | ccmni* | seth* | v4-rmnet* | v4-ccmni*) _if=${_if#v4-}; _how=data ;;
+    *)
+      # A VPN (WireGuard, tun) owns the default route; the network under it
+      # is the one Android has to refresh. Wi-Fi if it has an address, else
+      # the mobile data interface.
+      _if=""
+      if ip -o -4 addr show dev wlan0 scope global 2>/dev/null | grep -q inet; then
+        _if=wlan0; _how=wifi
+      else
+        _if=$(ip -o addr show scope global 2>/dev/null | awk '{print $2}' | grep -E '^(rmnet|ccmni|seth)' | head -n 1)
+        _how=data
+      fi
+      if [ -z "$_if" ]; then
+        log_info "IPv6 refresh: no Wi-Fi or mobile data in use - nothing to do"
+        unset _if _how; return 0
+      fi ;;
+  esac
+  # The kernel first: without an IPv6 address from the router there is
+  # nothing for Android to see, and a reconnect would not change that.
+  _i=0; _addrs=""
+  while [ "$_i" -lt "${NET_REFRESH_WAIT:-15}" ]; do
+    _addrs=$(_kernel_v6_addrs "$_if")
+    [ -n "$_addrs" ] && break
+    sleep 1; _i=$((_i + 1))
+  done
+  if [ -z "$_addrs" ]; then
+    log_info "IPv6 refresh: $_if got no IPv6 address - this network seems to have no IPv6"
+    unset _if _how _i _addrs; return 0
+  fi
+  # Does Android's view of the network already list one of them?
+  _lp=$(dumpsys connectivity 2>/dev/null | grep -oE 'LinkAddresses: \[[^]]*\]')
+  for _a in $_addrs; do
+    case "$_lp" in
+      *"$_a/"*) log_info "IPv6 refresh: Android already sees IPv6 on $_if"
+                unset _if _how _i _addrs _lp _a; return 0 ;;
+    esac
+  done
+  log_info "IPv6 refresh: Android does not see the IPv6 address of $_if yet - reconnecting $_how"
+  svc "$_how" disable 2>/dev/null
+  sleep 2
+  svc "$_how" enable 2>/dev/null
+  unset _if _how _i _addrs _lp _a
+  return 0
+}
+
 # ── What kind of network is this? (for the WebUI and a boot hint) ────────────
 # A clat interface (v4-<iface>) is Android's 464XLAT: the network is IPv6
 # only and IPv4 is translated. Its 192.0.0.x address is not real IPv4.

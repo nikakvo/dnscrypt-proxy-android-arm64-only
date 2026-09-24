@@ -1,6 +1,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.18--r13-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.18--r14-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
