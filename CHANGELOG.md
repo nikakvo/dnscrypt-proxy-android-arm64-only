@@ -18,6 +18,10 @@ Clients that use the phone as their DNS server (the default everywhere) were alr
 * New settings `HOTSPOT_DNS`, `HOTSPOT_DOT` (added to an existing settings file with `0`); new command `ctl.sh hotspot`
 * Help: new section **12 · System — hotspot**, including what no DNS filter can see (a browser's own DNS-over-HTTPS)
 
+### Fixed
+
+* **DNS went out unencrypted between flashing an update and the reboot.** The installer stopped the running dnscrypt-proxy; its watchdog then tried to start it again from the old module folder, which the root manager had already replaced, and the failsafe opened DNS until the reboot. The running daemon is now left alone and keeps DNS encrypted until you reboot
+
 ## 2.1.18-r14
 
 * **Fixed: IPv6 was not used after leaving IPv4-only mode.** Switching to IPv6 compatible or Dual stack gave the phone its IPv6 addresses back within seconds, but Android kept seeing the network as IPv4-only until Wi-Fi or mobile data reconnected, so sites reported "IPv6 not detected". The module now checks this after the switch and, only if Android missed it, reconnects the network in use for a moment by itself - also under a VPN. Each decision is logged as "IPv6 refresh: …"
