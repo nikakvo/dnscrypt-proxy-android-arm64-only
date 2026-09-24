@@ -578,6 +578,13 @@ while true; do
     fi
     [ "$QUIC_BLOCK" = "1" ] && rules_install_quic
   fi
+  # ── Hotspot clients, every tick, daemon up or not ──
+  # Clients go through the phone's own DNS forwarder, which goes through
+  # the same redirect as the phone: while the daemon is down they are
+  # exactly as (un)protected as the phone. Pause and the switches are
+  # handled inside.
+  hotspot_sync
+
   # No failsafe here. The daemon can be down at this point for a good
   # reason - ctl.sh just stopped it for a restart or an IP mode switch - and
   # opening DNS then meant a few seconds of plaintext on every restart. The

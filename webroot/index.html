@@ -207,6 +207,8 @@
 
     #src-panel { border: 1px solid rgba(0,170,255,0.3); border-radius: 3px; padding: 4px 10px 10px; margin-bottom: 10px; background: #02080d; }
     #src-panel.hidden { display: none; }
+    #hs-dash.hidden { display: none; }
+    .hs-dev .rn b { font-family: var(--mono, monospace); }
     #src-panel.locked { opacity: 0.5; pointer-events: none; }
     .src-group { font-size: 8px; color: var(--muted); letter-spacing: 1.2px; text-transform: uppercase; margin: 10px 0 2px; }
     .src-row { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; border-bottom: 1px solid #0a1a10; cursor: pointer; }
@@ -432,6 +434,11 @@
       <div id="ov-body"><div class="empty">Waiting for data…</div></div>
     </div>
 
+    <div class="section hidden" id="hs-dash">
+      <div class="section-title"><span class="s-accent" style="background:var(--blue)"></span>Hotspot</div>
+      <div id="hs-dash-body"></div>
+    </div>
+
     <div class="section">
       <div class="section-title"><span class="s-accent" style="background:var(--red)"></span>Blocklist</div>
       <div class="d-stat"><span class="k">Rules Loaded</span><span class="v r" id="bl-count">—</span></div>
@@ -580,6 +587,12 @@
     <div class="section">
       <div class="section-title"><span class="s-accent" style="background:var(--purple)"></span>System</div>
       <div id="sys-sys"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--blue)"></span>Hotspot</div>
+      <div id="sys-hs"><div class="empty">Loading…</div></div>
+      <div class="note">Covers Wi-Fi hotspot, USB and Bluetooth tethering. Devices that use the phone as their DNS server are always covered; <b>Protect hotspot clients</b> also catches the ones with their own server (8.8.8.8 and the like). See <a href="help.html#hotspot" style="color:var(--blue)">Help → Hotspot</a>.</div>
     </div>
 
     <div class="section">
@@ -1056,6 +1069,7 @@ async function poll() {
     renderPause();
     renderBanner(st, m);
     renderDashboard(st, m);
+    renderHotspotDash(st);
     updateSysDot(st);
     if (st.update_running === '1' && !_updRunning) attachUpdate();
     $('src-info').textContent = m && m.total_queries != null ? 'source: ctl.sh poll · monitoring API' : 'source: ctl.sh poll · no metrics';
@@ -1085,6 +1099,62 @@ function row(name, detail, pill, pillText) {
     <span class="pill ${pill}">${esc(pillText)}</span></div>`;
 }
 const onoff = v => v === '1';
+
+// ═════════════════════════════════════════════════════════════════════════
+// Hotspot
+// ═════════════════════════════════════════════════════════════════════════
+const HS_RULES = {
+  on:      ['ok',   'protected'],
+  armed:   ['skip', 'waiting'],
+  partial: ['warn', 'repairing'],
+  paused:  ['warn', 'paused'],
+  off:     ['skip', 'off']
+};
+
+function hsWhat(s) {
+  return [s.setting_HOTSPOT_DNS === '1' ? 'all DNS through the proxy' : null,
+          s.setting_HOTSPOT_DOT === '1' ? 'DoT blocked' : null].filter(Boolean).join(' · ');
+}
+
+// Rows shared by the dashboard card and the System tab.
+function hotspotRows(s) {
+  const active = !!s.hotspot_ifaces;
+  const n = num(s.hotspot_clients), rec = num(s.hotspot_clients_recent);
+  const est = s.hotspot_clients_source && s.hotspot_clients_source !== 'iw';
+  let h = '';
+  h += active
+    ? row('Hotspot', `${esc(s.hotspot_ifaces)} · ${n} device${n === 1 ? '' : 's'} connected` +
+        (est ? ' (estimate)' : '') + (rec ? ` · ${rec} seen recently` : ''), n ? 'ok' : 'skip', n ? String(n) : 'none')
+    : row('Hotspot', 'not running', 'skip', 'off');
+  const r = s.hotspot_rules || 'off', p = HS_RULES[r] || ['skip', r];
+  const what = hsWhat(s);
+  const detail = {
+    on:      `${what} on ${esc(s.hotspot_ifaces)}`,
+    armed:   `${what} — applied the moment a hotspot starts`,
+    partial: 'a rule is missing — the watchdog puts it back within seconds',
+    paused:  'protection is paused — clients get plain DNS too',
+    off:     active ? 'clients with their own DNS server go around the proxy' : 'switched off'
+  }[r] || esc(r);
+  // DoT block alone still lets a client with its own server (8.8.8.8)
+  // resolve around the proxy: not "protected".
+  if (r === 'on' && s.setting_HOTSPOT_DNS !== '1') {
+    h += row('Client protection', `${what} on ${esc(s.hotspot_ifaces)} — clients with their own DNS server go around the proxy`, 'warn', 'dot only');
+  } else {
+    h += row('Client protection', detail, r === 'off' && active ? 'warn' : p[0], p[1]);
+  }
+  (s.hotspot_client_list || '').split(';').filter(Boolean).forEach(e => {
+    const [ip, mac] = e.split('|');
+    h += `<div class="row hs-dev"><div class="rn"><b>${esc(ip === '-' ? 'address pending' : ip)}</b><span>${esc(mac || '')}</span></div>
+      <span class="pill ok">${est ? 'active' : 'connected'}</span></div>`;
+  });
+  return h;
+}
+
+function renderHotspotDash(st) {
+  const show = !!st.hotspot_ifaces;
+  $('hs-dash').classList.toggle('hidden', !show);
+  if (show) $('hs-dash-body').innerHTML = hotspotRows(st);
+}
 
 function renderStatus(s) {
   const wdOk = s.watchdog === 'running', dOk = s.daemon === 'running';
@@ -1136,6 +1206,13 @@ function renderStatus(s) {
     ? row('IPv6 killswitch', `ip6tables OUTPUT policy: ${esc(s.ipv6_policy || '—')}`, s.ipv6_policy === 'DROP' ? 'ok' : 'bad', s.ipv6_policy === 'DROP' ? 'armed' : 'open')
     : row('IPv6 killswitch', 'IPv6 is allowed by the IP mode', 'skip', 'off');
   f += row('xt_owner match', 'needed for the leak guard', ownerOk ? 'ok' : 'warn', ownerOk ? 'present' : 'missing');
+  {
+    const r = s.hotspot_rules || 'off', p = HS_RULES[r] || ['skip', r];
+    f += r === 'off'
+      ? row('Hotspot client rules', 'HOTSPOT_DNS=0 · HOTSPOT_DOT=0', 'skip', 'off')
+      : row('Hotspot client rules', r === 'armed' ? 'no tethering running — nothing to cover' : `nat PREROUTING + FORWARD on ${esc(s.hotspot_ifaces || '—')}`,
+          r === 'on' ? 'ok' : p[0], r === 'on' ? 'active' : p[1]);
+  }
   $('sys-fw').innerHTML = f;
 
   // System
@@ -1170,6 +1247,12 @@ function renderStatus(s) {
   st2 += rowCtl('Log size', 'lines kept in /data/adb/dnscrypt-proxy.log',
     `<select class="log-sel" onchange="setSetting('LOG_KEEP_LINES', this.value)">${['500', '1500', '3000', '5000'].concat([kl]).filter((v, i, a) => a.indexOf(v) === i).map(v => `<option value="${v}" ${v === kl ? 'selected' : ''}>${v}</option>`).join('')}</select>`);
   $('sys-set').innerHTML = st2;
+
+  let hs = hotspotRows(s);
+  hs += sw('HOTSPOT_DNS', 'Protect hotspot clients', 'every DNS query from devices on your hotspot goes through this proxy and its blocklist, whatever DNS server they set');
+  hs += sw('HOTSPOT_DOT', 'Block DoT for hotspot clients', 'port 853: a client with Private DNS on “Automatic” falls back to your DNS; one with a Private DNS hostname set gets no DNS until they switch it off');
+  $('sys-hs').innerHTML = hs;
+  renderHotspotDash(s);
 }
 
 async function privateDnsOff() {

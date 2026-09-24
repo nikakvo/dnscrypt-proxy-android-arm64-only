@@ -30,10 +30,12 @@ rm -f "$STATE_DIR/ipv6_killswitch_lifted" \
       "$DAEMON_PIDFILE" "$WATCHDOG_PIDFILE" "$UPDATE_PIDFILE" \
       "$STATE_DIR/probe_queries" "$STATE_DIR/ip_mode_applied" \
       "$STATE_DIR/ip6_nat" "$STATE_DIR/paused_until" \
-      "$STATE_DIR/update.pending" "$STATE_DIR/watchdog.wake"
+      "$STATE_DIR/update.pending" "$STATE_DIR/watchdog.wake" \
+      "$STATE_DIR/hotspot_applied"
 # A lock or a half-finished build from before the reboot is meaningless now,
 # and the pid inside the lock may already belong to something else.
-rm -rf "$STATE_DIR/blocklist.lock" "$DATA_DIR/sources/.work" 2>/dev/null
+rm -rf "$STATE_DIR/blocklist.lock" "$DATA_DIR/sources/.work" \
+       "$STATE_DIR/hotspot.lock" 2>/dev/null
 
 # -----------------------------------------------
 # DNS rules. Flush first so a reload never stacks duplicates and rules

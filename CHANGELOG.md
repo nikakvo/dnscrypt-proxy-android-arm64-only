@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.1.18-r15
+
+### New: hotspot client protection
+
+Devices on your Wi-Fi hotspot, USB or Bluetooth tethering can now get the same encrypted, filtered DNS as the phone. Two switches in **System → Hotspot**, both off by default:
+
+* **Protect hotspot clients** — every DNS query a client sends, to any server (8.8.8.8, 1.1.1.1, a router preset…), is answered by the phone and goes through dnscrypt-proxy and your blocklists. The client does not notice: the answer comes back from the address it asked. IPv6 DNS from clients is refused so they use IPv4
+* **Block DoT for hotspot clients** — blocks DNS-over-TLS (port 853). A phone with Private DNS on *Automatic* falls back to normal DNS and so to you; one with a Private DNS *hostname* set has no DNS until its owner switches it to Automatic or Off — which is why it is a separate switch
+
+Clients that use the phone as their DNS server (the default everywhere) were already covered before this release: Android's tethering DNS forwarder sends their queries on from the phone itself, through the same redirect. The new switch closes the gap for clients with their own server.
+
+* **Connected devices.** While a hotspot runs, the Dashboard shows a Hotspot card with the number of connected devices and each one's IP and MAC. The count comes from the Wi-Fi driver, so it matches Android's own "N devices connected" and drops the moment a device leaves; for USB and Bluetooth tethering it is an estimate from recent traffic
+* Follows the tethering Android actually runs — the interface is taken from Android's own tethering rules, so it works with any interface name, on mobile data and with the phone itself on Wi-Fi. The rules go on within seconds of a hotspot starting and come off when it stops; the watchdog puts back anything Android removes
+* Pause, failsafe and a stopped daemon affect clients exactly as they affect the phone. The rules live in their own chains (`DNSC_HS_PRE`, `DNSC_HS_FWD`), are removed completely when both switches are off, and on uninstall
+* Status in **System → Hotspot** and **Firewall**: *protected*, *waiting* (on, no hotspot running), *dot only* (only the DoT block is on — clients with their own server still go around), *repairing*, *paused*
+* New settings `HOTSPOT_DNS`, `HOTSPOT_DOT` (added to an existing settings file with `0`); new command `ctl.sh hotspot`
+* Help: new section **12 · System — hotspot**, including what no DNS filter can see (a browser's own DNS-over-HTTPS)
+
 ## 2.1.18-r14
 
 * **Fixed: IPv6 was not used after leaving IPv4-only mode.** Switching to IPv6 compatible or Dual stack gave the phone its IPv6 addresses back within seconds, but Android kept seeing the network as IPv4-only until Wi-Fi or mobile data reconnected, so sites reported "IPv6 not detected". The module now checks this after the switch and, only if Android missed it, reconnects the network in use for a moment by itself - also under a VPN. Each decision is logged as "IPv6 refresh: …"

@@ -1,6 +1,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.18--r14-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.18--r15-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -21,6 +21,7 @@ Encrypted DNS for the whole device. Every app's DNS goes through [dnscrypt-proxy
 - **Tools** — check why a domain is blocked and by which list, allow or block with one tap
 - **Resolvers** — pick from 700+ public resolvers, see what each one declares (no-log, filtering, DNSSEC), test latency
 - **IPv4 / IPv6 modes** — strict IPv4, IPv6-compatible for IPv6-only carriers, or full dual stack — switchable live
+- **Hotspot clients** — devices on your hotspot get the same encrypted, filtered DNS, even with their own DNS server set; optional DoT block; connected devices shown live
 - **Pause** — 5 / 15 / 60 minutes for hotel and airport Wi-Fi login pages
 - **Self-healing** — a watchdog restarts a hung daemon, restores firewall rules Android removes, and never leaves the phone without internet
 
@@ -69,9 +70,9 @@ encrypted (DoH / DNSCrypt) → Cloudflare · Quad9 · Mullvad
 
 | Tab | What's there |
 |---|---|
-| **Dashboard** | Live stats, blocklist status, **Update Blocklist** with the source picker, cache, resolvers, top domains, recent queries. Tap any domain → Allow / Block / Check |
+| **Dashboard** | Live stats, a **Hotspot** card with connected devices while a hotspot runs, blocklist status, **Update Blocklist** with the source picker, cache, resolvers, top domains, recent queries. Tap any domain → Allow / Block / Check |
 | **Tools** | **Check a domain** (verdict, matching rule, which list, live answer) · **My rules** (allow / block) · **Resolvers** |
-| **System** | **Pause protection** · live status of every process, health check and firewall rule · **IP mode** · actions (restart, reload, reapply rules, run checks) · settings |
+| **System** | **Pause protection** · live status of every process, health check and firewall rule · **IP mode** · **Hotspot** · actions (restart, reload, reapply rules, run checks) · settings |
 | **Log** | Module and dnscrypt-proxy log, filterable by level and source |
 
 A full explanation of every section is in the WebUI under **Help**.
@@ -119,6 +120,19 @@ Switch in **System → IP Mode**, applied immediately. The IPv6 modes need IPv6 
 
 ---
 
+## Hotspot
+
+Devices connected to your phone — Wi-Fi hotspot, USB or Bluetooth tethering — that use the phone as their DNS server are covered automatically. Two switches in **System → Hotspot** (both off by default) go further:
+
+| Switch | What it does |
+|---|---|
+| **Protect hotspot clients** | Every DNS query from a client, to any server (8.8.8.8, 1.1.1.1, …), goes through dnscrypt-proxy and your blocklists |
+| **Block DoT for hotspot clients** | Blocks port 853. Private DNS *Automatic* on a client falls back to you; a Private DNS *hostname* leaves that client without DNS until it is switched off |
+
+While a hotspot runs, the Dashboard shows how many devices are connected, with IP and MAC — the same count Android shows. A browser with its own DNS-over-HTTPS provider set (Brave, Chrome, Firefox) cannot be filtered by any DNS module.
+
+---
+
 ## Resolvers
 
 Default: **Cloudflare · Quad9 · Mullvad** — none of them filter, the blocklists do that.
@@ -160,6 +174,7 @@ su -c sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status
 | `ipmode-set ipv4\|compat\|dual` | IP mode |
 | `pause MIN` · `resume` | pause protection |
 | `private-dns-off` | switch Android Private DNS off |
+| `hotspot` · `set HOTSPOT_DNS 1` · `set HOTSPOT_DOT 1` | hotspot clients: state and devices · the two switches |
 | `log N` | last N log lines |
 
 `ctl.sh help` lists everything.

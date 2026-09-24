@@ -87,6 +87,14 @@ ip6tables -t nat -D OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/
 iptables -D OUTPUT -p udp --dport 53 -j DROP 2>/dev/null
 iptables -D OUTPUT -p tcp --dport 53 -j DROP 2>/dev/null
 
+# Hotspot client chains (r15+)
+while iptables -t nat -D PREROUTING -j DNSC_HS_PRE 2>/dev/null; do :; done
+while iptables -D FORWARD -j DNSC_HS_FWD 2>/dev/null; do :; done
+while ip6tables -D FORWARD -j DNSC_HS_FWD 2>/dev/null; do :; done
+iptables -t nat -F DNSC_HS_PRE 2>/dev/null; iptables -t nat -X DNSC_HS_PRE 2>/dev/null
+iptables -F DNSC_HS_FWD 2>/dev/null;        iptables -X DNSC_HS_FWD 2>/dev/null
+ip6tables -F DNSC_HS_FWD 2>/dev/null;       ip6tables -X DNSC_HS_FWD 2>/dev/null
+
 # ===============================================
 # STEP 3: Remove QUIC block (both families)
 # ===============================================

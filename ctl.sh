@@ -99,6 +99,9 @@ cmd_status() {
   echo "owner_match=$([ -f "$OWNER_FLAG_FILE" ] && echo 0 || echo 1)"
   echo "rules_file=$RULES_OK"
 
+  # Hotspot / tethering clients
+  hs_summary
+
   # System
   echo "selinux=$(getenforce 2>/dev/null)"
   echo "private_dns=$(settings get global private_dns_mode 2>/dev/null)"
@@ -121,6 +124,96 @@ cmd_status() {
 
   echo "ok=1"
   unset _now _wd _dp _started _tick _res _n _k
+}
+
+# ── hotspot: tethering clients and the rules that cover them ────────────────
+# on = rules in place for every tethered interface; armed = switched on,
+# no tethering running; off = both switches off; paused; partial = a rule
+# is missing (the watchdog repairs it within a tick).
+hotspot_rules_state() {
+  if [ "$HOTSPOT_DNS" != "1" ] && [ "$HOTSPOT_DOT" != "1" ]; then echo off; return; fi
+  if is_paused; then echo paused; return; fi
+  # A rebuild in progress (watchdog or a switch) is not a missing rule.
+  _w=0
+  while [ -d "$HS_LOCK" ] && [ "$_w" -lt 20 ]; do sleep 0.1 2>/dev/null || sleep 1; _w=$((_w + 1)); done
+  _rs=$(hotspot_ifaces)
+  if [ -z "$_rs" ]; then
+    if iptables -C FORWARD -j "$HS_FWD" 2>/dev/null; then echo armed; else echo partial; fi
+    unset _rs; return
+  fi
+  _ok=1
+  for _c in $(_hs_fams); do "$_c" -C FORWARD -j "$HS_FWD" 2>/dev/null || _ok=0; done
+  for _i in $_rs; do
+    if [ "$HOTSPOT_DNS" = "1" ]; then
+      iptables -C PREROUTING -t nat -j "$HS_PRE" 2>/dev/null || _ok=0
+      iptables -t nat -C "$HS_PRE" -i "$_i" -p udp --dport 53 -j REDIRECT --to-ports 53 2>/dev/null || _ok=0
+    fi
+    if [ "$HOTSPOT_DOT" = "1" ]; then
+      iptables -S "$HS_FWD" 2>/dev/null | grep -q -- "-i $_i -p tcp .*--dport 853" || _ok=0
+    fi
+  done
+  if [ "$_ok" = 1 ]; then echo on; else echo partial; fi
+  unset _rs _ok _i _c _w
+}
+
+# Connected devices, into variables:
+#   HS_N       connected right now (driver) or talking to us (fallback)
+#   HS_RECENT  fallback only: seen lately, may already have left
+#   HS_SRC     iw | neigh | mixed | '' (nobody)
+#   HS_LIST    ip|mac;ip|mac  (for the WebUI)
+#   HS_LINES   client=<state>,<mac>,<ip> lines
+hs_clients_read() {
+  HS_N=0; HS_RECENT=0; HS_SRC=""; HS_LIST=""; HS_LINES=""
+  hotspot_clients > "$STATE_DIR/hotspot_clients.tmp" 2>/dev/null
+  while read -r _st _mac _ip; do
+    [ -n "$_mac" ] || continue
+    HS_LINES="${HS_LINES}client=$_st,$_mac,$_ip
+"
+    case "$_st" in
+      connected) HS_N=$((HS_N + 1)); _s=iw ;;
+      active) HS_N=$((HS_N + 1)); _s=neigh ;;
+      *) HS_RECENT=$((HS_RECENT + 1)); _s=neigh; continue ;;
+    esac
+    if [ -z "$HS_SRC" ]; then HS_SRC=$_s; elif [ "$HS_SRC" != "$_s" ]; then HS_SRC=mixed; fi
+    HS_LIST="$HS_LIST${HS_LIST:+;}$_ip|$_mac"
+  done < "$STATE_DIR/hotspot_clients.tmp"
+  rm -f "$STATE_DIR/hotspot_clients.tmp"
+  [ -z "$HS_SRC" ] && [ "$HS_RECENT" -gt 0 ] && HS_SRC=neigh
+  unset _st _mac _ip _s
+}
+
+# The hotspot block of status / poll. Clients are only asked for while a
+# tethering is running.
+hs_summary() {
+  _hs=$(hotspot_ifaces_line)
+  echo "hotspot_ifaces=$_hs"
+  echo "hotspot_rules=$(hotspot_rules_state)"
+  if [ -n "$_hs" ]; then
+    hs_clients_read
+  else
+    HS_N=0; HS_RECENT=0; HS_SRC=""; HS_LIST=""
+  fi
+  echo "hotspot_clients=$HS_N"
+  echo "hotspot_clients_recent=$HS_RECENT"
+  echo "hotspot_clients_source=$HS_SRC"
+  echo "hotspot_client_list=$HS_LIST"
+  unset _hs
+}
+
+cmd_hotspot() {
+  echo "hotspot_dns=$HOTSPOT_DNS"
+  echo "hotspot_dot=$HOTSPOT_DOT"
+  _hi=$(hotspot_ifaces_line)
+  echo "active=$([ -n "$_hi" ] && echo 1 || echo 0)"
+  echo "ifaces=$_hi"
+  echo "rules=$(hotspot_rules_state)"
+  hs_clients_read
+  printf '%s' "$HS_LINES"
+  echo "clients=$HS_N"
+  echo "clients_recent=$HS_RECENT"
+  echo "clients_source=$HS_SRC"
+  echo "ok=1"
+  unset _hi
 }
 
 # ── probe: run both checks now, instead of reading the last result ─────────
@@ -211,6 +304,8 @@ cmd_reapply_rules() {
   fi
   rules_install_dns
   [ "$QUIC_BLOCK" = "1" ] && rules_install_quic
+  rm -f "$HS_STATE_FILE"
+  hotspot_sync
   log_info "rules reapplied via ctl.sh"
   echo "rules_present=$(yn rules_dns_present)"
   echo "ok=1"
@@ -259,6 +354,9 @@ cmd_poll() {
   echo "probe_queries=$_pq"
   echo "ip_mode_effective=$(ip_mode_applied)"
   echo "version=$(sed -n 's/^version=//p' "$MODPROP" 2>/dev/null)"
+  echo "setting_HOTSPOT_DNS=$HOTSPOT_DNS"
+  echo "setting_HOTSPOT_DOT=$HOTSPOT_DOT"
+  hs_summary
   echo "@@METRICS@@"
   fetch_metrics_json || echo "{}"
   unset _now _dp _started _tick _res _pq
@@ -543,6 +641,7 @@ cmd_pause() { # <minutes 1-240>
   if [ "$1" -lt 1 ] || [ "$1" -gt 240 ]; then echo "ok=0"; echo "error=1 to 240 minutes"; return 1; fi
   echo $(( $(mono_now) + $1 * 60 )) > "$PAUSE_FILE"
   rules_remove_dns
+  hotspot_teardown
   log_warn "protection PAUSED for $1 min - DNS goes out unencrypted until it resumes"
   echo "paused_left=$(pause_left)"
   echo "ok=1"
@@ -554,6 +653,7 @@ cmd_resume() {
     rules_install_dns
     [ "$QUIC_BLOCK" = "1" ] && rules_install_quic
   fi
+  hotspot_sync
   log_info "protection resumed"
   echo "ok=1"
 }
@@ -561,7 +661,7 @@ cmd_resume() {
 # ── set: the settings the WebUI exposes as switches ─────────────────────────
 cmd_set() { # <KEY> <VALUE>
   case "$1" in
-    QUIC_BLOCK | HEALTH_RESTART | IPV6_PER_IFACE_ENFORCE)
+    QUIC_BLOCK | HEALTH_RESTART | IPV6_PER_IFACE_ENFORCE | HOTSPOT_DNS | HOTSPOT_DOT)
       case "$2" in 0 | 1) : ;; *) echo "ok=0"; echo "error=$1 takes 0 or 1"; return 1 ;; esac ;;
     LOG_KEEP_LINES)
       case "$2" in '' | *[!0-9]*) echo "ok=0"; echo "error=a number"; return 1 ;; esac
@@ -573,6 +673,7 @@ cmd_set() { # <KEY> <VALUE>
   if [ "$1" = "QUIC_BLOCK" ]; then
     if [ "$2" = "1" ]; then rules_install_quic; else rules_remove_quic; fi
   fi
+  case "$1" in HOTSPOT_*) hotspot_sync ;; esac
   log_info "setting changed via WebUI: $1=$2"
   echo "$1=$2"
   echo "ok=1"
@@ -689,8 +790,9 @@ usage: ctl.sh <command>
   allow D / unallow D / block D / unblock D   your own rules, applied now
   rules-list      your allow and custom-block rules
   pause MIN / resume   take DNS protection down for 1-240 minutes
-  set KEY VALUE   QUIC_BLOCK, HEALTH_RESTART, IPV6_PER_IFACE_ENFORCE (0/1),
-                  LOG_KEEP_LINES (100-20000)
+  set KEY VALUE   QUIC_BLOCK, HEALTH_RESTART, IPV6_PER_IFACE_ENFORCE,
+                  HOTSPOT_DNS, HOTSPOT_DOT (0/1), LOG_KEEP_LINES (100-20000)
+  hotspot         tethered interfaces, hotspot rules and connected clients
   resolvers / resolvers-search T / resolvers-set A,B / resolvers-test A,B
   private-dns-off turn Android Private DNS off (it bypasses the redirect)
   net-refresh-v6  reconnect Wi-Fi / mobile data if Android missed IPv6
@@ -727,6 +829,7 @@ case "$cmd" in
   resolvers-test) cmd_resolvers_test "$1" ;;
   probe)         cmd_probe ;;
   private-dns-off) cmd_private_dns_off ;;
+  hotspot)       cmd_hotspot ;;
   net-refresh-v6) net_refresh_for_ipv6; echo "ok=1" ;;
   restart)       cmd_restart ;;
   reload)        cmd_reload ;;

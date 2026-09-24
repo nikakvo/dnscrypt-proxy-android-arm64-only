@@ -107,12 +107,13 @@
   <a href="#status">9 · System — status &amp; actions</a>
   <a href="#ipmode">10 · System — IP mode</a>
   <a href="#settings">11 · System — settings</a>
-  <a href="#log">12 · Log</a>
-  <a href="#files">13 · Files &amp; configuration</a>
-  <a href="#cli">14 · Command line</a>
-  <a href="#vpn">15 · VPN &amp; companion modules</a>
-  <a href="#trouble">16 · Troubleshooting</a>
-  <a href="#uninstall">17 · Update &amp; uninstall</a>
+  <a href="#hotspot">12 · System — hotspot</a>
+  <a href="#log">13 · Log</a>
+  <a href="#files">14 · Files &amp; configuration</a>
+  <a href="#cli">15 · Command line</a>
+  <a href="#vpn">16 · VPN &amp; companion modules</a>
+  <a href="#trouble">17 · Troubleshooting</a>
+  <a href="#uninstall">18 · Update &amp; uninstall</a>
 </div>
 
 <!-- 1 -->
@@ -339,14 +340,38 @@
 </div>
 
 <!-- 12 -->
-<div class="sec-title" id="log">12 · log</div>
+<div class="sec-title" id="hotspot">12 · system — hotspot</div>
+<div class="box">
+  <p>For devices that connect to your phone: Wi-Fi hotspot, USB and Bluetooth tethering. Both switches are off by default and kept through updates.</p>
+  <h3>Already covered without the switches</h3>
+  <p>A device that uses the DNS server it got from your phone (the default on every phone and laptop) is protected anyway. Android's tethering DNS forwarder sends its queries on from the phone itself, into the same redirect as your own apps: encrypted, blocklist applied.</p>
+  <h3>Protect hotspot clients</h3>
+  <p>Catches the devices that set their own DNS server (8.8.8.8, 1.1.1.1, a router preset, some apps). Every DNS query from the hotspot, to any server, is answered by your phone instead, so it goes through the proxy and the blocklist like yours. The device does not notice: the answer comes back from the address it asked. IPv6 DNS from clients is refused, so they use IPv4.</p>
+  <h3>Block DoT for hotspot clients</h3>
+  <p>Encrypted DNS over TLS (port 853) is invisible to the switch above. This one blocks it. A phone with Private DNS on <b>Automatic</b> notices and falls back to normal DNS, which then goes through you. A phone with a <b>Private DNS hostname</b> set does not fall back and has no DNS on your hotspot until the owner sets Private DNS to Automatic or Off. That is why it is a separate switch: turn it off for a friend who wants to keep their own. DNS-over-HTTPS inside browsers and apps cannot be told apart from web traffic and is not blocked.</p>
+  <h3>What no DNS filter can see</h3>
+  <p>A browser with its own <b>secure DNS</b> provider set — Brave, Chrome, Edge and Firefox all offer it, e.g. "Use secure DNS: Cloudflare" — sends its lookups over HTTPS, mixed in with web traffic. Neither this module nor any other DNS filter can see or redirect them; that browser's sites are then not filtered. On the client, set secure DNS to <b>off</b> or to "your current service provider". After changing it, restart the browser: it keeps the addresses it already looked up. Your own phone's browser is the same.</p>
+  <h3>Connected devices</h3>
+  <p>When a hotspot is running, the dashboard shows a Hotspot card: how many devices are connected, with their IP and MAC address. The count comes from the Wi-Fi driver, so it matches Android's own "devices connected" and drops as soon as a device leaves. <b>address pending</b> = connected, has not talked to the phone yet. For USB and Bluetooth tethering there is no driver list; the count is then an <b>estimate</b> from recent traffic.</p>
+  <h3>Status</h3>
+  <div class="tw"><table>
+    <tr><td>protected</td><td>Rules in place for every tethered interface.</td></tr>
+    <tr><td>waiting</td><td>Switched on, no hotspot running. The rules go on within seconds of one starting.</td></tr>
+    <tr><td>repairing</td><td>Android replaced a rule (it rebuilds the firewall when tethering starts or stops); the watchdog puts it back within a tick.</td></tr>
+    <tr><td>paused</td><td>Protection is paused — clients get plain DNS too.</td></tr>
+  </table></div>
+  <div class="note">Pause, failsafe and a stopped daemon affect clients exactly as they affect the phone. The rules sit in their own chains (<code>DNSC_HS_PRE</code>, <code>DNSC_HS_FWD</code>) and are removed completely when both switches are off, and on uninstall.</div>
+</div>
+
+<!-- 13 -->
+<div class="sec-title" id="log">13 · log</div>
 <div class="box">
   <p>One log for the module (<strong>M</strong>) and dnscrypt-proxy itself (<strong>D</strong>). Filter by level (INFO / WARN / ERR) and by source, choose how many lines to show, or clear it.</p>
   <div class="note">Many <code>Network change detected</code> lines on mobile data are normal: the modem keeps recreating its connections and dnscrypt-proxy rotates its keys each time.</div>
 </div>
 
-<!-- 13 -->
-<div class="sec-title" id="files">13 · files &amp; configuration</div>
+<!-- 14 -->
+<div class="sec-title" id="files">14 · files &amp; configuration</div>
 <div class="box">
   <div class="tw"><table>
     <tr><th>path</th><th>what</th></tr>
@@ -365,12 +390,14 @@
     <tr><td>LOG_KEEP_LINES</td><td>100 – 20000</td></tr>
     <tr><td>BLOCKLIST_SOURCES</td><td>comma-separated source ids, or <code>none</code></td></tr>
     <tr><td>BLOCKLIST_AUTO</td><td><code>off</code> · <code>daily</code> · <code>weekly</code></td></tr>
+    <tr><td>HOTSPOT_DNS</td><td><code>0</code> / <code>1</code></td></tr>
+    <tr><td>HOTSPOT_DOT</td><td><code>0</code> / <code>1</code></td></tr>
   </table></div>
   <div class="note">The toml keys <code>server_names</code>, the <code>[static]</code> section, <code>listen_addresses</code> and <code>block_ipv6</code> are managed by the Resolvers and IP Mode sections. Other changes to the toml are yours to make.</div>
 </div>
 
-<!-- 14 -->
-<div class="sec-title" id="cli">14 · command line</div>
+<!-- 15 -->
+<div class="sec-title" id="cli">15 · command line</div>
 <div class="box">
   <p>Everything the WebUI does goes through one script, which also works from a root shell (Termux):</p>
   <pre>su -c sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh <span class="cm">&lt;command&gt;</span></pre>
@@ -387,13 +414,15 @@
     <tr><td>ipmode-set M</td><td><code>ipv4</code> · <code>compat</code> · <code>dual</code></td></tr>
     <tr><td>pause MIN · resume</td><td>Pause protection</td></tr>
     <tr><td>private-dns-off</td><td>Switch Android Private DNS off</td></tr>
+    <tr><td>hotspot</td><td>Tethered interfaces, hotspot rules, connected devices</td></tr>
+    <tr><td>set HOTSPOT_DNS 1 · set HOTSPOT_DOT 1</td><td>The hotspot switches (<code>0</code> = off)</td></tr>
     <tr><td>log N</td><td>Last N log lines</td></tr>
   </table></div>
   <p><code>ctl.sh help</code> lists every command.</p>
 </div>
 
-<!-- 15 -->
-<div class="sec-title" id="vpn">15 · vpn &amp; companion modules</div>
+<!-- 16 -->
+<div class="sec-title" id="vpn">16 · vpn &amp; companion modules</div>
 <div class="box">
   <h3>With a VPN (e.g. WireGuard)</h3>
   <p>Works alongside. Remove the <code>DNS =</code> line from the WireGuard config, so the tunnel does not try to set its own DNS server — dnscrypt-proxy stays in charge, and its encrypted queries travel inside the tunnel.</p>
@@ -412,8 +441,8 @@
   <p>The installer looks for other DNS changers (AdAway, systemless hosts, RethinkDNS, NextDNS, Blokada, …) and offers to remove them. Two things fighting over DNS means neither works reliably.</p>
 </div>
 
-<!-- 16 -->
-<div class="sec-title" id="trouble">16 · troubleshooting</div>
+<!-- 17 -->
+<div class="sec-title" id="trouble">17 · troubleshooting</div>
 <div class="box">
   <h3>No internet</h3>
   <ul>
@@ -431,8 +460,8 @@
   <p>System tab first — every row is a live check. Then the Log with WARN and ERR only.</p>
 </div>
 
-<!-- 17 -->
-<div class="sec-title" id="uninstall">17 · update &amp; uninstall</div>
+<!-- 18 -->
+<div class="sec-title" id="uninstall">18 · update &amp; uninstall</div>
 <div class="box">
   <h3>Updating the module</h3>
   <p>Your settings, custom list, allow list, IP lists (<code>allowed-ips.txt</code>, <code>blocked-ips.txt</code>), chosen resolvers and cached blocklists are kept. The old config is backed up with a date in <code>/data/adb/dnscrypt-proxy/</code>.</p>

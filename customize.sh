@@ -2,7 +2,7 @@ ui_print " "
 ui_print "******************************"
 ui_print "*   dnscrypt-proxy-android   *"
 ui_print "*        Аrm64 ONLY          *"
-ui_print "*         2.1.18-r14         *"
+ui_print "*         2.1.18-r15         *"
 ui_print "******************************"
 ui_print "*        Tears Burn          *"
 ui_print "******************************"
@@ -545,6 +545,17 @@ BLOCKLIST_SOURCES=oisd-big
 
 # Automatic blocklist update: off | daily | weekly
 BLOCKLIST_AUTO=off
+
+# Hotspot / USB / Bluetooth tethering clients.
+# HOTSPOT_DNS=1: every DNS query a client sends, to any server, goes
+#   through this proxy too (blocklists included). 0 = off (default):
+#   clients that use the phone as DNS server are covered anyway, clients
+#   with their own server (8.8.8.8 etc.) are not.
+# HOTSPOT_DOT=1: block DNS-over-TLS/QUIC (port 853) for clients, so a
+#   phone with Private DNS "Automatic" falls back to plain DNS and to
+#   this proxy. A client with a Private DNS hostname set has no DNS then.
+HOTSPOT_DNS=0
+HOTSPOT_DOT=0
 CONFEOF
   ui_print "* Created settings file: $CONF"
 else
@@ -606,6 +617,22 @@ BLOCKLIST_SOURCES=oisd-big
 BLOCKLIST_AUTO=off
 ADD5EOF
     ui_print "* Added blocklist source settings to $CONF"
+  fi
+  if ! grep -q '^HOTSPOT_DNS=' "$CONF" 2>/dev/null; then
+    cat >> "$CONF" << 'ADD6HSEOF'
+
+# Hotspot / USB / Bluetooth tethering clients.
+# HOTSPOT_DNS=1: every DNS query a client sends, to any server, goes
+#   through this proxy too (blocklists included). 0 = off (default):
+#   clients that use the phone as DNS server are covered anyway, clients
+#   with their own server (8.8.8.8 etc.) are not.
+# HOTSPOT_DOT=1: block DNS-over-TLS/QUIC (port 853) for clients, so a
+#   phone with Private DNS "Automatic" falls back to plain DNS and to
+#   this proxy. A client with a Private DNS hostname set has no DNS then.
+HOTSPOT_DNS=0
+HOTSPOT_DOT=0
+ADD6HSEOF
+    ui_print "* Added hotspot settings HOTSPOT_DNS=0, HOTSPOT_DOT=0 to $CONF"
   fi
 fi
 

@@ -55,7 +55,7 @@ unset _b
 # executes whatever is in it. It is now parsed: only known keys, only plain
 # values. A typo or a stray command in the file can no longer run as root
 # inside the watchdog, it is simply ignored.
-SETTINGS_KEYS="IP_MODE IPV6_KILL IPV6_PER_IFACE_ENFORCE QUIC_BLOCK LOG_KEEP_LINES HEALTH_RESTART BLOCKLIST_SOURCES BLOCKLIST_AUTO"
+SETTINGS_KEYS="IP_MODE IPV6_KILL IPV6_PER_IFACE_ENFORCE QUIC_BLOCK LOG_KEEP_LINES HEALTH_RESTART BLOCKLIST_SOURCES BLOCKLIST_AUTO HOTSPOT_DNS HOTSPOT_DOT"
 
 load_settings() {
   IP_MODE=""
@@ -66,6 +66,8 @@ load_settings() {
   HEALTH_RESTART=1
   BLOCKLIST_SOURCES="oisd-big"
   BLOCKLIST_AUTO="off"
+  HOTSPOT_DNS=0
+  HOTSPOT_DOT=0
   [ -f "$CONF" ] || return 0
   while IFS='=' read -r _k _v || [ -n "$_k" ]; do
     case "$_k" in '' | \#*) continue ;; esac
@@ -217,6 +219,11 @@ else
   rules_remove_quic()  { :; }
   rules_dns_present()  { return 0; }
   rules_dns_any_present() { return 1; }
+  hotspot_sync()       { :; }
+  hotspot_teardown()   { :; }
+  hotspot_ifaces()     { :; }
+  hotspot_ifaces_line() { :; }
+  hotspot_clients()    { :; }
 fi
 
 # ── Process helpers ──────────────────────────────────────────────────────────
