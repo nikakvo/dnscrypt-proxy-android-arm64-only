@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.18-r17
+
+Friendlier to VPN apps, and two IPv6 fixes.
+
+* **No more firewall lock while checking.** Android's firewall has one global lock. VPN apps such as WireGuard (`wg-quick`) run their firewall commands without waiting for it and fail outright if anyone holds it at that moment — *"wg-quick returned 4"* or *"124"*, a tunnel that will not start or stop. The watchdog and the WebUI checked the rules with commands that take the lock: measured, **282 times in 30 seconds** with the WebUI open. They now read the tables with `iptables-save`, which never takes the lock: **0**. Only real changes (repairs, switches) still take it, briefly
+* The two one-time kernel probes (xt_owner, IPv6 NAT) are remembered for the boot — the WebUI status no longer repeats them on every refresh
+* **Dual stack on mobile data.** IPv4-only mode switches off IPv6 router advertisements for new interfaces, and the mobile data interfaces created meanwhile kept that after switching to Dual or IPv6 compatible — no IPv6 on mobile data until a reboot (Wi-Fi was re-armed by Android). Switching back now restores them
+* **System → IP mode:** the network row now describes the network in use (e.g. `rmnet_data1`: *IPv4 + IPv6*, tag *v4 + v6*) instead of every interface — the hotspot and the VPN no longer count — and its tag no longer reads *dual*, which looked like the Dual stack mode
+* **New warning:** in Dual stack with a VPN that carries only IPv4 (for example a WireGuard config with only an IPv4 address), apps' IPv6 goes around the VPN and sites see your real IPv6 address. The System tab now says so and suggests IPv6 compatible, or IPv6 in the VPN config
+
 ## 2.1.18-r16
 
 A small fix release, found while building a companion module (VPN for hotspot clients).

@@ -81,13 +81,15 @@ cmd_status() {
   if [ "${_tick:-0}" -gt 0 ]; then echo "tick_age=$((_now - _tick))"; else echo "tick_age="; fi
 
   # Rules, checked live
-  echo "rule_nat_v4=$(yn iptables -t nat -C OUTPUT -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR")"
-  echo "rule_guard_v4=$(yn iptables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP)"
-  echo "rule_guard_v6=$(yn ip6tables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP)"
-  echo "rule_quic_v4=$(yn iptables -C OUTPUT -p udp --dport 443 -j DROP)"
-  echo "rule_quic_v6=$(yn ip6tables -C OUTPUT -p udp --dport 443 -j DROP)"
-  echo "ipv6_policy=$(ip6tables -S OUTPUT 2>/dev/null | sed -n 's/^-P OUTPUT //p' | head -n 1)"
-  echo "rule_nat_v6=$(yn ip6tables -t nat -C OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354)"
+  # (from the lock-free snapshot, r17)
+  ipt_snap
+  echo "rule_nat_v4=$(yn sn_has "$S4N" "$P_DNAT_UDP")"
+  echo "rule_guard_v4=$(yn sn_has "$S4F" "$P_GUARD_UDP")"
+  echo "rule_guard_v6=$(yn sn_has "$S6F" "$P_GUARD_UDP")"
+  echo "rule_quic_v4=$(yn sn_has "$S4F" "$P_QUIC")"
+  echo "rule_quic_v6=$(yn sn_has "$S6F" "$P_QUIC")"
+  echo "ipv6_policy=$(printf '%s\n' "$S6F" | sed -n 's/^-P OUTPUT //p' | head -n 1)"
+  echo "rule_nat_v6=$(yn sn_has "$S6N" "$P_R6_UDP")"
 
   # IP mode and the network it is running on
   echo "ip_mode=$IP_MODE"
@@ -96,6 +98,8 @@ cmd_status() {
   echo "net_ipv4=$(yn net_has_ipv4)"
   echo "net_ipv6=$(yn net_has_ipv6)"
   echo "net_clat=$(yn net_has_clat)"
+  echo "net_iface=$(net_default_iface)"
+  if [ -n "$(vpn_table)" ]; then echo "vpn_active=1"; echo "vpn_ipv6=$(yn vpn_has_ipv6)"; else echo "vpn_active=0"; echo "vpn_ipv6=0"; fi
   echo "owner_match=$([ -f "$OWNER_FLAG_FILE" ] && echo 0 || echo 1)"
   echo "rules_file=$RULES_OK"
 
@@ -136,20 +140,22 @@ hotspot_rules_state() {
   # A rebuild in progress (watchdog or a switch) is not a missing rule.
   _w=0
   while [ -d "$HS_LOCK" ] && [ "$_w" -lt 20 ]; do sleep 0.1 2>/dev/null || sleep 1; _w=$((_w + 1)); done
+  ipt_snap
   _rs=$(hotspot_ifaces)
   if [ -z "$_rs" ]; then
-    if iptables -C FORWARD -j "$HS_FWD" 2>/dev/null; then echo armed; else echo partial; fi
+    if [ "$(sn_jumps "$S4F" FORWARD "$HS_FWD")" -gt 0 ]; then echo armed; else echo partial; fi
     unset _rs; return
   fi
   _ok=1
-  for _c in $(_hs_fams); do "$_c" -C FORWARD -j "$HS_FWD" 2>/dev/null || _ok=0; done
+  [ "$(sn_jumps "$S4F" FORWARD "$HS_FWD")" -gt 0 ] || _ok=0
+  if [ "$S6OK" = 1 ]; then [ "$(sn_jumps "$S6F" FORWARD "$HS_FWD")" -gt 0 ] || _ok=0; fi
   for _i in $_rs; do
     if [ "$HOTSPOT_DNS" = "1" ]; then
-      iptables -C PREROUTING -t nat -j "$HS_PRE" 2>/dev/null || _ok=0
-      iptables -t nat -C "$HS_PRE" -i "$_i" -p udp --dport 53 -j REDIRECT --to-ports 53 2>/dev/null || _ok=0
+      [ "$(sn_jumps "$S4N" PREROUTING "$HS_PRE")" -gt 0 ] || _ok=0
+      sn_has "$S4N" "^-A $HS_PRE -i $_i -p udp( -m udp)? --dport 53 -j REDIRECT --to-ports 53\$" || _ok=0
     fi
     if [ "$HOTSPOT_DOT" = "1" ]; then
-      iptables -S "$HS_FWD" 2>/dev/null | grep -q -- "-i $_i -p tcp .*--dport 853" || _ok=0
+      sn_has "$S4F" "^-A $HS_FWD -i $_i -p tcp( -m tcp)? --dport 853 " || _ok=0
     fi
   done
   if [ "$_ok" = 1 ]; then echo on; else echo partial; fi

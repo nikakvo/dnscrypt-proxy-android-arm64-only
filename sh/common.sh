@@ -111,6 +111,58 @@ ip6tables() {
   return $_ipt_rc
 }
 
+# ── Reading the tables without the xtables lock (r17) ────────────────────────
+# "iptables -C / -S" can take the global xtables lock. WireGuard's wg-quick
+# (and other VPN apps) run iptables WITHOUT -w and fail outright if anyone
+# holds the lock at that instant ("wg-quick returned 4" / "124", measured
+# with VPN Hotspot Arm64 on the same phone). The watchdog and the WebUI poll
+# checked rules with ~20 such calls every few seconds. They now read the
+# tables with iptables-save, which never takes the lock; only real changes
+# (-I / -A / -D, with -w) still do.
+if [ -z "$IPTS4_BIN" ]; then
+  IPTS4_BIN=$(command -v iptables-save 2>/dev/null)
+  case "$IPTS4_BIN" in /*) ;; *) IPTS4_BIN="" ;; esac
+  IPTS6_BIN=$(command -v ip6tables-save 2>/dev/null)
+  case "$IPTS6_BIN" in /*) ;; *) IPTS6_BIN="" ;; esac
+fi
+
+# ipt_dump <4|6> <table>: the table as "iptables -S" lines (-P/-N/-A).
+ipt_dump() {
+  if [ "$1" = 6 ]; then _db=$IPTS6_BIN; _dc=ip6tables; else _db=$IPTS4_BIN; _dc=iptables; fi
+  if [ -n "$_db" ]; then
+    _dt=$("$_db" -t "$2" 2>/dev/null) || { unset _db _dc _dt; return 1; }
+    case "$_dt" in *"*$2"*) ;; *) unset _db _dc _dt; return 1 ;; esac
+    printf '%s\n' "$_dt" | sed -n -e 's/^:\([^ ]*\) - .*/-N \1/p' -e 's/^:\([^ ]*\) \([A-Z][A-Z]*\) .*/-P \1 \2/p' -e '/^-A /p'
+    unset _db _dc _dt
+    return 0
+  fi
+  "$_dc" -t "$2" -S 2>/dev/null; _dr=$?
+  unset _db _dc
+  return $_dr
+}
+
+# One snapshot per watchdog tick / ctl run; anything that writes marks it
+# stale so the next check reads again.
+SNAP_OK=0
+ipt_snap() {
+  [ "$SNAP_OK" = 1 ] && return 0
+  S4F=$(ipt_dump 4 filter)
+  S4N=$(ipt_dump 4 nat)
+  if S6F=$(ipt_dump 6 filter) && [ -n "$S6F" ]; then S6OK=1; else S6OK=0; S6F=""; fi
+  S6N=$(ipt_dump 6 nat) || S6N=""
+  SNAP_OK=1
+}
+ipt_snap_stale() { SNAP_OK=0; }
+
+# sn_has <dump> <ERE for a whole rule line>
+sn_has() { printf '%s\n' "$1" | grep -qE -- "$2"; }
+# sn_jumps <dump> <parent> <chain>: number of plain jumps
+sn_jumps() { printf '%s\n' "$1" | awk -v j="-A $2 -j $3" '$0 == j { c++ } END { print c + 0 }'; }
+# sn_chain <dump> <chain>: chain exists
+sn_chain() { printf '%s\n' "$1" | grep -qx -- "-N $2"; }
+# sn_count <dump> <chain>: rules in it
+sn_count() { printf '%s\n' "$1" | grep -c -- "^-A $2 "; }
+
 # ── Settings ─────────────────────────────────────────────────────────────────
 # /data/adb/dnscrypt-proxy-android.conf used to be sourced with `.`, which
 # executes whatever is in it. It is now parsed: only known keys, only plain
@@ -703,6 +755,15 @@ ip6_stack_on() {
   _sysctl_w /proc/sys/net/ipv6/conf/lo/disable_ipv6 0
   _sysctl_w /proc/sys/net/ipv6/conf/all/accept_ra 1
   _sysctl_w /proc/sys/net/ipv6/conf/default/accept_ra 1
+  # IPv4-only mode set default/accept_ra=0, so every mobile data interface
+  # created meanwhile kept 0 and never takes the carrier's IPv6 again (Wi-Fi
+  # is re-armed by Android on each connect, mobile data is not). r17: put
+  # the kernel default back on them.
+  for _c in /proc/sys/net/ipv6/conf/*; do
+    case "${_c##*/}" in rmnet* | ccmni* | seth* | rev_rmnet*) ;; *) continue ;; esac
+    [ "$(cat "$_c/accept_ra" 2>/dev/null)" = "0" ] && echo 1 2>/dev/null > "$_c/accept_ra"
+  done
+  unset _c
   ip6tables -P INPUT   ACCEPT 2>/dev/null
   ip6tables -P OUTPUT  ACCEPT 2>/dev/null
   ip6tables -P FORWARD ACCEPT 2>/dev/null
@@ -770,7 +831,8 @@ apply_ip_mode() {
 
   # Rules follow the redirect decision; only touch them if the redirect is
   # already in place, i.e. the daemon is (or was) up.
-  if iptables -t nat -C OUTPUT -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null; then
+  ipt_snap_stale; ipt_snap
+  if sn_has "$S4N" "$P_DNAT_UDP"; then
     rules_install_dns
   fi
 
@@ -850,11 +912,32 @@ net_refresh_for_ipv6() {
 # ── What kind of network is this? (for the WebUI and a boot hint) ────────────
 # A clat interface (v4-<iface>) is Android's 464XLAT: the network is IPv6
 # only and IPv4 is translated. Its 192.0.0.x address is not real IPv4.
+# The network Android uses for internet: the table of its default-network
+# rule ("31000: from all fwmark 0x0/0xffff iif lo lookup <iface>"). Hotspot,
+# VPN and IMS interfaces also have addresses and must not count (r17).
+net_default_iface() {
+  ip rule 2>/dev/null | awk '/fwmark 0x0\/0xffff iif lo lookup/ { print $NF; exit }'
+}
 net_has_ipv4() {
-  ip -o -4 addr show scope global 2>/dev/null | grep -v ' v4-' | grep -q 'inet '
+  _ni=$(net_default_iface)
+  if [ -n "$_ni" ]; then ip -o -4 addr show dev "$_ni" scope global 2>/dev/null | grep -q 'inet '
+  else ip -o -4 addr show scope global 2>/dev/null | grep -v ' v4-' | grep -q 'inet '; fi
+  _r=$?; unset _ni; return $_r
 }
 net_has_ipv6() {
-  ip -o -6 addr show scope global 2>/dev/null | grep -q 'inet6 '
+  _ni=$(net_default_iface)
+  if [ -n "$_ni" ]; then ip -o -6 addr show dev "$_ni" scope global 2>/dev/null | grep -q 'inet6 '
+  else ip -o -6 addr show scope global 2>/dev/null | grep -q 'inet6 '; fi
+  _r=$?; unset _ni; return $_r
+}
+# A VPN is connected (Android's VPN uid rule) / it carries IPv6. A VPN with
+# no IPv6 route (e.g. a WireGuard config with only an IPv4 address) lets
+# apps' IPv6 go around it on a network that has IPv6.
+vpn_table() { ip rule 2>/dev/null | awk '/uidrange 0-99999 lookup/ { print $NF; exit }'; }
+vpn_has_ipv6() {
+  _vt=$(vpn_table); [ -n "$_vt" ] || return 1
+  ip -6 route show table "$_vt" 2>/dev/null | grep -qE '^(default|::/0) '
+  _r=$?; unset _vt; return $_r
 }
 net_has_clat() {
   for _c in /sys/class/net/v4-*; do

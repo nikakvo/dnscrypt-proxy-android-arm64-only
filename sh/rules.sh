@@ -49,6 +49,15 @@
 #    127.0.0.1` instead of spawning a second dnscrypt-proxy process.
 
 DNS_REDIR="127.0.0.1:5354"
+# Our rules as iptables-save prints them (-m udp/-m tcp is added by it)
+_RX_REDIR=$(printf '%s' "$DNS_REDIR" | sed 's/\./\\./g')
+P_DNAT_UDP="^-A OUTPUT -p udp( -m udp)? --dport 53 -j DNAT --to-destination $_RX_REDIR\$"
+P_DNAT_TCP="^-A OUTPUT -p tcp( -m tcp)? --dport 53 -j DNAT --to-destination $_RX_REDIR\$"
+P_GUARD_UDP='^-A OUTPUT ! -o lo -p udp( -m udp)? --dport 53 -j DROP$'
+P_GUARD_TCP='^-A OUTPUT ! -o lo -p tcp( -m tcp)? --dport 53 -j DROP$'
+P_R6_UDP='^-A OUTPUT -p udp( -m udp)? --dport 53 -j REDIRECT --to-ports 5354$'
+P_QUIC='^-A OUTPUT -p udp( -m udp)? --dport 443 -j DROP$'
+unset _RX_REDIR
 BOOTSTRAP_IPS="9.9.9.9 149.112.112.112 45.11.45.11"
 OWNER_FLAG_FILE="/data/adb/dnscrypt-proxy-state/owner_match_unavailable"
 
@@ -56,14 +65,19 @@ OWNER_FLAG_FILE="/data/adb/dnscrypt-proxy-state/owner_match_unavailable"
 # Does this kernel have the xt_owner match? Some stripped GKI builds
 # do not. Probe once, cache the answer for the boot.
 # -----------------------------------------------------------------
+OWNER_OK_FILE="/data/adb/dnscrypt-proxy-state/owner_match_ok"
 have_owner_match() {
   [ -f "$OWNER_FLAG_FILE" ] && return 1
   [ -n "$OWNER_MATCH_OK" ] && return "$OWNER_MATCH_OK"
+  # r17: the positive answer is cached per boot too - the probe writes a
+  # rule, and every ctl.sh run used to repeat it.
+  [ -f "$OWNER_OK_FILE" ] && { OWNER_MATCH_OK=0; return 0; }
   if iptables -t nat -I OUTPUT 1 -p udp -d 127.0.0.2 --dport 53 \
        -m owner --uid-owner 0 -j RETURN 2>/dev/null; then
     iptables -t nat -D OUTPUT -p udp -d 127.0.0.2 --dport 53 \
        -m owner --uid-owner 0 -j RETURN 2>/dev/null
     OWNER_MATCH_OK=0
+    : > "$OWNER_OK_FILE" 2>/dev/null
   else
     OWNER_MATCH_OK=1
     : > "$OWNER_FLAG_FILE" 2>/dev/null
@@ -89,6 +103,14 @@ IP6_NAT_FILE="/data/adb/dnscrypt-proxy-state/ip6_nat"
 
 have_ip6_nat() {
   [ -n "$IP6_NAT_OK" ] && return "$IP6_NAT_OK"
+  # r17: answer cached per boot (the probe writes a rule; the WebUI status
+  # used to repeat it on every refresh)
+  _nf=""; [ -f "$IP6_NAT_FILE" ] && read -r _nf 2>/dev/null < "$IP6_NAT_FILE"
+  case "$_nf" in
+    1) IP6_NAT_OK=0; unset _nf; return 0 ;;
+    0) IP6_NAT_OK=1; unset _nf; return 1 ;;
+  esac
+  unset _nf
   if ip6tables -t nat -I OUTPUT 1 -p udp -d ::2 --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null; then
     ip6tables -t nat -D OUTPUT -p udp -d ::2 --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null
     IP6_NAT_OK=0
@@ -146,6 +168,7 @@ rules_flush_all() {
 #   filter OUTPUT: [bootstrap ACCEPTs] [udp DROP] [tcp DROP] ...
 # -----------------------------------------------------------------
 rules_install_dns() {
+  ipt_snap_stale
   # The exemptions (RETURN in nat, ACCEPT in filter) only work ABOVE the
   # rule they exempt from. On a fresh install that falls out of the insert
   # order, but a repair is different: when netd or a VPN takes out only
@@ -223,6 +246,7 @@ rules_install_dns() {
 # heal on reboot.
 # -----------------------------------------------------------------
 rules_remove_dns() {
+  ipt_snap_stale
   iptables -t nat -D OUTPUT -p tcp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null
   iptables -t nat -D OUTPUT -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null
   iptables -D OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null
@@ -247,14 +271,16 @@ rules_dns_present() {
   # Check one sentinel from EACH table. netd can rebuild filter without
   # touching nat and vice versa - a VPN going up or down does exactly
   # that - so testing only the redirect would leave the leak guard
-  # missing indefinitely without anyone noticing.
-  iptables -t nat -C OUTPUT -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null || return 1
+  # missing indefinitely without anyone noticing. Read from the lock-free
+  # snapshot (r17).
+  ipt_snap
+  sn_has "$S4N" "$P_DNAT_UDP" || return 1
   if have_owner_match; then
-    iptables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null || return 1
+    sn_has "$S4F" "$P_GUARD_UDP" || return 1
   fi
-  ip6tables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null || return 1
+  sn_has "$S6F" "$P_GUARD_UDP" || return 1
   if ip6_redirect_wanted && have_ip6_nat; then
-    ip6tables -t nat -C OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null || return 1
+    sn_has "$S6N" "$P_R6_UDP" || return 1
   fi
   return 0
 }
@@ -264,12 +290,13 @@ rules_dns_present() {
 # present": with only the DROP gone, r12 left the DNAT in place for the
 # whole pause and DNS stayed redirected.
 rules_dns_any_present() {
-  iptables -t nat -C OUTPUT -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null && return 0
-  iptables -t nat -C OUTPUT -p tcp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null && return 0
-  iptables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null && return 0
-  iptables -C OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null && return 0
-  ip6tables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null && return 0
-  ip6tables -t nat -C OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null && return 0
+  ipt_snap
+  sn_has "$S4N" "$P_DNAT_UDP" && return 0
+  sn_has "$S4N" "$P_DNAT_TCP" && return 0
+  sn_has "$S4F" "$P_GUARD_UDP" && return 0
+  sn_has "$S4F" "$P_GUARD_TCP" && return 0
+  sn_has "$S6F" "$P_GUARD_UDP" && return 0
+  sn_has "$S6N" "$P_R6_UDP" && return 0
   return 1
 }
 
@@ -279,15 +306,21 @@ rules_dns_any_present() {
 # over v6. Both families now.
 # -----------------------------------------------------------------
 rules_install_quic() {
-  iptables -C OUTPUT -p udp --dport 443 -j DROP 2>/dev/null || \
-    iptables -I OUTPUT 1 -p udp --dport 443 -j DROP 2>/dev/null
-  ip6tables -C OUTPUT -p udp --dport 443 -j DROP 2>/dev/null || \
-    ip6tables -I OUTPUT 1 -p udp --dport 443 -j DROP 2>/dev/null
+  # Called every tick: checked on the snapshot, written only when missing
+  ipt_snap
+  if ! sn_has "$S4F" "$P_QUIC"; then
+    iptables -I OUTPUT 1 -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale
+  fi
+  if ! sn_has "$S6F" "$P_QUIC"; then
+    ip6tables -I OUTPUT 1 -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale
+  fi
 }
 
 rules_remove_quic() {
-  iptables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null
-  ip6tables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null
+  ipt_snap
+  sn_has "$S4F" "$P_QUIC" && { iptables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale; }
+  sn_has "$S6F" "$P_QUIC" && { ip6tables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale; }
+  return 0
 }
 
 # -----------------------------------------------------------------
@@ -361,8 +394,9 @@ _hs_conf() { # <KEY> -> 0|1 (default 0)
 #   -A tetherctrl_FORWARD -i wlan2 -o rmnet_data1 -g tetherctrl_counters
 # The last form (no --state) always has the client side as -i.
 hotspot_ifaces() {
-  { iptables -S tetherctrl_FORWARD 2>/dev/null; ip6tables -S tetherctrl_FORWARD 2>/dev/null; } |
-    sed -n -e '/--state/d' -e '/-[gj] tetherctrl_counters/s/.* -i \([A-Za-z0-9_.-]*\) .*/\1/p' |
+  ipt_snap
+  printf '%s\n%s\n' "$S4F" "$S6F" |
+    sed -n -e '/^-A tetherctrl_FORWARD /!d' -e '/--state/d' -e '/-[gj] tetherctrl_counters/s/.* -i \([A-Za-z0-9_.-]*\) .*/\1/p' |
     sort -u
 }
 
@@ -375,8 +409,19 @@ hotspot_ifaces_line() {
 }
 
 # Rules in a chain (lines starting with -A).
+# The snapshot dump for <cmd> <table>
+_hs_dump() {
+  case "$1:$2" in
+    iptables:filter) printf '%s\n' "$S4F" ;;
+    iptables:nat) printf '%s\n' "$S4N" ;;
+    ip6tables:filter) printf '%s\n' "$S6F" ;;
+    ip6tables:nat) printf '%s\n' "$S6N" ;;
+  esac
+}
+
 _hs_count() { # <cmd> <table> <chain>
-  "$1" -t "$2" -S "$3" 2>/dev/null | grep -c '^-A '
+  ipt_snap
+  sn_count "$(_hs_dump "$1" "$2")" "$3"
 }
 
 # REJECT, or DROP where the kernel has no REJECT target.
@@ -393,17 +438,20 @@ _hs_reject() { # <cmd> <iface> <proto> <port>
 # Own chain + a jump at the top of the parent. Called every tick, so a
 # jump netd dropped is back within one tick.
 _hs_hook() { # <cmd> <table> <parent> <chain>
-  "$1" -t "$2" -N "$4" 2>/dev/null
-  # Count the jumps from one listing instead of trusting "-C": a listing
-  # that fails (lock held too long) changes nothing - next tick retries.
-  _hk_s=$("$1" -t "$2" -S "$3" 2>/dev/null) || { unset _hk_s; return 0; }
-  _hk_n=$(printf '%s\n' "$_hk_s" | awk -v j="-A $3 -j $4" '$0 == j { c++ } END { print c + 0 }')
+  ipt_snap
+  _hk_s=$(_hs_dump "$1" "$2")
+  if ! sn_chain "$_hk_s" "$4"; then
+    "$1" -t "$2" -N "$4" 2>/dev/null; ipt_snap_stale
+  fi
+  # Jumps counted on the snapshot (no -C: a check that fails because the
+  # lock is held would read as "missing" and insert a second jump).
+  _hk_n=$(sn_jumps "$_hk_s" "$3" "$4")
   if [ "$_hk_n" = "0" ]; then
-    "$1" -t "$2" -I "$3" 1 -j "$4" 2>/dev/null
+    "$1" -t "$2" -I "$3" 1 -j "$4" 2>/dev/null; ipt_snap_stale
   elif [ "$_hk_n" -gt 1 ] 2>/dev/null; then
     # r15 could jump twice (lock race). Remove all, put one back on top.
     while "$1" -t "$2" -D "$3" -j "$4" 2>/dev/null; do :; done
-    "$1" -t "$2" -I "$3" 1 -j "$4" 2>/dev/null
+    "$1" -t "$2" -I "$3" 1 -j "$4" 2>/dev/null; ipt_snap_stale
     log_warn "hotspot: removed $((_hk_n - 1)) duplicate $4 jump(s) in $1 $2 $3"
   fi
   unset _hk_s _hk_n
@@ -412,11 +460,13 @@ _hs_hook() { # <cmd> <table> <parent> <chain>
 # ip6tables usable at all? (Always on Android; not in every test sandbox,
 # and a family that cannot be written must not force a rebuild per tick.)
 _hs_fams() {
-  if ip6tables -S FORWARD >/dev/null 2>&1; then echo "iptables ip6tables"; else echo iptables; fi
+  ipt_snap
+  if [ "$S6OK" = 1 ]; then echo "iptables ip6tables"; else echo iptables; fi
 }
 
 _hs_fill() { # <dns 0|1> <dot 0|1> <ifaces...>
   _fd=$1; _ft=$2; shift 2
+  ipt_snap_stale
   iptables -t nat -F "$HS_PRE" 2>/dev/null
   for _fc in $HS_FAMS; do "$_fc" -F "$HS_FWD" 2>/dev/null; done
   for _fi in "$@"; do
@@ -455,6 +505,7 @@ _hotspot_sync() {
     return 0
   fi
 
+  ipt_snap                     # in this shell: the $(...) below reuse it
   _hi=$(hotspot_ifaces_line)
   _hn=0
   for _x in $_hi; do _hn=$((_hn + 1)); done
@@ -468,6 +519,7 @@ _hotspot_sync() {
   _e4n=$((_hn * 2 * _hd))
   _e6f=$((_hn * (2 * _hd + 2 * _ht)))
   _sig="dns=$_hd dot=$_ht if=$_hi"
+  ipt_snap                     # again after a hook may have written
   _cur=""
   [ -f "$HS_STATE_FILE" ] && read -r _cur 2>/dev/null < "$HS_STATE_FILE"
   if [ "$_cur" != "$_sig" ] || \

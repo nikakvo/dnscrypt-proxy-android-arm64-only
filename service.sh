@@ -317,14 +317,16 @@ enforce_ipv6_disable() {
   fi
 
   # The actual killswitch.
-  if ! ip6tables -S OUTPUT 2>/dev/null | grep -q '^-P OUTPUT DROP'; then
+  ipt_snap
+  if [ "$S6OK" = 1 ] && ! printf '%s\n' "$S6F" | grep -q '^-P OUTPUT DROP'; then
     log_warn "ip6tables OUTPUT policy was not DROP, restoring the IPv6 killswitch"
     ip6tables -P INPUT   DROP 2>/dev/null
     ip6tables -P OUTPUT  DROP 2>/dev/null
     ip6tables -P FORWARD DROP 2>/dev/null
+    ipt_snap_stale
   fi
-  ip6tables -C INPUT  -i lo -j ACCEPT 2>/dev/null || ip6tables -A INPUT  -i lo -j ACCEPT 2>/dev/null
-  ip6tables -C OUTPUT -o lo -j ACCEPT 2>/dev/null || ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null
+  sn_has "$S6F" '^-A INPUT -i lo -j ACCEPT$' || { ip6tables -A INPUT -i lo -j ACCEPT 2>/dev/null; ipt_snap_stale; }
+  sn_has "$S6F" '^-A OUTPUT -o lo -j ACCEPT$' || { ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null; ipt_snap_stale; }
 }
 
 # -----------------------------------------------
@@ -504,6 +506,7 @@ IPV6_HINTED=0
 while true; do
   NOW=$(mono_now)
   TICK_NO=$((TICK_NO + 1))
+  ipt_snap_stale               # fresh lock-free snapshot for this tick
 
   # ── Daemon up? ──
   # After three failed starts in a row (a broken toml, a missing binary)

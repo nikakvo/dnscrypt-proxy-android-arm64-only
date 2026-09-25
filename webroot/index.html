@@ -1284,8 +1284,14 @@ function renderIpMode(s) {
     h += row('Active mode', eff === mode ? 'applied' : `applying (${esc(eff)})`, eff === mode ? 'ok' : 'warn', eff);
   }
   h += row('Kernel IPv6 NAT', nat ? 'IPv6 DNS can be redirected into the proxy' : 'CONFIG_IP6_NF_NAT missing — IPv6 modes run limited', nat ? 'ok' : 'warn', nat ? 'available' : 'missing');
+  // What the network in use offers - not the mode (r17: the "dual" tag here
+  // was read as the Dual stack mode)
   const net = clat ? 'IPv6-only with 464XLAT (IPv4 is translated)' : [v4 ? 'IPv4' : null, v6 ? 'IPv6' : null].filter(Boolean).join(' + ') || 'no global address';
-  h += row('This network', net, clat || v4 || v6 ? 'ok' : 'skip', clat ? '464xlat' : (v4 && v6 ? 'dual' : v4 ? 'ipv4' : v6 ? 'ipv6' : 'none'));
+  const via = s.net_iface ? ` (${esc(s.net_iface)})` : '';
+  h += row('Network offers' + via, net, clat || v4 || v6 ? 'ok' : 'skip', clat ? '464xlat' : (v4 && v6 ? 'v4 + v6' : v4 ? 'v4 only' : v6 ? 'v6 only' : 'none'));
+  if (mode === 'dual' && onoff(s.vpn_active) && !onoff(s.vpn_ipv6) && v6) {
+    h += '<div class="src-warn">⚠ Your VPN carries only IPv4. In Dual stack, apps\' IPv6 goes <b>around the VPN</b> and sites see your real IPv6 address. Use <b>IPv6 compatible</b>, or enable IPv6 in the VPN config.</div>';
+  }
   if (mode === 'ipv4' && (clat || (!v4 && onoff(s.live_interface)))) {
     h += '<div class="src-warn">⚠ This network has no real IPv4. If nothing loads, switch to <b>IPv6 compatible</b>.</div>';
   }
