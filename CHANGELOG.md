@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.18-r18
+
+Upstream binary update, no module changes.
+
+dnscrypt-proxy binary updated to the upstream CI build of commit [139e66d](https://github.com/DNSCrypt/dnscrypt-proxy/commit/139e66de37eb3056e43c17523a6fe3f5789db38a) ("Update deps")
+DNS library updated (codeberg.org/miekg/dns v0.6.117); the legacy github.com/miekg/dns v1 is no longer included
+QUIC / HTTP/3 library updated (quic-go v0.63.0)
+
+---
+
 ## 2.1.18-r17
 
 Friendlier to VPN apps, and two IPv6 fixes.
