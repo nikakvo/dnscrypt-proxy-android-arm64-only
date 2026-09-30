@@ -1,6 +1,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.18--r19-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.18--r20-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -193,36 +193,39 @@ On **dnsleaktest.com** → Extended test:
 
 ## With a VPN
 
-Works alongside WireGuard and other VPNs. Remove the `DNS =` line from the tunnel config so dnscrypt-proxy stays in charge — its encrypted queries then travel inside the tunnel.
+Works alongside WireGuard and other VPNs. Remove the `DNS =` line from the tunnel config so dnscrypt-proxy stays in charge — its encrypted queries then travel inside the tunnel. With [WG Shield Arm64](https://github.com/nikakvo/wg-shield-arm64) (kernel WireGuard without an app) there is nothing to remove: it ignores that line, and **System → VPN** shows *Through WG Shield* with the tunnel's name.
 
-Encrypted DNS hides *what you look up*; your carrier still sees which IP addresses you connect to. A VPN hides that. For apps that connect to hard-coded IP addresses and never use DNS, see the companion module [ipset-arm64](https://github.com/nikakvo/ipset-arm64). Android's VPN covers only the phone's own apps — to send your **hotspot devices** through the VPN too, see [VPN Hotspot Arm64](https://github.com/nikakvo/vpn-hotspot-arm64).
+Encrypted DNS hides *what you look up*; your carrier still sees which IP addresses you connect to. A VPN hides that. For apps that connect to hard-coded IP addresses and never use DNS, see the companion module [ipset-arm64](https://github.com/nikakvo/ipset_arm64). Android's VPN covers only the phone's own apps — to send your **hotspot devices** through the VPN too, see [VPN Hotspot Arm64](https://github.com/nikakvo/vpn-hotspot-arm64).
 
 ---
 
 ## The networking set
 
-Three modules built to work together — each one works on its own, and each adds a layer for the phone **and everyone on its hotspot**:
+Four modules built to work together — each one works on its own, and each adds a layer for the phone **and everyone on its hotspot**:
 
 | | Module | What it adds |
 |---|---|---|
 | 🟢 | **DNSCrypt Proxy Arm64** *(this module)* | Encrypted DNS with ad / tracker blocklists — for the phone and for hotspot devices, even those with their own DNS server set |
-| 🔵 | [ipset-arm64](https://github.com/nikakvo/ipset-arm64) | IP blocklists (FireHOL, Spamhaus) in the kernel — stops apps and devices that connect to hard-coded IP addresses, which DNS blocking cannot see |
+| 🔵 | [ipset-arm64](https://github.com/nikakvo/ipset_arm64) | IP blocklists (FireHOL, Spamhaus) in the kernel — stops apps and devices that connect to hard-coded IP addresses, which DNS blocking cannot see |
 | 🟡 | [VPN Hotspot Arm64](https://github.com/nikakvo/vpn-hotspot-arm64) | Sends hotspot, USB and Bluetooth devices through the phone's VPN, with kill switch — Android's VPN only covers the phone's own apps |
+| 🩵 | [WG Shield Arm64](https://github.com/nikakvo/wg-shield-arm64) | Always-on kernel WireGuard for the phone, with kill switch — no app; this module's queries travel inside its tunnel |
 
 ```
 device on your hotspot  /  app on the phone
    │  DNS      → DNSCrypt Proxy   encrypted, filtered
    │  traffic  → ipset            listed networks dropped
-   ▼  hotspot  → VPN Hotspot      into your VPN (kill switch)
+   │  hotspot  → VPN Hotspot      into the tunnel (kill switch)
+   ▼  tunnel   → WG Shield        kernel WireGuard, always on — or any VPN app
 internet
 ```
 
 - **Order is fixed and checked** by each module: DNSCrypt's hotspot filter → ipset → VPN Hotspot → Android. Nothing reaches the VPN around the two filters
-- **With all three**, hotspot devices get your filtered DNS (DNSCrypt's own queries travel inside the VPN), your IP blocklists and your VPN exit — on Wi-Fi and on mobile data
-- **VPN apps stay happy** — none of the three holds Android's firewall lock while checking, so WireGuard (`wg-quick`) and other VPN apps connect and disconnect without errors
+- **With the whole set**, hotspot devices get your filtered DNS (DNSCrypt's own queries travel inside the tunnel), your IP blocklists and your VPN exit — on Wi-Fi and on mobile data
+- **WG Shield never sets DNS** — DNS stays with this module; the System tab shows the tunnel its queries use
+- **VPN apps stay happy** — none of the modules holds Android's firewall lock while checking, so WireGuard (`wg-quick`) and other VPN apps connect and disconnect without errors
 - **On its own** it encrypts and filters DNS for the phone and hotspot devices; their other traffic goes out as Android sends it.
 
-**Tested together** on a Poco F6 Pro (vermeer), Xiaomi.eu ROM (HyperOS 3, Android 16), kernel [GKI_Kernel_SukiSU](https://github.com/nikakvo/GKI_Kernel_SukiSU) (SukiSU Ultra), with WireGuard (kernel backend) and v2rayNG; hotspot devices: a Windows laptop and a stock Android phone. Other devices should work but are not tested — reports welcome.
+**Tested together** on a Poco F6 Pro (vermeer), Xiaomi.eu ROM (HyperOS 3, Android 16), kernel [GKI_Kernel_SukiSU](https://github.com/nikakvo/GKI_Kernel_SukiSU) (SukiSU Ultra), with WG Shield, WireGuard (kernel backend) and v2rayNG; hotspot devices: a Windows laptop and a stock Android phone. Other devices should work but are not tested — reports welcome.
 
 ---
 

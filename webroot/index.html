@@ -1131,6 +1131,19 @@ function updateSysDot(st) {
 function rowCtl(name, detail, ctrl) {
   return `<div class="row ctl"><div class="rn"><b>${name}</b>${detail ? `<span>${detail}</span>` : ''}</div>${ctrl}</div>`;
 }
+// The tunnel this proxy's own (encrypted) queries leave through
+function vpnRow(s) {
+  if (s.vpn_via === 'wg-shield') {
+    const v6 = s.wgs_ipv6 === 'tunnel' ? 'IPv4 + IPv6' : s.wgs_ipv6 === 'off' ? 'IPv4 — IPv6 is off on this phone (IP mode)' : 'IPv4 — this tunnel has no IPv6';
+    return row('VPN', `Through WG Shield · <span style="color:#7dd3fc">${esc(s.wgs_tunnel)}</span> (${v6}) — the resolvers see the VPN's address`, 'ok', 'wg shield');
+  }
+  if (s.vpn_via === 'android') return row('VPN', 'an Android VPN (app) is connected — the resolvers see its address', 'ok', 'vpn');
+  if (s.wgshield === 'enabled' && s.wgs_state && s.wgs_state !== 'off') {
+    const bad = s.wgs_state === 'down' || s.wgs_state === 'error';
+    return row('VPN', `WG Shield ${esc(s.wgs_state)}${s.wgs_tunnel ? ' · ' + esc(s.wgs_tunnel) : ''}`, bad ? 'warn' : 'skip', s.wgs_state);
+  }
+  return row('VPN', 'none — queries go out over your network, still encrypted', 'skip', 'none');
+}
 function row(name, detail, pill, pillText) {
   return `<div class="row"><div class="rn"><b>${name}</b>${detail ? `<span>${detail}</span>` : ''}</div>
     <span class="pill ${pill}">${esc(pillText)}</span></div>`;
@@ -1265,6 +1278,7 @@ function renderStatus(s) {
     ? row('Android Private DNS', 'off — DNS stays with this module', 'ok', pdns)
     : rowCtl('Android Private DNS', `<span class="c-a">${esc(pdns)} — Android may send DNS around the proxy</span>`,
         `<button class="btn-s r" id="pdns-off" onclick="privateDnsOff()">Turn off</button>`);
+  y += vpnRow(s);
   y += row('Network', onoff(s.live_interface) ? 'an interface is up' : 'no interface up (airplane mode?)',
     onoff(s.live_interface) ? 'ok' : 'skip', onoff(s.live_interface) ? 'up' : 'down');
   y += row('Busybox', esc(s.busybox || 'none'), s.busybox && s.busybox !== 'none' ? 'ok' : 'warn', s.busybox && s.busybox !== 'none' ? 'found' : 'missing');
@@ -1326,7 +1340,9 @@ function renderIpMode(s) {
   const net = clat ? 'IPv6-only with 464XLAT (IPv4 is translated)' : [v4 ? 'IPv4' : null, v6 ? 'IPv6' : null].filter(Boolean).join(' + ') || 'no global address';
   const via = s.net_iface ? ` (${esc(s.net_iface)})` : '';
   h += row('Network offers' + via, net, clat || v4 || v6 ? 'ok' : 'skip', clat ? '464xlat' : (v4 && v6 ? 'v4 + v6' : v4 ? 'v4 only' : v6 ? 'v6 only' : 'none'));
-  if (mode === 'dual' && onoff(s.vpn_active) && !onoff(s.vpn_ipv6) && v6) {
+  if (mode !== 'ipv4' && s.vpn_via === 'wg-shield' && onoff(s.vpn_v6_guarded) && v6) {
+    h += '<div class="src-warn" style="color:var(--blue);border-color:rgba(0,170,255,0.35)">ℹ WG Shield\'s tunnel <b>' + esc(s.wgs_tunnel) + '</b> carries only IPv4, so it blocks IPv6 while it is on — nothing leaks, but IPv6 is not used. A tunnel with IPv6 (Proton\'s configs have it) carries both.</div>';
+  } else if (mode === 'dual' && onoff(s.vpn_active) && !onoff(s.vpn_ipv6) && v6) {
     h += '<div class="src-warn">⚠ Your VPN carries only IPv4. In Dual stack, apps\' IPv6 goes <b>around the VPN</b> and sites see your real IPv6 address. Use <b>IPv6 compatible</b>, or enable IPv6 in the VPN config.</div>';
   }
   if (mode === 'ipv4' && (clat || (!v4 && onoff(s.live_interface)))) {

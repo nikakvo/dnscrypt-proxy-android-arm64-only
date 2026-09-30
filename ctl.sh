@@ -99,7 +99,19 @@ cmd_status() {
   echo "net_ipv6=$(yn net_has_ipv6)"
   echo "net_clat=$(yn net_has_clat)"
   echo "net_iface=$(net_default_iface)"
-  if [ -n "$(vpn_table)" ]; then echo "vpn_active=1"; echo "vpn_ipv6=$(yn vpn_has_ipv6)"; else echo "vpn_active=0"; echo "vpn_ipv6=0"; fi
+  # VPN: Android's own (apps), else WG Shield's tunnel when it is up
+  _wgi=$(wgs_installed); _wgs=""; [ "$_wgi" = enabled ] && _wgs=$(wgs_get state)
+  if [ -n "$(vpn_table)" ]; then echo "vpn_active=1"; echo "vpn_ipv6=$(yn vpn_has_ipv6)"; echo "vpn_via=android"
+  elif [ "$_wgs" = up ]; then
+    echo "vpn_active=1"; echo "vpn_via=wg-shield"
+    # WG Shield blocks IPv6 around a tunnel without IPv6 - no leak, only no IPv6
+    if [ "$(wgs_get ipv6)" = tunnel ]; then echo "vpn_ipv6=1"; else echo "vpn_ipv6=0"; echo "vpn_v6_guarded=1"; fi
+  else echo "vpn_active=0"; echo "vpn_ipv6=0"; echo "vpn_via="; fi
+  echo "wgshield=$_wgi"
+  echo "wgs_state=$_wgs"
+  echo "wgs_tunnel=$([ -n "$_wgs" ] && wgs_get tunnel)"
+  echo "wgs_ipv6=$([ -n "$_wgs" ] && wgs_get ipv6)"
+  unset _wgi _wgs
   echo "owner_match=$([ -f "$OWNER_FLAG_FILE" ] && echo 0 || echo 1)"
   echo "rules_file=$RULES_OK"
 

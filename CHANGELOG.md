@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.18-r20
+
+Knows WG Shield Arm64 — the kernel WireGuard module of the same set.
+
+* **System → VPN** — a new row shows which tunnel this proxy's encrypted queries leave through: *Through WG Shield · tunnel (IPv4 + IPv6)*, *WG Shield down*, *an Android VPN (app) is connected*, or *none*. WG Shield runs without Android's VPN, so it is read from WG Shield's status file. The IPv6 part says why a tunnel carries IPv4 only: the IP mode switched IPv6 off, or the tunnel has no IPv6
+* **IP mode note** — with WG Shield's tunnel carrying only IPv4, the old warning *"IPv6 goes around the VPN"* was wrong: WG Shield blocks IPv6 around such a tunnel. It is now a blue note (nothing leaks, IPv6 is not used; a tunnel with IPv6 carries both). The warning stays for VPN apps that carry only IPv4
+* Help → VPN & companion modules: WG Shield
+* Nothing changed in how DNS is handled
+
+---
 ## 2.1.18-r19
 
 Faster rule removal, a searchable query list, and an installer fix.

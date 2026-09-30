@@ -426,7 +426,7 @@
 <div class="sec-title" id="vpn">16 · vpn &amp; companion modules</div>
 <div class="box">
   <h3>With a VPN (e.g. WireGuard)</h3>
-  <p>Works alongside. Remove the <code>DNS =</code> line from the WireGuard config, so the tunnel does not try to set its own DNS server — dnscrypt-proxy stays in charge, and its encrypted queries travel inside the tunnel.</p>
+  <p>Works alongside. Remove the <code>DNS =</code> line from the WireGuard app's config (WG Shield ignores it by itself), so the tunnel does not try to set its own DNS server — dnscrypt-proxy stays in charge, and its encrypted queries travel inside the tunnel.</p>
   <div class="tw"><table>
     <tr><th></th><th>this module</th><th>vpn</th><th>both</th></tr>
     <tr><td>DNS lookups hidden from carrier</td><td>yes</td><td>yes</td><td>yes</td></tr>
@@ -436,6 +436,8 @@
     <tr><td>Works when the VPN drops</td><td>yes</td><td>—</td><td>yes</td></tr>
   </table></div>
   <p style="font-size:12px;color:var(--dim)">¹ Encrypted DNS hides the lookup, but the carrier still sees which IP addresses you connect to and, for most sites, the site name in the TLS handshake.</p>
+  <h3>WG Shield Arm64</h3>
+  <p>The kernel WireGuard module of the same set. Android sees no VPN there, so this module reads WG Shield's status: System → VPN shows <em>Through WG Shield</em> with the tunnel's name, and the IP mode's IPv6 note knows whether that tunnel carries IPv6. Nothing else changes — this proxy's queries simply go through the tunnel. WG Shield never sets DNS.</p>
   <h3>ipset-arm64</h3>
   <p>A DNS blocker cannot stop an app that connects to a hard-coded IP address — it never asks DNS. The companion module <strong>ipset-arm64</strong> blocks by IP address at the firewall instead. The two do not conflict and cover each other's blind spots.</p>
   <h3>Conflicting modules and apps</h3>

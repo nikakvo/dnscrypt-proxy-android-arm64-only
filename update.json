@@ -1,6 +1,6 @@
 {
-  "version": "2.1.18-r19",
-  "versionCode": 44,
-  "zipUrl": "https://github.com/nikakvo/dnscrypt-proxy-android-arm64-only/releases/download/v2.1.18-r19/dnscrypt-proxy-v2.1.18-r19.zip",
+  "version": "2.1.18-r20",
+  "versionCode": 45,
+  "zipUrl": "https://github.com/nikakvo/dnscrypt-proxy-android-arm64-only/releases/download/v2.1.18-r20/dnscrypt-proxy-v2.1.18-r20.zip",
   "changelog": "https://raw.githubusercontent.com/nikakvo/dnscrypt-proxy-android-arm64-only/main/CHANGELOG.md"
 }

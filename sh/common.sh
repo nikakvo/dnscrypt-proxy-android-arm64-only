@@ -939,6 +939,17 @@ vpn_has_ipv6() {
   ip -6 route show table "$_vt" 2>/dev/null | grep -qE '^(default|::/0) '
   _r=$?; unset _vt; return $_r
 }
+# WG Shield Arm64 (kernel WireGuard module of the same set): Android sees no
+# VPN there, so its tunnel is read from the status file it publishes
+# (key=value: state, tunnel, ipv6 = tunnel | blocked | off, ...).
+WGS_MODDIR="${DNSC_WGS_MODDIR:-/data/adb/modules/wg-shield}"
+WGS_STATUS="${DNSC_WGS_STATUS:-/data/adb/wg-shield-state/status}"
+wgs_installed() { # -> absent | disabled | enabled
+  if [ ! -f "$WGS_MODDIR/module.prop" ]; then echo absent
+  elif [ -f "$WGS_MODDIR/disable" ] || [ -f "$WGS_MODDIR/remove" ]; then echo disabled
+  else echo enabled; fi
+}
+wgs_get() { sed -n "s/^$1=//p" "$WGS_STATUS" 2>/dev/null | head -n 1; }
 net_has_clat() {
   for _c in /sys/class/net/v4-*; do
     [ -e "$_c" ] && { unset _c; return 0; }
