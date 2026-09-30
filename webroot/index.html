@@ -286,6 +286,12 @@
     #ipm-desc b { color: var(--green); font-weight: normal; }
     .d-stat.wrap { align-items: flex-start; }
     .d-stat.wrap .v { white-space: normal; overflow: visible; }
+    .rq-bar { display: flex; gap: 8px; align-items: stretch; margin: 2px 0 8px; }
+    .rq-bar .seg { margin-top: 0; flex: 0 0 auto; }
+    .rq-bar .seg button { flex: 0 0 auto; padding: 6px 9px; }
+    #rq-q { flex: 1; min-width: 0; background: transparent; border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 11px; padding: 5px 8px; border-radius: 2px; }
+    #rq-q:focus { outline: none; border-color: rgba(0,255,136,0.45); }
+    #sheet-parent { display: none; margin-top: 8px; width: 100%; }
     .chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
     .chip { font-size: 9px; color: var(--blue); border: 1px solid rgba(0,170,255,0.3); border-radius: 2px; padding: 1px 6px; white-space: nowrap; }
     .auto-sub { display: block; font-size: 9px; color: var(--muted); margin-top: 2px; }
@@ -498,6 +504,14 @@
 
     <div class="section">
       <div class="section-title"><span class="s-accent" style="background:var(--muted)"></span>Recent Queries<span class="s-note c-m">health checks hidden</span></div>
+      <div class="rq-bar">
+        <div class="seg" id="rq-seg">
+          <button data-v="all" class="on" onclick="setRqFilter('all')">All</button>
+          <button data-v="blocked" onclick="setRqFilter('blocked')">Blocked</button>
+          <button data-v="allowed" onclick="setRqFilter('allowed')">Allowed</button>
+        </div>
+        <input id="rq-q" type="search" placeholder="filter domains" autocomplete="off" autocapitalize="off" spellcheck="false" oninput="renderRecent()">
+      </div>
       <div id="recent-body"><div class="empty">No entries.</div></div>
     </div>
   </div>
@@ -638,6 +652,7 @@
     <button class="btn-s r" onclick="sheetAct('block')">✕ Block</button>
     <button class="btn-s b" onclick="sheetAct('check')">? Check</button>
   </div>
+  <button class="btn-s r" id="sheet-parent" onclick="sheetAct('block-parent')"></button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -811,12 +826,12 @@ function fmtDur(sec) {
 }
 
 let _toastTimer = null;
-function toast(msg, type) {
+function toast(msg, type, ms) {
   const t = $('toast');
   t.textContent = msg;
   t.className = 'toast show ' + (type || '');
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
+  _toastTimer = setTimeout(() => { t.className = 'toast'; }, ms || 2600);
 }
 
 setInterval(() => { $('clock').textContent = new Date().toTimeString().slice(0, 8); }, 1000);
@@ -1024,9 +1039,31 @@ function renderDashboard(st, m) {
   }
 
   // Recent queries
-  const recent = (m.recent_queries || []).filter(e => !PROBE_NAMES.has(e.domain)).reverse();
+  _rq = (m.recent_queries || []).filter(e => !PROBE_NAMES.has(e.domain)).reverse();
+  renderRecent();
+}
+
+// Recent queries: filter (all / blocked / allowed) and a text search, kept
+// across refreshes. The daemon keeps the last 100 queries in memory.
+let _rq = [];
+let _rqFilter = 'all';
+const RQ_BLOCKED = new Set(['REJECT', 'BLOCKED', 'DROP']);
+const RQ_ALLOWED = new Set(['PASS', 'FORWARD']);
+function setRqFilter(v) {
+  _rqFilter = v;
+  document.querySelectorAll('#rq-seg button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  renderRecent();
+}
+function renderRecent() {
+  const q = ($('rq-q').value || '').trim().toLowerCase();
+  const recent = _rq.filter(e => {
+    const rc = (e.response_code || 'PASS').toUpperCase();
+    if (_rqFilter === 'blocked' && !RQ_BLOCKED.has(rc)) return false;
+    if (_rqFilter === 'allowed' && !RQ_ALLOWED.has(rc)) return false;
+    return !q || (e.domain || '').toLowerCase().includes(q);
+  });
   if (!recent.length) {
-    $('recent-body').innerHTML = '<div class="empty">No entries.</div>';
+    $('recent-body').innerHTML = `<div class="empty">${_rq.length ? 'Nothing matches the filter.' : 'No entries.'}</div>`;
   } else {
     $('recent-body').innerHTML = recent.map(e => {
       const rc = (e.response_code || 'PASS').toUpperCase();
@@ -1375,8 +1412,22 @@ function openSheet(d, status) {
   _sheetDomain = d;
   $('sheet-dom').textContent = d;
   $('sheet-sub').textContent = status ? `last query: ${status}` : 'from Top Domains';
+  const par = parentDomain(d);
+  $('sheet-parent').textContent = par ? `✕ Block ${par} and all its subdomains` : '';
+  $('sheet-parent').style.display = par ? 'block' : 'none';
   $('sheet-bg').style.display = 'block';
   requestAnimationFrame(() => $('sheet').classList.add('open'));
+}
+// The domain one level up (ads.tracker.example.com -> tracker.example.com),
+// never a public suffix: needs 3+ labels, and x.co.uk style names stop at
+// the registrable domain.
+const SLD2 = new Set(['co', 'com', 'net', 'org', 'gov', 'edu', 'ac', 'or', 'ne', 'go', 'gob', 'mil', 'nic']);
+function parentDomain(d) {
+  const l = (d || '').replace(/\.$/, '').split('.');
+  if (l.length < 3) return '';
+  const p = l.slice(1);
+  if (p.length === 2 && p[1].length === 2 && SLD2.has(p[0])) return '';
+  return p.join('.');
 }
 function closeSheet() {
   $('sheet').classList.remove('open');
@@ -1386,6 +1437,7 @@ async function sheetAct(what) {
   const d = _sheetDomain;
   closeSheet();
   if (what === 'check') { showTab('tools'); $('chk-in').value = d; checkDomain(); return; }
+  if (what === 'block-parent') { const p = parentDomain(d); if (p) await ruleAction('block', p); return; }
   await ruleAction(what, d);
 }
 

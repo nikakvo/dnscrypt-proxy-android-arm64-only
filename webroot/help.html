@@ -191,7 +191,8 @@
   </table></div>
   <h3>Numbers and lists</h3>
   <p>Total, Passed, Rejected, NXDomain and healthy Resolvers come from dnscrypt-proxy itself and reset when it restarts. Below: overview, the blocklist, cache, query types, resolver speed, top domains and recent queries.</p>
-  <p><strong>Tap any domain</strong> in Top Domains or Recent Queries for <strong>Allow</strong>, <strong>Block</strong> or <strong>Check</strong>.</p>
+  <p><strong>Tap any domain</strong> in Top Domains or Recent Queries for <strong>Allow</strong>, <strong>Block</strong> or <strong>Check</strong>. For a name with a parent (<code>ads.tracker.example.com</code>) a second button blocks the parent and everything under it (<code>tracker.example.com</code>); it never offers a bare country suffix like <code>co.uk</code>.</p>
+  <p><strong>Recent Queries</strong> can be narrowed to <strong>Blocked</strong> or <strong>Allowed</strong> answers and filtered by text. dnscrypt-proxy keeps the last 100 queries in memory only — nothing is written to disk. To find what an app still reaches: open the app, then look at Allowed and search for its name or its ad and analytics companies.</p>
 </div>
 
 <!-- 5 -->
@@ -464,7 +465,7 @@
 <div class="sec-title" id="uninstall">18 · update &amp; uninstall</div>
 <div class="box">
   <h3>Updating the module</h3>
-  <p>Your settings, custom list, allow list, IP lists (<code>allowed-ips.txt</code>, <code>blocked-ips.txt</code>), chosen resolvers and cached blocklists are kept. The old config is backed up with a date in <code>/data/adb/dnscrypt-proxy/</code>.</p>
+  <p>Your settings, custom list, allow list, IP lists (<code>allowed-ips.txt</code>, <code>blocked-ips.txt</code>), chosen resolvers and cached blocklists are kept. The config as it was before the update is kept as <code>/data/adb/dnscrypt-proxy/dnscrypt-proxy.toml.before-update</code> — one file, replaced by each update.</p>
   <h3>Uninstall</h3>
   <p>Remove the module in your root manager and reboot. Every firewall rule is removed, IPv6 and Android Private DNS are restored to how they were, and the module's files are deleted.</p>
 </div>

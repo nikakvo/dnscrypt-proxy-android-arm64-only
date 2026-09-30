@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.18-r19
+
+Faster rule removal, a searchable query list, and an installer fix.
+
+* **Unblock is fast now.** Removing a domain from your custom list used to rebuild the whole blocklist — sort and prune every downloaded source — for one line, which took seconds on a phone with nothing on screen to show it was working. Now only that line is taken out of the live list and dnscrypt-proxy reloads:
+  * if a downloaded list blocks the name too, nothing changes and the WebUI says which list still blocks it
+  * if a blocked parent already covers it, it only leaves your custom list
+  * subdomains that the sources block and that were dropped as redundant under your rule come back, so nothing a list blocks gets unblocked by accident. The result is the same, line for line, as a full rebuild
+* **Recent Queries: filter and search.** *All · Blocked · Allowed* and a text filter, kept across refreshes. Handy for seeing what an app still reaches: open it, then look at *Allowed*
+* **Block the parent domain.** Tapping a domain like `ads.tracker.example.com` now also offers *Block tracker.example.com and all its subdomains*. It never offers a bare suffix such as `co.uk`
+* **Fixed: DNS went out unencrypted between an update and the reboot.** The r15 fix got lost in a later release: the installer stopped the running dnscrypt-proxy again. It is left running once more and keeps DNS encrypted until you reboot
+* **One config backup instead of a pile.** Every update used to add a dated `dnscrypt-proxy.toml-DD.MM.YYYY-HH_MM.bak`. Now there is a single `dnscrypt-proxy.toml.before-update`, replaced by each update, and the old dated copies are removed
+
+---
 ## 2.1.18-r18
 
 Upstream binary update, no module changes.

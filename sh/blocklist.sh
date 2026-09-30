@@ -475,6 +475,73 @@ bl_update() {
 # cache - refuse, keep the current list, say so. When the source selection
 # itself changed since the last build (sources picked in the WebUI, no
 # Update yet), a different size is expected and is not second-guessed.
+# ── Fast removal of one custom rule ──────────────────────────────────────────
+# Taking a name out of the custom list used to rebuild the whole list
+# (sort and prune of every source) - seconds on a phone, for one line.
+# Only the rule's own line and what the prune removed because of it can
+# change, so that is all this touches:
+#   - the name is not in the live list (a blocked parent covers it) or a
+#     source blocks it too: the live list is already right (returns 3)
+#   - otherwise its line goes, and its subdomains from the sources and the
+#     custom list, which the prune had dropped as redundant, come back.
+#     No ancestor of the name can be in the list (the name would have been
+#     pruned itself), so nothing else covers them.
+# Returns 0 changed (reload), 3 nothing to change, 2 locked (a download or
+# rebuild runs - the caller falls back), 1 the full rebuild is needed.
+bl_unblock_fast() { # <domain>
+  [ -f "$BLOCKLIST" ] && grep -q '^# Rules: ' "$BLOCKLIST" || return 1
+  bl_lock || return 2
+  load_settings
+  bl_catalog_reset
+  _uf=""; _um=0
+  for _id in $(bl_selected); do
+    if [ -s "$BL_SRC_DIR/$_id.txt" ]; then _uf="$_uf $BL_SRC_DIR/$_id.txt"; else _um=1; fi
+  done
+  [ "$_um" -eq 1 ] && [ -s "$BL_SRC_DIR/legacy.txt" ] && _uf="$_uf $BL_SRC_DIR/legacy.txt"
+  if ! grep -qxF "$1" "$BLOCKLIST"; then
+    _ur=3
+  elif [ -n "$_uf" ] && grep -qxF "$1" $_uf 2>/dev/null; then
+    _ur=3
+  else
+    _ue=$(printf '%s' "$1" | sed 's/\./\\./g')
+    {
+      [ -n "$_uf" ] && grep -hE "\.$_ue\$" $_uf 2>/dev/null
+      [ -f "$BL_CUSTOM" ] && bl_normalize 1 < "$BL_CUSTOM" | grep -E "\.$_ue\$"
+    } | bl_is_plain_filter | bl_prune > "$STATE_DIR/.unblock.all"
+    # A rule added with Block is appended without a prune, so its
+    # subdomains may still be in the list: only bring back the missing ones.
+    awk 'FILENAME == ARGV[1] { k[$0] = 1; next } ($0 in k) { delete k[$0] } END { for (x in k) print x }' \
+      "$STATE_DIR/.unblock.all" "$BLOCKLIST" > "$STATE_DIR/.unblock.kids"
+    _uk=$(wc -l < "$STATE_DIR/.unblock.kids"); _uk=$((_uk + 0))
+    if awk -v d="$1" '$0 != d' "$BLOCKLIST" > "$BLOCKLIST.new" &&
+       cat "$STATE_DIR/.unblock.kids" >> "$BLOCKLIST.new"; then
+      # keep the header's counts true (counted, as Block appends without
+      # touching them)
+      _ua=$(grep -cv '^#' "$BLOCKLIST.new"); _ua=$((_ua + 0))
+      _un=$(grep -v '^#' "$BLOCKLIST.new" | bl_is_plain_filter | wc -l); _un=$((_un + 0))
+      awk -v a="$_ua" -v n="$_un" '
+        /^# Rules: / && !done { printf "# Rules: %d (%d names, %d patterns)\n", a, n, a - n; done = 1; next }
+        { print }' "$BLOCKLIST.new" > "$BLOCKLIST.new2" && mv -f "$BLOCKLIST.new2" "$BLOCKLIST.new" &&
+      mv -f "$BLOCKLIST.new" "$BLOCKLIST"
+      _ur=$?
+      if [ "$_ur" -eq 0 ]; then
+        if [ "$_uk" -gt 0 ]; then
+          log_info "custom rule removed from the live list: $1 - $_uk subdomain rule(s) from the sources restored"
+        else
+          log_info "custom rule removed from the live list: $1"
+        fi
+      fi
+    else
+      _ur=1
+    fi
+    rm -f "$STATE_DIR/.unblock.all" "$STATE_DIR/.unblock.kids" "$BLOCKLIST.new" "$BLOCKLIST.new2"
+  fi
+  bl_unlock
+  _r=$_ur
+  unset _uf _um _id _ur _ue _uk _ua _un
+  return $_r
+}
+
 bl_rebuild_custom() {
   if ! bl_lock; then
     : > "$BL_REBUILD_PENDING"

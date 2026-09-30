@@ -1,6 +1,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.18--r17-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.18--r19-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -70,7 +70,7 @@ encrypted (DoH / DNSCrypt) → Cloudflare · Quad9 · Mullvad
 
 | Tab | What's there |
 |---|---|
-| **Dashboard** | Live stats, a **Hotspot** card with connected devices while a hotspot runs, blocklist status, **Update Blocklist** with the source picker, cache, resolvers, top domains, recent queries. Tap any domain → Allow / Block / Check |
+| **Dashboard** | Live stats, a **Hotspot** card with connected devices while a hotspot runs, blocklist status, **Update Blocklist** with the source picker, cache, resolvers, top domains, recent queries (filter *Blocked* / *Allowed*, search). Tap any domain → Allow / Block / Check, or block its parent domain |
 | **Tools** | **Check a domain** (verdict, matching rule, which list, live answer) · **My rules** (allow / block) · **Resolvers** |
 | **System** | **Pause protection** · live status of every process, health check and firewall rule · **IP mode** · **Hotspot** · actions (restart, reload, reapply rules, run checks) · settings |
 | **Log** | Module and dnscrypt-proxy log, filterable by level and source |
@@ -94,12 +94,12 @@ On **Update** the selected lists are downloaded and verified, merged, deduplicat
 
 - Each list is cached. If a download fails, its last good copy is used — a list never silently disappears
 - **Automatic update**: off / daily / weekly, with the next run shown in the WebUI
-- **Custom list**: `/sdcard/dnscrypt-proxy/custom-blocked-names.txt` — edits apply within a minute, deletions included, no download needed
+- **Custom list**: `/sdcard/dnscrypt-proxy/custom-blocked-names.txt` — edits apply within a minute, deletions included, no download needed. Block and Unblock in the WebUI apply at once
 
 Rule syntax:
 
 ```
-example.com        example.com and all subdomains
+example.com        example.com and all subdomains (same as *.example.com)
 =example.com       example.com only
 ads.*              names starting with "ads."
 *tracker*          names containing "tracker"
@@ -151,7 +151,7 @@ Change them in **Tools → Resolvers**. Protocol, logging, filtering and DNSSEC 
 | `/data/adb/dnscrypt-proxy.log` | Log |
 | `http://127.0.0.1:5555` | dnscrypt-proxy's own monitoring page |
 
-Settings, custom list, allow list, IP lists, chosen resolvers and cached blocklists are all kept across module updates.
+Settings, custom list, allow list, IP lists, chosen resolvers and cached blocklists are all kept across module updates. The config as it was before the last update is kept as `/data/adb/dnscrypt-proxy/dnscrypt-proxy.toml.before-update`.
 
 ---
 

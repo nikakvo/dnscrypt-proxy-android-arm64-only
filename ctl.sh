@@ -612,18 +612,26 @@ cmd_block() { # <domain>
   unset _d
 }
 
-# Unblocking needs a rebuild (to take the rule back out of the live list).
+# Unblocking takes the rule back out of the live list (fast path, a full
+# rebuild only when that cannot be done).
 # If a downloaded source blocks the name too, it stays blocked - say so.
 cmd_unblock() { # <domain>
   _d=$(valid_domain "$1") || { echo "ok=0"; echo "error=not a valid domain name"; return 1; }
   _remove_rule "$BL_CUSTOM" "$_d" || { echo "ok=0"; echo "error=$_d is not in your custom list"; unset _d; return 1; }
   mirror_to_sd custom-blocked-names.txt
   log_info "removed from the custom list via WebUI: $_d"
-  bl_rebuild_custom
+  # One line out of the live list, no full rebuild (sh/blocklist.sh).
+  bl_unblock_fast "$_d"
   case $? in
     0) reload_or_restart ;;
-    2) echo "applied=after-running-job" ;;
-    *) echo "ok=0"; echo "error=rebuild failed - see the log"; unset _d; return 1 ;;
+    3) echo "applied=unchanged" ;;
+    *)
+      bl_rebuild_custom
+      case $? in
+        0) reload_or_restart ;;
+        2) echo "applied=after-running-job" ;;
+        *) echo "ok=0"; echo "error=rebuild failed - see the log"; unset _d; return 1 ;;
+      esac ;;
   esac
   _still=$(rule_match "$_d" "$BLOCKLIST")
   [ -n "$_still" ] && echo "still_blocked_by=$_still ($(rule_origins "$_still" | tr '\n' ',' | sed 's/,$//'))"

@@ -241,18 +241,21 @@ SD_DIR="/storage/emulated/0/dnscrypt-proxy"
 CONFIG_FILE="$DATA_DIR/dnscrypt-proxy.toml"
 SYNC_FILES="dnscrypt-proxy.toml custom-blocked-names.txt allowed-names.txt allowed-ips.txt blocked-ips.txt"
 
-# By /proc/PID/comm: the installer runs in busybox ash, whose pkill -x
-# compares against argv[0] - the daemon's full path - and never matched.
-_stopped=0
+# A running dnscrypt-proxy (this module, before the update) is left alone.
+# Stopping it opened DNS until the reboot: its watchdog tried to start it
+# again from the old module folder, which the root manager has already
+# replaced, and the failsafe removed the redirect. Left running, it keeps
+# DNS encrypted until the reboot starts the new version.
+# Found by /proc/PID/comm: busybox ash's pgrep/pkill -x compare against
+# argv[0] (the full path) and never match.
+_running=0
 for _d in /proc/[0-9]*; do
-  [ "$(cat "$_d/comm" 2>/dev/null)" = "dnscrypt-proxy" ] || continue
-  kill "${_d#/proc/}" 2>/dev/null && _stopped=1
+  [ "$(cat "$_d/comm" 2>/dev/null)" = "dnscrypt-proxy" ] && { _running=1; break; }
 done
-if [ "$_stopped" -eq 1 ]; then
-  ui_print "* Stopped the running dnscrypt-proxy instance."
-  sleep 1
+if [ "$_running" -eq 1 ]; then
+  ui_print "* The running dnscrypt-proxy keeps running until you reboot - DNS stays encrypted meanwhile."
 fi
-unset _d _stopped
+unset _d _running
 
 ui_print "* Creating the binary path."
 mkdir -p "$MODPATH/system/bin"
@@ -297,11 +300,22 @@ done
 # every reflash reinstalled public-resolvers.md still dated December
 # 2025 and the freshly installed cache was already months stale.
 # -----------------------------------------------
+# One backup, replaced on every update: the config as it was before this
+# install. Up to r18 every flash added a dated copy and they piled up.
+# (Not dnscrypt-proxy.toml.bak - that one is the resolver switch's own
+# short-lived rollback copy.)
+BACKUP_NAME="dnscrypt-proxy.toml.before-update"
 if [ -f "$CONFIG_FILE" ]; then
-  BACKUP_NAME="dnscrypt-proxy.toml-$(date +%d.%m.%Y-%H_%M).bak"
   ui_print "* Backing up existing config to: $BACKUP_NAME"
   cp -f "$CONFIG_FILE" "$DATA_DIR/$BACKUP_NAME" 2>/dev/null
 fi
+_old=0
+for _b in "$DATA_DIR"/dnscrypt-proxy.toml-*.bak; do
+  [ -f "$_b" ] || continue
+  rm -f "$_b" && _old=$((_old + 1))
+done
+[ "$_old" -gt 0 ] && ui_print "* Removed $_old dated config backup(s) from older versions"
+unset _b _old
 
 # Stash the user's real lists so the template copy cannot flatten them
 [ -f "$DATA_DIR/blocked-names.txt" ] && \
