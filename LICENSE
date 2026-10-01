@@ -19,16 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Third-party parts are not covered by this license:
-
-* binary/dnscrypt-proxy-arm64 — dnscrypt-proxy by Frank Denis,
-  ISC license. Source: https://github.com/DNSCrypt/dnscrypt-proxy
-* config/public-resolvers.md, config/relays.md — resolver lists of the
-  DNSCrypt project (https://github.com/DNSCrypt/dnscrypt-resolvers), under
-  their own terms.
-* config/blocked-names.txt and downloaded blocklists — data from OISD
-  (https://oisd.nl) and HaGeZi (https://github.com/hagezi/dns-blocklists),
-  under their own licenses.
