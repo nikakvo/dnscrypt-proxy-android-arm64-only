@@ -242,5 +242,10 @@ Remove the module in your root manager and reboot. All firewall rules are remove
 - Blocklists by [OISD](https://oisd.nl) and [HaGeZi](https://github.com/hagezi/dns-blocklists) · proxy by [DNSCrypt](https://github.com/DNSCrypt/dnscrypt-proxy)
 
 ---
+  ## License
+
+  The module's scripts and WebUI are [MIT](LICENSE). The bundled binary and the blocklists keep their own licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+  
+---
 
 *Maintained by Tears Burn · [GitHub](https://github.com/nikakvo)*
