@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.18-r21
+
+**dnscrypt-proxy binary updated** to the latest upstream build (reports 2.1.19, commit [`7019609`](https://github.com/DNSCrypt/dnscrypt-proxy/commit/701960906026982144ad89ccdd665b61da29464d)):
+- TCP queries no longer get padded past 256 bytes, which made resolvers running dnsdist drop them.
+- DNS-over-HTTP/3 now caps response headers at 4 KB, like HTTP/2 already did.
+- Blocked and allowed names lists accept regular expressions: ``regex: `^ads[0-9]+\.` ``. Existing patterns work as before. Note: an invalid regex in your custom list stops dnscrypt-proxy from starting, so test new regex rules carefully.
+- Updated dependencies.
+
+**Module**
+- New card banner in the root manager (SukiSU-Ultra and other managers that support module banners).
+
 ## 2.1.18-r20
 
 Knows WG Shield Arm64 — the kernel WireGuard module of the same set.
