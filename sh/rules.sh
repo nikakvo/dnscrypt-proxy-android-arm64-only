@@ -59,13 +59,13 @@ P_R6_UDP='^-A OUTPUT -p udp( -m udp)? --dport 53 -j REDIRECT --to-ports 5354$'
 P_QUIC='^-A OUTPUT -p udp( -m udp)? --dport 443 -j DROP$'
 unset _RX_REDIR
 BOOTSTRAP_IPS="9.9.9.9 149.112.112.112 45.11.45.11"
-OWNER_FLAG_FILE="/data/adb/dnscrypt-proxy-state/owner_match_unavailable"
+OWNER_FLAG_FILE="$STATE_DIR/owner_match_unavailable"
 
 # -----------------------------------------------------------------
 # Does this kernel have the xt_owner match? Some stripped GKI builds
 # do not. Probe once, cache the answer for the boot.
 # -----------------------------------------------------------------
-OWNER_OK_FILE="/data/adb/dnscrypt-proxy-state/owner_match_ok"
+OWNER_OK_FILE="$STATE_DIR/owner_match_ok"
 have_owner_match() {
   [ -f "$OWNER_FLAG_FILE" ] && return 1
   [ -n "$OWNER_MATCH_OK" ] && return "$OWNER_MATCH_OK"
@@ -98,8 +98,8 @@ have_owner_match() {
 # watchdog with settings loaded minutes ago must never undo a mode switch
 # made from the WebUI a second ago.
 # -----------------------------------------------------------------
-IP6_REDIRECT_FILE="/data/adb/dnscrypt-proxy-state/ip6_redirect"
-IP6_NAT_FILE="/data/adb/dnscrypt-proxy-state/ip6_nat"
+IP6_REDIRECT_FILE="$STATE_DIR/ip6_redirect"
+IP6_NAT_FILE="$STATE_DIR/ip6_nat"
 
 have_ip6_nat() {
   [ -n "$IP6_NAT_OK" ] && return "$IP6_NAT_OK"
@@ -361,8 +361,8 @@ rules_remove_quic() {
 # -----------------------------------------------------------------
 HS_PRE="DNSC_HS_PRE"
 HS_FWD="DNSC_HS_FWD"
-HS_STATE_FILE="/data/adb/dnscrypt-proxy-state/hotspot_applied"
-HS_LOCK="/data/adb/dnscrypt-proxy-state/hotspot.lock"
+HS_STATE_FILE="$STATE_DIR/hotspot_applied"
+HS_LOCK="$STATE_DIR/hotspot.lock"
 
 # The watchdog and a WebUI switch can rebuild the chains at the same
 # moment; a flush from one in the middle of the other's refill showed up as

@@ -34,7 +34,8 @@ unset _sig _d
 # `pkill -f "busybox httpd"` cannot take down the WebUI server of
 # another module using busybox httpd.
 # ===============================================
-HTTPD_PIDFILE="/data/adb/dnscrypt-proxy-state/httpd.pid"
+HTTPD_PIDFILE="/data/adb/dnscrypt-proxy/state/httpd.pid"
+[ -f "$HTTPD_PIDFILE" ] || HTTPD_PIDFILE="/data/adb/dnscrypt-proxy-state/httpd.pid"
 if [ -f "$HTTPD_PIDFILE" ]; then
   HPID=$(cat "$HTTPD_PIDFILE" 2>/dev/null)
   if [ -n "$HPID" ] && [ -d "/proc/$HPID" ]; then
@@ -119,6 +120,14 @@ ip6tables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null
 # ===============================================
 ip6tables -D INPUT  -i lo -j ACCEPT 2>/dev/null
 ip6tables -D OUTPUT -o lo -j ACCEPT 2>/dev/null
+# r22: carrier IPv6 (IMS / VoLTE) and Neighbor Discovery chains of the IPv4-only mode
+while ip6tables -D INPUT  -j DNSC_V6ND 2>/dev/null; do :; done
+while ip6tables -D OUTPUT -j DNSC_V6ND 2>/dev/null; do :; done
+ip6tables -F DNSC_V6ND 2>/dev/null; ip6tables -X DNSC_V6ND 2>/dev/null
+while ip6tables -D INPUT  -j DNSC_V6C_IN  2>/dev/null; do :; done
+while ip6tables -D OUTPUT -j DNSC_V6C_OUT 2>/dev/null; do :; done
+ip6tables -F DNSC_V6C_IN  2>/dev/null; ip6tables -X DNSC_V6C_IN  2>/dev/null
+ip6tables -F DNSC_V6C_OUT 2>/dev/null; ip6tables -X DNSC_V6C_OUT 2>/dev/null
 ip6tables -P INPUT   ACCEPT 2>/dev/null
 ip6tables -P OUTPUT  ACCEPT 2>/dev/null
 ip6tables -P FORWARD ACCEPT 2>/dev/null
@@ -142,7 +151,9 @@ resetprop --delete net.ipv6.conf.lo.disable_ipv6          2>/dev/null
 # r10 always wrote "opportunistic", which silently changed the setting
 # for anyone who had deliberately turned it off.
 # ===============================================
-PREV_PDNS_FILE="/data/adb/dnscrypt-prev-private-dns"
+# r22 keeps it in backup/; r21 and older at the top of /data/adb.
+PREV_PDNS_FILE="/data/adb/dnscrypt-proxy/backup/prev-private-dns"
+[ -f "$PREV_PDNS_FILE" ] || PREV_PDNS_FILE="/data/adb/dnscrypt-prev-private-dns"
 if [ -f "$PREV_PDNS_FILE" ]; then
   PREV=$(tr -d '[:space:]' 2>/dev/null < "$PREV_PDNS_FILE")
   case "$PREV" in
@@ -168,8 +179,11 @@ rm -rf /mnt/runtime/write/emulated/0/dnscrypt-proxy
 rm -rf /storage/self/primary/dnscrypt-proxy
 
 # ===============================================
-# STEP 8: Logs, settings and state
+# STEP 8: Logs, settings and state of r21 and older (r22 keeps them all
+# inside /data/adb/dnscrypt-proxy, removed above)
 # ===============================================
+rm -f /data/adb/dnscrypt-prev-private-dns
+rm -f /data/adb/dnscrypt-proxy-android.conf.bak
 rm -f /data/adb/dnscrypt-proxy.log
 rm -f /data/adb/dnscrypt-action.log
 rm -f /data/adb/dnscrypt-proxy-android.conf

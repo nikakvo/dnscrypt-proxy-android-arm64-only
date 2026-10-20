@@ -10,7 +10,7 @@
 MODDIR=${0%/*}
 
 if [ ! -f "$MODDIR/sh/common.sh" ]; then
-  echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] sh/common.sh missing - the module is incomplete, reflash it" >> /data/adb/dnscrypt-proxy.log
+  echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] sh/common.sh missing - the module is incomplete, reflash it" >> /data/adb/dnscrypt-proxy/logs/dnscrypt-proxy.log
   exit 1
 fi
 # shellcheck source=/dev/null
@@ -19,7 +19,7 @@ fi
 [ -f "$MODDIR/sh/blocklist.sh" ] && . "$MODDIR/sh/blocklist.sh"
 load_settings
 
-mkdir -p "$STATE_DIR" "$DATA_DIR"
+mkdir -p "$STATE_DIR" "$LISTS_DIR" "$LOGS_DIR" "$BACKUP_DIR"
 
 [ "$RULES_OK" -eq 1 ] || log_error "sh/rules.sh missing - running WITHOUT iptables management, DNS is not being redirected"
 
@@ -268,7 +268,6 @@ sysctl_set() {
   echo "$2" 2>/dev/null > "$1"
 }
 
-IPV6_PROPS_SET=0
 IPV6_LAST_REDISABLED=""
 IPV6_LAST_REDISABLED_AT=0
 
@@ -281,19 +280,22 @@ enforce_ipv6_disable() {
   # it takes the watchdog to notice the settings file changed.
   [ "$(ip_mode_applied)" = "ipv4" ] || return
 
-  sysctl_set /proc/sys/net/ipv6/conf/all/disable_ipv6     1
-  sysctl_set /proc/sys/net/ipv6/conf/default/disable_ipv6 1
-  sysctl_set /proc/sys/net/ipv6/conf/all/accept_ra        0
-  sysctl_set /proc/sys/net/ipv6/conf/default/accept_ra    0
+  # r22: no conf/all + conf/default disable_ipv6 / accept_ra any more. That
+  # took the carrier's IPv6-only IMS network down (no VoLTE, no data during
+  # calls). The DROP policy below is the killswitch; v6c_sync opens it only
+  # for the carrier service interfaces.
 
   # Per-interface enforcement is off by default: the modem's rmnet PDN
   # contexts re-enable IPv6 on a timer, fighting them is endless churn, and
   # the ip6tables DROP policy below is what actually stops IPv6 anyway.
+  # Carrier service interfaces (IMS, MMS, ...) are always left alone.
   if [ "$IPV6_PER_IFACE_ENFORCE" = "1" ]; then
+    _carrier=" $(for _e in $(v6c_list); do printf '%s ' "${_e%%:*}"; done)"
     _redisabled=""
     for _c in /proc/sys/net/ipv6/conf/*; do
       _ifname=${_c##*/}
-      [ "$_ifname" = "lo" ] && continue
+      case "$_ifname" in lo | all | default) continue ;; esac
+      case "$_carrier" in *" $_ifname "*) continue ;; esac
       if [ -r "$_c/disable_ipv6" ] && [ "$(cat "$_c/disable_ipv6" 2>/dev/null)" != "1" ]; then
         echo 1 2>/dev/null > "$_c/disable_ipv6" && _redisabled="$_redisabled $_ifname"
       fi
@@ -307,13 +309,7 @@ enforce_ipv6_disable() {
         IPV6_LAST_REDISABLED_AT=$NOW
       fi
     fi
-    unset _c _ifname _redisabled
-  fi
-
-  if [ "$IPV6_PROPS_SET" -eq 0 ]; then
-    resetprop net.ipv6.conf.all.disable_ipv6 1     2>/dev/null
-    resetprop net.ipv6.conf.default.disable_ipv6 1 2>/dev/null
-    IPV6_PROPS_SET=1
+    unset _c _ifname _redisabled _carrier _e
   fi
 
   # The actual killswitch.
@@ -344,14 +340,15 @@ enforce_ipv6_disable() {
 seed_sdcard() {
   [ -d "$SD_DIR" ] || mkdir -p "$SD_DIR" 2>/dev/null || return 1
   for _f in $SYNC_FILES; do
-    [ -f "$DATA_DIR/$_f" ] || continue
+    _dp=$(data_path "$_f")
+    [ -f "$_dp" ] || continue
     [ -f "$SD_DIR/$_f" ] && continue
-    if cp -f "$DATA_DIR/$_f" "$SD_DIR/$_f" 2>/dev/null; then
-      touch -r "$SD_DIR/$_f" "$DATA_DIR/$_f" 2>/dev/null
+    if cp -f "$_dp" "$SD_DIR/$_f" 2>/dev/null; then
+      touch -r "$SD_DIR/$_f" "$_dp" 2>/dev/null
       log_info "restored $_f to the sdcard mirror"
     fi
   done
-  unset _f
+  unset _f _dp
   return 0
 }
 
@@ -362,9 +359,10 @@ sync_from_sdcard() {
   _custom_changed=0
   for _f in $SYNC_FILES; do
     [ -f "$SD_DIR/$_f" ] || continue
-    if [ ! -f "$DATA_DIR/$_f" ] || \
-       [ "$(mtime_of "$SD_DIR/$_f")" -gt "$(mtime_of "$DATA_DIR/$_f")" ]; then
-      cp -f "$SD_DIR/$_f" "$DATA_DIR/$_f" 2>/dev/null || continue
+    _dp=$(data_path "$_f")
+    if [ ! -f "$_dp" ] || \
+       [ "$(mtime_of "$SD_DIR/$_f")" -gt "$(mtime_of "$_dp")" ]; then
+      cp -f "$SD_DIR/$_f" "$_dp" 2>/dev/null || continue
       log_info "synced $_f from the sdcard"
       case "$_f" in
         dnscrypt-proxy.toml)      _toml_changed=1 ;;
@@ -373,7 +371,7 @@ sync_from_sdcard() {
       esac
     fi
   done
-  unset _f
+  unset _f _dp
 
   # A custom-list edit rebuilds blocked-names.txt from the cached sources:
   # offline, a few seconds, and removed lines really disappear.
@@ -637,6 +635,9 @@ while true; do
   fi
 
   [ $((TICK_NO % 6)) -eq 0 ] && enforce_ipv6_disable
+  # Carrier IPv6 (IMS / VoLTE) in IPv4-only mode: cheap check every tick,
+  # so a new IMS network is let through within ~10 s.
+  [ "$(ip_mode_applied)" = "ipv4" ] && v6c_sync
 
   # ── Log rotation and auto-update check, every ~10 minutes ──
   if [ $((TICK_NO % 60)) -eq 0 ]; then

@@ -90,6 +90,9 @@ cmd_status() {
   echo "rule_quic_v6=$(yn sn_has "$S6F" "$P_QUIC")"
   echo "ipv6_policy=$(printf '%s\n' "$S6F" | sed -n 's/^-P OUTPUT //p' | head -n 1)"
   echo "rule_nat_v6=$(yn sn_has "$S6N" "$P_R6_UDP")"
+  # IPv4 only (r22): carrier service networks that keep IPv6 (IMS = VoLTE)
+  echo "v6_carrier=$(v6c_list)"
+  echo "rule_v6_carrier=$([ "$(sn_jumps "$S6F" OUTPUT "$V6C_OUT")" -ge 1 ] 2>/dev/null && echo 1 || echo 0)"
 
   # IP mode and the network it is running on
   echo "ip_mode=$IP_MODE"
@@ -469,7 +472,7 @@ cmd_sources_add_url() { # <https url>
     *[!A-Za-z0-9._~:/?#@!\&+,=%-]*) echo "ok=0"; echo "error=the URL contains characters that are not allowed"; return 1 ;;
   esac
   [ "${#1}" -le 512 ] || { echo "ok=0"; echo "error=the URL is too long"; return 1; }
-  mkdir -p "$DATA_DIR"
+  mkdir -p "$LISTS_DIR"
   if grep -qxF "$1" "$BL_CUSTOM_URLS" 2>/dev/null; then
     echo "ok=0"; echo "error=that URL is already in the list"; return 1
   fi
@@ -758,10 +761,10 @@ cmd_resolvers_set() { # <csv>
   stop_daemon
   _i=0
   while [ "$_i" -lt 45 ] && ! is_listening; do sleep 1; _i=$((_i + 1)); done
-  if ! is_listening && [ -f "$DATA_DIR/dnscrypt-proxy.toml.bak" ]; then
+  if ! is_listening && [ -f "$BACKUP_DIR/dnscrypt-proxy.toml.bak" ]; then
     # The daemon would not come up with the new servers: put the old
     # config back rather than leave DNS to the failsafe.
-    mv -f "$DATA_DIR/dnscrypt-proxy.toml.bak" "$CONFIG"
+    mv -f "$BACKUP_DIR/dnscrypt-proxy.toml.bak" "$CONFIG"
     mirror_to_sd dnscrypt-proxy.toml
     log_warn "dnscrypt-proxy did not start with the new resolvers - restored the previous ones"
     stop_daemon

@@ -10,7 +10,7 @@
 # decoded from the stamp itself, which is what the resolver operator
 # declares, not a description someone wrote about it.
 
-RES_MD="$DATA_DIR/public-resolvers.md"
+RES_MD="$RESOLVERS_DIR/public-resolvers.md"
 
 # Well-known choices shown first. Any other entry of the 500+ in
 # public-resolvers.md can be found with the search.
@@ -128,7 +128,7 @@ res_apply() { # <name> ... (already validated)
     unset _names _n _tmp _chk
     return 1
   fi
-  cp -f "$CONFIG" "$DATA_DIR/dnscrypt-proxy.toml.bak" 2>/dev/null
+  mkdir -p "$BACKUP_DIR"; cp -f "$CONFIG" "$BACKUP_DIR/dnscrypt-proxy.toml.bak" 2>/dev/null
   mv -f "$_tmp" "$CONFIG"
   mirror_to_sd dnscrypt-proxy.toml
   unset _names _n _tmp _chk

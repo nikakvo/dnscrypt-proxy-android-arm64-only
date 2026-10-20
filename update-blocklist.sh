@@ -17,7 +17,7 @@ fi
 . "$MODDIR/sh/blocklist.sh"
 load_settings
 
-mkdir -p "$STATE_DIR" "$DATA_DIR"
+mkdir -p "$STATE_DIR" "$LISTS_DIR" "$LOGS_DIR"
 echo $$ > "$UPDATE_PIDFILE"
 rm -f "$UPDATE_PENDING"
 

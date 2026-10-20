@@ -7,14 +7,18 @@
 MODDIR=${0%/*}
 
 if [ ! -f "$MODDIR/sh/common.sh" ]; then
-  echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] sh/common.sh missing - DNS redirect NOT installed, reflash the module" >> /data/adb/dnscrypt-proxy.log
+  echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] sh/common.sh missing - DNS redirect NOT installed, reflash the module" >> /data/adb/dnscrypt-proxy/logs/dnscrypt-proxy.log
   exit 0
 fi
 # shellcheck source=/dev/null
 . "$MODDIR/sh/common.sh"
-load_settings
 
-mkdir -p "$STATE_DIR" "$DATA_DIR"
+# r22: one folder for everything. The first boot after an update from r21
+# or older moves what the old version kept elsewhere in /data/adb - before
+# the settings are read.
+layout_migrate
+load_settings
+mkdir -p "$STATE_DIR" "$LISTS_DIR" "$LOGS_DIR" "$BACKUP_DIR" "$RESOLVERS_DIR"
 
 # Per-boot state. The xt_owner probe result is per-boot too: caching it
 # across reboots would pin a wrong answer forever if it once ran before
@@ -28,13 +32,13 @@ rm -f "$STATE_DIR/ipv6_killswitch_lifted" \
       "$STATE_DIR/probe_method" \
       "$HEALTH_FILE" "$HEALTH_FILE.tmp" \
       "$DAEMON_PIDFILE" "$WATCHDOG_PIDFILE" "$UPDATE_PIDFILE" \
-      "$STATE_DIR/probe_queries" "$STATE_DIR/ip_mode_applied" \
+      "$STATE_DIR/probe_queries" "$STATE_DIR/ip_mode_applied" "$STATE_DIR/v6_carrier" \
       "$STATE_DIR/ip6_nat" "$STATE_DIR/paused_until" \
       "$STATE_DIR/update.pending" "$STATE_DIR/watchdog.wake" \
       "$STATE_DIR/hotspot_applied" "$STATE_DIR/ipt_wait" "$STATE_DIR/owner_match_ok"
 # A lock or a half-finished build from before the reboot is meaningless now,
 # and the pid inside the lock may already belong to something else.
-rm -rf "$STATE_DIR/blocklist.lock" "$DATA_DIR/sources/.work" \
+rm -rf "$STATE_DIR/blocklist.lock" "$LISTS_DIR/sources/.work" \
        "$STATE_DIR/hotspot.lock" 2>/dev/null
 
 # -----------------------------------------------

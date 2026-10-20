@@ -4,7 +4,7 @@
 # sh/tools.sh - domain check, allow/block rules, live query.
 # Sourced after sh/common.sh and sh/blocklist.sh by ctl.sh. Defines only.
 
-ALLOW_FILE="$DATA_DIR/allowed-names.txt"
+ALLOW_FILE="$LISTS_DIR/allowed-names.txt"
 
 # A plain domain name, lowercased. Rejects anything else, so nothing that
 # reaches a rule file can be a pattern by accident or carry shell syntax.

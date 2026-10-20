@@ -29,14 +29,14 @@
 # Rules are now kept exactly as written; only the plain ones are
 # canonicalised (lowercase, no "*." / "." prefix) so they can be deduped.
 
-BL_SRC_DIR="$DATA_DIR/sources"
-BL_CUSTOM="$DATA_DIR/custom-blocked-names.txt"
-BL_CUSTOM_URLS="$DATA_DIR/custom-sources.txt"
+BL_SRC_DIR="$LISTS_DIR/sources"
+BL_CUSTOM="$LISTS_DIR/custom-blocked-names.txt"
+BL_CUSTOM_URLS="$LISTS_DIR/custom-sources.txt"
 BL_LOCK="$STATE_DIR/blocklist.lock"
 BL_REBUILD_PENDING="$STATE_DIR/blocklist_rebuild_pending"
-BL_LAST_EPOCH="$DATA_DIR/.last_update_epoch"
-BL_LAST_ATTEMPT="$DATA_DIR/.last_update_attempt"
-BL_REPORT="$DATA_DIR/.last_update_report"
+BL_LAST_EPOCH="$LISTS_DIR/.last_update_epoch"
+BL_LAST_ATTEMPT="$LISTS_DIR/.last_update_attempt"
+BL_REPORT="$LISTS_DIR/.last_update_report"
 
 # ── Catalog ──────────────────────────────────────────────────────────────────
 # id|group|label|url|minimum entries|description
@@ -191,15 +191,15 @@ bl_migrate_legacy() {
   [ -f "$BL_SRC_DIR/legacy.txt" ] && return 0
   ls "$BL_SRC_DIR"/*.txt >/dev/null 2>&1 && return 0
   [ -f "$BLOCKLIST" ] || return 0
-  if [ -f "$DATA_DIR/.custom.merged" ]; then
-    bl_normalize 1 < "$DATA_DIR/.custom.merged" | LC_ALL=C sort -u > "$BL_SRC_DIR/.old_custom"
+  if [ -f "$LISTS_DIR/.custom.merged" ]; then
+    bl_normalize 1 < "$LISTS_DIR/.custom.merged" | LC_ALL=C sort -u > "$BL_SRC_DIR/.old_custom"
     bl_normalize 0 < "$BLOCKLIST" | LC_ALL=C sort -u | LC_ALL=C comm -23 - "$BL_SRC_DIR/.old_custom" > "$BL_SRC_DIR/legacy.txt"
     rm -f "$BL_SRC_DIR/.old_custom"
   else
     bl_normalize 0 < "$BLOCKLIST" > "$BL_SRC_DIR/legacy.txt"
   fi
   echo "$(date '+%Y-%m-%d %H:%M:%S')|$(wc -l < "$BL_SRC_DIR/legacy.txt" | tr -d ' ')" > "$BL_SRC_DIR/legacy.meta"
-  rm -f "$DATA_DIR/.custom.merged"
+  rm -f "$LISTS_DIR/.custom.merged"
   log_info "blocklist: kept the pre-r13 list as a 'legacy' source until the first update"
 }
 

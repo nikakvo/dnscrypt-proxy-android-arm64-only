@@ -236,6 +236,7 @@
   <p>Allow / Block buttons appear under the result.</p>
   <h3>My rules</h3>
   <p><strong>Allowed</strong> always wins over every blocklist — the way to fix a site or app a list breaks. <strong>Blocked by you</strong> is your custom list; it survives every update. ✕ removes a rule. Everything takes effect immediately.</p>
+  <p>To add a rule, type the domain in the field above the list and tap <strong>Allow</strong> or <strong>Block</strong> (or press Enter). A pasted link works too - <code>https://hf.co/models</code> adds <code>hf.co</code> - and several domains can be added at once, separated by spaces or commas. No need to open the files.</p>
   <p>If you unblock a name that a downloaded list also contains, it stays blocked — you are told which list; use Allow for those.</p>
   <h3>Rule syntax (for editing the files by hand)</h3>
   <div class="tw"><table>
@@ -312,16 +313,26 @@
 <div class="box">
   <div class="tw"><table>
     <tr><th>mode</th><th>ipv6</th><th>ipv6 dns</th><th>aaaa answers</th></tr>
-    <tr><td>IPv4 only</td><td>off</td><td>—</td><td>blocked</td></tr>
+    <tr><td>IPv4 only</td><td>blocked (carrier VoLTE / MMS excepted)</td><td>-</td><td>blocked</td></tr>
     <tr><td>IPv6 compatible</td><td>on</td><td>through the proxy</td><td>blocked</td></tr>
     <tr><td>Dual stack</td><td>on</td><td>through the proxy</td><td>answered</td></tr>
   </table></div>
   <ul>
-    <li><strong>IPv4 only</strong> (default) — IPv6 switched off in the kernel and the firewall. Strongest leak protection.</li>
+    <li><strong>IPv4 only</strong> (default) - IPv6 blocked by the firewall. Strongest leak protection.</li>
     <li><strong>IPv6 compatible</strong> — for carriers that only give IPv6 (464XLAT). On those, "IPv4 only" means no connection at all. Apps keep using IPv4.</li>
     <li><strong>Dual stack</strong> — full IPv6. Websites can see your IPv6 address.</li>
   </ul>
   <p>Switching applies immediately — no reboot. Coming out of <strong>IPv4 only</strong>, the network gets its IPv6 addresses back within seconds, but Android only notices after it reconnects. The module checks this and, only if Android missed it, reconnects Wi-Fi or mobile data by itself for a moment.</p>
+  <h3>VoLTE in IPv4 only</h3>
+  <p>Most carriers run VoLTE and Wi-Fi calling (IMS) on a separate mobile network that is IPv6 only. Switching IPv6 off in the kernel would take that network down: no VoLTE, calls fall back to 2G and mobile data stops during every call. So <strong>IPv4 only</strong> keeps IPv6 on in the kernel and blocks it in the firewall everywhere except:</p>
+  <ul>
+    <li>the carrier's service networks - IMS (VoLTE, Wi-Fi calling), MMS, emergency calls. The module finds them through Android, whatever the interface is called, and follows them when Android moves them to another one. Android keeps these networks for the system; apps cannot use them, so nothing leaks.</li>
+    <li>IPv6 Neighbor Discovery, which those networks need to get their address. It never leaves the local link and carries no app data.</li>
+  </ul>
+  <p>The <strong>Carrier IPv6 (VoLTE)</strong> row in the Firewall section shows which interface is open. Check from Termux:</p>
+  <pre>su -c '/system/bin/sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status' | /system/bin/grep carrier</pre>
+  <p><strong>"VoLTE service not available" after a reboot.</strong> Some ROMs (seen on HyperOS) show this notification at every boot, because they check VoLTE before the IMS network has registered. It appears in every IP mode, also with this module's firewall fully open, and the VoLTE icon shows up a moment later. It is a false alarm: if the icon is there, VoLTE works - dismiss the notification.</p>
+  <p>A few carriers run IMS over the normal internet connection instead of a network of its own. The module does not open that one (it would let every app use IPv6), so VoLTE needs <strong>IPv6 compatible</strong> there.</p>
   <h3>Kernel IPv6 NAT</h3>
   <p>Sending IPv6 DNS into the proxy needs IPv6 NAT in the kernel (<code>CONFIG_IP6_NF_NAT</code>). Without it the IPv6 modes run <span class="pill warn">limited</span>: IPv6 DNS is dropped instead — no leak, but apps must use IPv4 DNS, which an IPv6-only network may not have.</p>
   <h3>This network</h3>
@@ -335,7 +346,7 @@
   <div class="tw"><table>
     <tr><td>Block QUIC</td><td>On by default. See <a href="#how" style="color:var(--blue)">QUIC block</a>. Turn off if an app needs HTTP/3 or QUIC.</td></tr>
     <tr><td>Auto-restart when hung</td><td>On by default. Off = a hung daemon is only reported.</td></tr>
-    <tr><td>Per-interface IPv6 off</td><td>Off by default. IPv4 mode only. Also forces IPv6 off on every network interface. The modem keeps turning it back on, so this mostly adds log noise, and on some carriers it can break VoLTE. The firewall already blocks IPv6 without it.</td></tr>
+    <tr><td>Per-interface IPv6 off</td><td>Off by default. IPv4 mode only. Also forces IPv6 off on every network interface except the carrier's VoLTE / MMS ones. The modem keeps turning it back on, so this mostly adds log noise. The firewall already blocks IPv6 without it.</td></tr>
     <tr><td>Log size</td><td>How many lines the log keeps.</td></tr>
   </table></div>
 </div>
@@ -376,10 +387,14 @@
 <div class="box">
   <div class="tw"><table>
     <tr><th>path</th><th>what</th></tr>
-    <tr><td>/data/adb/dnscrypt-proxy/</td><td>Everything dnscrypt-proxy reads: config, lists, resolver list, cached downloads (<code>sources/</code>).</td></tr>
+    <tr><td>/data/adb/dnscrypt-proxy/</td><td>Everything the module keeps, in one folder:
+      <code>dnscrypt-proxy.toml</code> (the config) and <code>settings.conf</code> (module settings, below) at the top;
+      <code>lists/</code> - your custom, allow and IP lists, the built <code>blocked-names.txt</code> and the download cache <code>sources/</code>;
+      <code>resolvers/</code> - the resolver list;
+      <code>logs/</code> - <code>dnscrypt-proxy.log</code> and <code>action.log</code> (blocklist updates);
+      <code>state/</code> - runtime files, cleared at every boot;
+      <code>backup/</code> - the config as it was before the last update.</td></tr>
     <tr><td>/sdcard/dnscrypt-proxy/</td><td>Editable copy: <code>dnscrypt-proxy.toml</code>, <code>custom-blocked-names.txt</code>, <code>allowed-names.txt</code>, IP lists. Changes are copied in within a minute. A config edit restarts the daemon, a list edit reloads it.</td></tr>
-    <tr><td>/data/adb/dnscrypt-proxy-android.conf</td><td>Module settings (below).</td></tr>
-    <tr><td>/data/adb/dnscrypt-proxy.log</td><td>The log.</td></tr>
   </table></div>
   <h3>Module settings</h3>
   <p>All of these can be changed in the WebUI. The file is plain <code>KEY=value</code> lines, and only known keys with plain values are accepted.</p>
@@ -401,7 +416,7 @@
 <div class="sec-title" id="cli">15 · command line</div>
 <div class="box">
   <p>Everything the WebUI does goes through one script, which also works from a root shell (Termux):</p>
-  <pre>su -c sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh <span class="cm">&lt;command&gt;</span></pre>
+  <pre>su -c '/system/bin/sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh <span class="cm">&lt;command&gt;</span>'</pre>
   <div class="tw"><table>
     <tr><td>status</td><td>Full state</td></tr>
     <tr><td>probe</td><td>Run the health checks now</td></tr>
@@ -467,7 +482,7 @@
 <div class="sec-title" id="uninstall">18 · update &amp; uninstall</div>
 <div class="box">
   <h3>Updating the module</h3>
-  <p>Your settings, custom list, allow list, IP lists (<code>allowed-ips.txt</code>, <code>blocked-ips.txt</code>), chosen resolvers and cached blocklists are kept. The config as it was before the update is kept as <code>/data/adb/dnscrypt-proxy/dnscrypt-proxy.toml.before-update</code> — one file, replaced by each update.</p>
+  <p>Your settings, custom list, allow list, IP lists (<code>allowed-ips.txt</code>, <code>blocked-ips.txt</code>), chosen resolvers and cached blocklists are kept. The config as it was before the update is kept as <code>/data/adb/dnscrypt-proxy/backup/dnscrypt-proxy.toml.before-update</code> — one file, replaced by each update.</p>
   <h3>Uninstall</h3>
   <p>Remove the module in your root manager and reboot. Every firewall rule is removed, IPv6 and Android Private DNS are restored to how they were, and the module's files are deleted.</p>
 </div>

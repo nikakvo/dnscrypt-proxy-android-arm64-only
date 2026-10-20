@@ -15,16 +15,49 @@ MODULE_ID="dnscrypt-proxy-android"
 MODDIR="${MODDIR:-/data/adb/modules/$MODULE_ID}"
 
 # ── Paths ────────────────────────────────────────────────────────────────────
+# r22: everything the module keeps lives in ONE folder:
+#   /data/adb/dnscrypt-proxy/
+#     dnscrypt-proxy.toml   the daemon's config (ipset-arm64 reads it HERE)
+#     settings.conf         module settings
+#     lists/                rule lists, the built blocklist, sources/ cache
+#     resolvers/            public-resolvers.md, relays.md (+ .minisig)
+#     logs/                 dnscrypt-proxy.log, action.log
+#     state/                runtime files, cleared at boot
+#     backup/               toml before the last update, Private DNS record
+# The daemon runs from DATA_DIR and resolves relative paths in the toml
+# against the toml's folder, so the toml says 'lists/blocked-names.txt'.
+# Up to r21 these were spread over /data/adb (see LEGACY_* below and
+# layout_migrate).
 DATA_DIR="/data/adb/dnscrypt-proxy"
 SD_DIR="/storage/emulated/0/dnscrypt-proxy"
-STATE_DIR="/data/adb/dnscrypt-proxy-state"
-CONF="/data/adb/dnscrypt-proxy-android.conf"
-LOG="/data/adb/dnscrypt-proxy.log"
+LISTS_DIR="$DATA_DIR/lists"
+RESOLVERS_DIR="$DATA_DIR/resolvers"
+LOGS_DIR="$DATA_DIR/logs"
+STATE_DIR="$DATA_DIR/state"
+BACKUP_DIR="$DATA_DIR/backup"
+CONF="$DATA_DIR/settings.conf"
+LOG="$LOGS_DIR/dnscrypt-proxy.log"
 
 CONFIG="$DATA_DIR/dnscrypt-proxy.toml"
-BLOCKLIST="$DATA_DIR/blocked-names.txt"
-LAST_UPDATE_FILE="$DATA_DIR/.last_update"
+BLOCKLIST="$LISTS_DIR/blocked-names.txt"
+LAST_UPDATE_FILE="$LISTS_DIR/.last_update"
+PREV_PDNS_FILE="$BACKUP_DIR/prev-private-dns"
 SYNC_FILES="dnscrypt-proxy.toml custom-blocked-names.txt allowed-names.txt allowed-ips.txt blocked-ips.txt"
+
+# Where a file of the sdcard mirror lives on /data (the mirror is flat).
+data_path() { # <name>
+  case "$1" in
+    dnscrypt-proxy.toml) echo "$CONFIG" ;;
+    *) echo "$LISTS_DIR/$1" ;;
+  esac
+}
+
+# Up to r21.
+LEGACY_STATE_DIR="/data/adb/dnscrypt-proxy-state"
+LEGACY_CONF="/data/adb/dnscrypt-proxy-android.conf"
+LEGACY_LOG="/data/adb/dnscrypt-proxy.log"
+LEGACY_ACTION_LOG="/data/adb/dnscrypt-action.log"
+LEGACY_PREV_PDNS="/data/adb/dnscrypt-prev-private-dns"
 
 DNSCRYPT_BIN="$MODDIR/system/bin/dnscrypt-proxy"
 MODPROP="$MODDIR/module.prop"
@@ -36,7 +69,7 @@ HEALTH_FILE="$STATE_DIR/health"
 HTTPD_PIDFILE="$STATE_DIR/httpd.pid"
 UPDATE_PIDFILE="$STATE_DIR/update.pid"
 BLCOUNT_CACHE="$STATE_DIR/blocklist_count"
-ACTION_LOG="/data/adb/dnscrypt-action.log"
+ACTION_LOG="$LOGS_DIR/action.log"
 OWNER_FLAG_FILE="$STATE_DIR/owner_match_unavailable"
 
 LISTEN_ADDR="127.0.0.1"
@@ -263,11 +296,80 @@ is_paused() { [ -f "$PAUSE_FILE" ] && [ "$(pause_left)" -gt 0 ]; }
 # After the module itself changes a file in $DATA_DIR, copy it to the
 # sdcard mirror and give both the same mtime, so the watchdog's next sync
 # does not mistake the module's own write for a user edit.
-mirror_to_sd() { # <file name in DATA_DIR>
-  [ -f "$DATA_DIR/$1" ] || return 1
-  mkdir -p "$SD_DIR" 2>/dev/null || return 1
-  cp -f "$DATA_DIR/$1" "$SD_DIR/$1" 2>/dev/null || return 1
-  touch -r "$SD_DIR/$1" "$DATA_DIR/$1" 2>/dev/null
+mirror_to_sd() { # <file name of the mirror, see data_path>
+  _ms=$(data_path "$1")
+  [ -f "$_ms" ] || { unset _ms; return 1; }
+  mkdir -p "$SD_DIR" 2>/dev/null || { unset _ms; return 1; }
+  cp -f "$_ms" "$SD_DIR/$1" 2>/dev/null || { unset _ms; return 1; }
+  touch -r "$SD_DIR/$1" "$_ms" 2>/dev/null
+  unset _ms
+}
+
+# ── r22 layout migration ─────────────────────────────────────────────────────
+# Runs at the start of post-fs-data, before anything reads a file. The
+# installer only COPIED the old files into the new layout (the old version
+# keeps running until the reboot and still uses the old paths), so for every
+# old file: the newer of the two wins, then the old one goes. Idempotent -
+# after the first boot there is nothing left to move.
+_lm_take() { # <old> <new> -> 0 if the old one was taken
+  [ -e "$1" ] || return 1
+  if [ ! -e "$2" ] || [ "$(mtime_of "$1")" -gt "$(mtime_of "$2")" ]; then
+    mkdir -p "${2%/*}" 2>/dev/null
+    rm -rf "$2" 2>/dev/null
+    mv -f "$1" "$2" 2>/dev/null && return 0
+  fi
+  rm -rf "$1" 2>/dev/null
+  return 1
+}
+
+layout_migrate() {
+  mkdir -p "$LISTS_DIR" "$RESOLVERS_DIR" "$LOGS_DIR" "$STATE_DIR" "$BACKUP_DIR" 2>/dev/null
+  _lm_any=0
+  for _lm_p in "$LEGACY_CONF" "$LEGACY_LOG" "$LEGACY_ACTION_LOG" "$LEGACY_PREV_PDNS" \
+               "$LEGACY_STATE_DIR" "$LEGACY_CONF.bak" "$DATA_DIR/sources" "$DATA_DIR/blocked-names.txt"; do
+    [ -e "$_lm_p" ] && { _lm_any=1; break; }
+  done
+  [ "$_lm_any" = 1 ] || { unset _lm_any _lm_p; return 0; }
+
+  _lm_took=""
+  _lm_take "$LEGACY_CONF" "$CONF" && _lm_took="$_lm_took settings"
+  [ -f "$LEGACY_CONF.bak" ] && mv -f "$LEGACY_CONF.bak" "$BACKUP_DIR/settings.conf.bak" 2>/dev/null
+  _lm_take "$LEGACY_PREV_PDNS" "$PREV_PDNS_FILE"
+  # Logs: the old one is the history - keep it in front of anything newer.
+  if [ -f "$LEGACY_LOG" ]; then
+    [ -f "$LOG" ] && cat "$LOG" >> "$LEGACY_LOG" 2>/dev/null
+    mv -f "$LEGACY_LOG" "$LOG" 2>/dev/null && _lm_took="$_lm_took log"
+  fi
+  if [ -f "$LEGACY_ACTION_LOG" ]; then
+    [ -f "$ACTION_LOG" ] && cat "$ACTION_LOG" >> "$LEGACY_ACTION_LOG" 2>/dev/null
+    mv -f "$LEGACY_ACTION_LOG" "$ACTION_LOG" 2>/dev/null
+  fi
+  # Runtime state is rebuilt every boot anyway.
+  rm -rf "$LEGACY_STATE_DIR" 2>/dev/null
+
+  # Lists and blocklist metadata, flat in DATA_DIR up to r21.
+  for _lm_f in allowed-names.txt allowed-ips.txt blocked-ips.txt custom-blocked-names.txt \
+               blocked-names.txt custom-sources.txt .last_update .last_update_epoch \
+               .last_update_attempt .last_update_report .custom.merged; do
+    _lm_take "$DATA_DIR/$_lm_f" "$LISTS_DIR/$_lm_f" && _lm_took="$_lm_took $_lm_f"
+  done
+  # The download cache: the installer leaves it where it is (it is big and
+  # only an update touches it), so the old folder is the current one.
+  if [ -d "$DATA_DIR/sources" ]; then
+    rm -rf "$LISTS_DIR/sources" 2>/dev/null
+    mv -f "$DATA_DIR/sources" "$LISTS_DIR/sources" 2>/dev/null && _lm_took="$_lm_took sources/"
+  fi
+  # Module-owned files: the installer put fresh copies in place.
+  for _lm_f in public-resolvers.md public-resolvers.md.minisig relays.md relays.md.minisig; do
+    _lm_take "$DATA_DIR/$_lm_f" "$RESOLVERS_DIR/$_lm_f"
+  done
+  for _lm_f in dnscrypt-proxy.toml.before-update dnscrypt-proxy.toml.bak; do
+    _lm_take "$DATA_DIR/$_lm_f" "$BACKUP_DIR/$_lm_f"
+  done
+  rm -f "$DATA_DIR/LICENSE" "$DATA_DIR"/.*.preserve 2>/dev/null
+
+  log_info "files moved into one folder, $DATA_DIR (r22 layout). Taken from the old places:${_lm_took:- nothing newer}"
+  unset _lm_any _lm_p _lm_took _lm_f
 }
 
 # ── Logging ──────────────────────────────────────────────────────────────────
@@ -703,8 +805,9 @@ undelegated_enabled() {
 }
 
 # ── IP mode ──────────────────────────────────────────────────────────────────
-#   ipv4    IPv6 off in the kernel and the firewall, AAAA answers blocked.
-#           The strongest setting, and what this module always did.
+#   ipv4    IPv6 blocked by the firewall (DROP policy), AAAA answers
+#           blocked. Since r22 only the carrier's service networks (IMS =
+#           VoLTE, MMS, emergency) keep IPv6 - see v6c_sync.
 #   compat  IPv6 on, IPv6 DNS redirected into the proxy, AAAA still
 #           blocked - apps keep using IPv4, but an IPv6-only carrier
 #           (464XLAT) can bring the connection up.
@@ -725,27 +828,12 @@ ip_mode_applied() {
 }
 
 _sysctl_w() { [ -w "$1" ] && echo "$2" 2>/dev/null > "$1"; return 0; }
+_sysctl_r() { _sr=""; [ -r "$1" ] && read -r _sr 2>/dev/null < "$1"; echo "$_sr"; unset _sr; }
 
-ip6_stack_off() {
-  resetprop net.ipv6.conf.all.disable_ipv6 1 2>/dev/null
-  resetprop net.ipv6.conf.default.disable_ipv6 1 2>/dev/null
-  resetprop net.ipv6.conf.all.accept_redirects 0 2>/dev/null
-  resetprop net.ipv6.conf.default.accept_redirects 0 2>/dev/null
-  resetprop net.ipv6.conf.lo.disable_ipv6 1 2>/dev/null
-  _sysctl_w /proc/sys/net/ipv6/conf/all/disable_ipv6 1
-  _sysctl_w /proc/sys/net/ipv6/conf/default/disable_ipv6 1
-  _sysctl_w /proc/sys/net/ipv6/conf/all/accept_ra 0
-  _sysctl_w /proc/sys/net/ipv6/conf/default/accept_ra 0
-  ip6tables -P INPUT   DROP 2>/dev/null
-  ip6tables -P OUTPUT  DROP 2>/dev/null
-  ip6tables -P FORWARD DROP 2>/dev/null
-  ip6tables -C INPUT  -i lo -j ACCEPT 2>/dev/null || ip6tables -A INPUT  -i lo -j ACCEPT 2>/dev/null
-  ip6tables -C OUTPUT -o lo -j ACCEPT 2>/dev/null || ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null
-}
-
-# Back to kernel defaults. Writing conf/all propagates to every interface,
-# loopback included, which is what brings ::1 back for the v6 listener.
-ip6_stack_on() {
+# Kernel IPv6 back to its defaults. Writing conf/all propagates to every
+# interface, loopback included, which is what brings ::1 back for the v6
+# listener and undoes per-interface IPv6 off (IPV6_PER_IFACE_ENFORCE).
+ip6_kernel_on() {
   for _p in all.disable_ipv6 default.disable_ipv6 all.accept_redirects default.accept_redirects lo.disable_ipv6; do
     resetprop --delete "net.ipv6.conf.$_p" 2>/dev/null
   done
@@ -755,20 +843,232 @@ ip6_stack_on() {
   _sysctl_w /proc/sys/net/ipv6/conf/lo/disable_ipv6 0
   _sysctl_w /proc/sys/net/ipv6/conf/all/accept_ra 1
   _sysctl_w /proc/sys/net/ipv6/conf/default/accept_ra 1
-  # IPv4-only mode set default/accept_ra=0, so every mobile data interface
-  # created meanwhile kept 0 and never takes the carrier's IPv6 again (Wi-Fi
-  # is re-armed by Android on each connect, mobile data is not). r17: put
-  # the kernel default back on them.
+  # IPv4-only mode before r22 set default/accept_ra=0, so every mobile data
+  # interface created meanwhile kept 0 and never takes the carrier's IPv6
+  # again (Wi-Fi is re-armed by Android on each connect, mobile data is
+  # not). r17: put the kernel default back on them.
   for _c in /proc/sys/net/ipv6/conf/*; do
     case "${_c##*/}" in rmnet* | ccmni* | seth* | rev_rmnet*) ;; *) continue ;; esac
-    [ "$(cat "$_c/accept_ra" 2>/dev/null)" = "0" ] && echo 1 2>/dev/null > "$_c/accept_ra"
+    [ "$(_sysctl_r "$_c/accept_ra")" = "0" ] && echo 1 2>/dev/null > "$_c/accept_ra"
   done
   unset _c
+}
+
+# IPv4 only. Since r22 IPv6 stays ON in the kernel: the carrier's service
+# networks (IMS = VoLTE / Wi-Fi calling, MMS, emergency calls) are very
+# often IPv6-only, and switching IPv6 off in the kernel took them down -
+# no VoLTE, calls fell back to 2G, and mobile data stopped during every
+# call. The firewall is the killswitch: ip6tables DROP everywhere, except
+# on those carrier service interfaces (DNSC_V6C_IN / DNSC_V6C_OUT, see
+# v6c_sync) and for Neighbor Discovery (DNSC_V6ND), which they need to get
+# their address. Apps cannot use those networks (Android keeps them for the
+# system), and AAAA answers stay blocked, so nothing leaks.
+ip6_stack_off() {
+  # Coming from r21 or older (or a leftover prop): kernel IPv6 was off.
+  # Only written when needed - a write to conf/all touches every interface.
+  if [ "$(_sysctl_r /proc/sys/net/ipv6/conf/all/disable_ipv6)" = "1" ] || \
+     [ "$(_sysctl_r /proc/sys/net/ipv6/conf/default/disable_ipv6)" = "1" ] || \
+     [ "$(_sysctl_r /proc/sys/net/ipv6/conf/default/accept_ra)" = "0" ]; then
+    ip6_kernel_on
+  fi
+  ip6tables -P INPUT   DROP 2>/dev/null
+  ip6tables -P OUTPUT  DROP 2>/dev/null
+  ip6tables -P FORWARD DROP 2>/dev/null
+  ip6tables -C INPUT  -i lo -j ACCEPT 2>/dev/null || ip6tables -A INPUT  -i lo -j ACCEPT 2>/dev/null
+  ip6tables -C OUTPUT -o lo -j ACCEPT 2>/dev/null || ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null
+  ipt_snap_stale
+  v6c_sync force
+}
+
+ip6_stack_on() {
+  ip6_kernel_on
+  v6c_teardown
   ip6tables -P INPUT   ACCEPT 2>/dev/null
   ip6tables -P OUTPUT  ACCEPT 2>/dev/null
   ip6tables -P FORWARD ACCEPT 2>/dev/null
   ip6tables -D INPUT  -i lo -j ACCEPT 2>/dev/null
   ip6tables -D OUTPUT -o lo -j ACCEPT 2>/dev/null
+  ipt_snap_stale
+}
+
+# ── Carrier service networks in IPv4-only mode (r22) ────────────────────────
+# Android lists every network it has in `dumpsys connectivity`, one
+# "NetworkAgentInfo{...}" line each. A carrier service network is a
+# CELLULAR one (Wi-Fi calling's IWLAN network is CELLULAR too) WITHOUT the
+# INTERNET capability and WITH one of IMS / EIMS / MMS / XCAP / RCS.
+# Measured on a Poco F6 Pro (Xiaomi.eu, Greek SIM roaming in Bulgaria):
+#   InterfaceName: rmnet_data2 ... Capabilities: INTERNET&NOT_RESTRICTED&...   (data, IPv4)
+#   InterfaceName: rmnet_data1 ... Capabilities: IMS&NOT_METERED&...&MMTEL&... (VoLTE, IPv6 only)
+V6C_IN=DNSC_V6C_IN
+V6C_OUT=DNSC_V6C_OUT
+# Neighbor Discovery (router solicitation / advertisement, neighbor
+# solicitation / advertisement, redirect), every interface. Without the
+# router advertisement the IMS interface never gets its global address, so
+# Android never brings the IMS network up - and there is nothing to detect
+# (measured: after a reboot in IPv4 only no IMS network existed at all;
+# with ICMPv6 let through it came up at once). ND never leaves the link
+# and carries no app data; hop limit 255 is what RFC 4861 requires of it.
+V6ND=DNSC_V6ND
+V6ND_TYPES="133 134 135 136 137"
+V6C_FILE="$STATE_DIR/v6_carrier"     # line 1: ip rule signature, 2: time, 3: "iface:KIND ..."
+V6C_RECHECK=300                      # dumpsys at least this often (s), on top of rule changes
+
+# Parses dumpsys lines on stdin -> "iface:KIND" per line (KIND = first
+# carrier capability found).
+v6c_parse() {
+  while IFS= read -r _l; do
+    case "$_l" in *"Transports: CELLULAR"*) ;; *) continue ;; esac
+    case "$_l" in *"Capabilities: "*) ;; *) continue ;; esac
+    case "$_l" in *"InterfaceName: "*) ;; *) continue ;; esac
+    _caps=${_l#*Capabilities: }; _caps=${_caps%% *}
+    case "&$_caps&" in *"&INTERNET&"*) continue ;; esac
+    _kind=""
+    for _k in IMS EIMS MMS XCAP RCS; do
+      case "&$_caps&" in *"&$_k&"*) _kind=$_k; break ;; esac
+    done
+    [ -n "$_kind" ] || continue
+    _if=${_l#*InterfaceName: }; _if=${_if%% *}
+    case "$_if" in '' | *[!A-Za-z0-9_.@-]*) continue ;; esac
+    echo "$_if:$_kind"
+  done
+  unset _l _caps _kind _k _if
+}
+
+v6c_detect() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 10 dumpsys connectivity 2>/dev/null
+  else
+    dumpsys connectivity 2>/dev/null
+  fi | grep '^ *NetworkAgentInfo{' | v6c_parse | sort -u
+}
+
+# Cheap change detector, read every tick: netd adds `ip rule` lines for
+# every network it creates (lookup <iface>), the IMS one included.
+_v6c_sig() {
+  ip -6 rule 2>/dev/null | sed -n 's/.* lookup \([^ ]*\).*/\1/p' | sort -u | awk '{ printf "%s ", $0 }'
+}
+
+# The cached list ("iface:KIND iface:KIND"), empty when none.
+v6c_list() {
+  [ -f "$V6C_FILE" ] && sed -n 3p "$V6C_FILE" 2>/dev/null
+}
+
+# Make the chains, the jumps and the per-interface ACCEPTs match Android's
+# current carrier networks. Every watchdog tick in IPv4-only mode, and from
+# ip6_stack_off with "force". Calls dumpsys only when the ip rule signature
+# changed, after V6C_RECHECK seconds, on force, or when the chains are off.
+v6c_sync() {
+  _vs_force=${1:-}
+  ipt_snap
+  [ "$S6OK" = 1 ] || return 0
+  _vs_fix=0
+  for _vs_c in "$V6ND" "$V6C_IN" "$V6C_OUT"; do
+    sn_chain "$S6F" "$_vs_c" || { ip6tables -N "$_vs_c" 2>/dev/null; _vs_fix=1; }
+  done
+  # Jumps go at the END of INPUT/OUTPUT: netd's accounting and the other
+  # modules' chains (ipset-arm64 IPSA_*) still see the packet first; the
+  # only thing after us is the DROP policy.
+  for _vs_p in "INPUT $V6ND" "OUTPUT $V6ND" "INPUT $V6C_IN" "OUTPUT $V6C_OUT"; do
+    set -- $_vs_p
+    _vs_n=$(sn_jumps "$S6F" "$1" "$2")
+    if [ "$_vs_n" = "0" ]; then
+      ip6tables -A "$1" -j "$2" 2>/dev/null; _vs_fix=1
+    elif [ "$_vs_n" -gt 1 ] 2>/dev/null; then
+      while ip6tables -D "$1" -j "$2" 2>/dev/null; do :; done
+      ip6tables -A "$1" -j "$2" 2>/dev/null; _vs_fix=1
+    fi
+  done
+  [ "$_vs_fix" = 1 ] && ipt_snap_stale && ipt_snap
+
+  # ND chain: one ACCEPT per type, with the hop-limit check when the kernel
+  # has the hl match (CONFIG_IP6_NF_MATCH_HL), without it otherwise.
+  set -- $V6ND_TYPES
+  if [ "$(sn_count "$S6F" "$V6ND")" != "$#" ]; then
+    ip6tables -F "$V6ND" 2>/dev/null
+    for _vs_t in $V6ND_TYPES; do
+      ip6tables -A "$V6ND" -p icmpv6 --icmpv6-type "$_vs_t" -m hl --hl-eq 255 -j ACCEPT 2>/dev/null || \
+        ip6tables -A "$V6ND" -p icmpv6 --icmpv6-type "$_vs_t" -j ACCEPT 2>/dev/null
+    done
+    ipt_snap_stale; ipt_snap
+  fi
+
+  _vs_sig=$(_v6c_sig)
+  _vs_now=$(date +%s)
+  _vs_osig=""; _vs_ot=0; _vs_old=""
+  if [ -f "$V6C_FILE" ]; then
+    _vs_osig=$(sed -n 1p "$V6C_FILE" 2>/dev/null)
+    _vs_ot=$(sed -n 2p "$V6C_FILE" 2>/dev/null)
+    _vs_old=$(sed -n 3p "$V6C_FILE" 2>/dev/null)
+  fi
+  case "$_vs_ot" in '' | *[!0-9]*) _vs_ot=0 ;; esac
+  _vs_want=$_vs_old
+  if [ "$_vs_force" = "force" ] || [ ! -f "$V6C_FILE" ] || [ "$_vs_sig" != "$_vs_osig" ] || \
+     [ $((_vs_now - _vs_ot)) -ge "$V6C_RECHECK" ]; then
+    if [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; then
+      _vs_want=$(v6c_detect | awk '{ printf "%s%s", (NR > 1 ? " " : ""), $0 }')
+      printf '%s\n%s\n%s\n' "$_vs_sig" "$_vs_now" "$_vs_want" > "$V6C_FILE" 2>/dev/null
+    fi
+    # Before boot_completed (post-fs-data: no system_server, and its 10 s
+    # budget) nothing is written, so the watchdog asks again next tick.
+  fi
+
+  # Chain content = exactly one ACCEPT per wanted interface.
+  _vs_exp=""
+  for _vs_e in $_vs_want; do _vs_exp="$_vs_exp${_vs_exp:+ }${_vs_e%%:*}"; done
+  _vs_have_in=$(printf '%s\n' "$S6F" | sed -n "s/^-A $V6C_IN -i \([^ ]*\) -j ACCEPT\$/\1/p" | sort | awk '{ printf "%s%s", (NR > 1 ? " " : ""), $0 }')
+  _vs_have_out=$(printf '%s\n' "$S6F" | sed -n "s/^-A $V6C_OUT -o \([^ ]*\) -j ACCEPT\$/\1/p" | sort | awk '{ printf "%s%s", (NR > 1 ? " " : ""), $0 }')
+  _vs_exp_s=$(for _vs_e in $_vs_exp; do echo "$_vs_e"; done | sort | awk '{ printf "%s%s", (NR > 1 ? " " : ""), $0 }')
+  if [ "$_vs_have_in" != "$_vs_exp_s" ] || [ "$_vs_have_out" != "$_vs_exp_s" ] || \
+     [ "$(sn_count "$S6F" "$V6C_IN")" != "$(sn_count "$S6F" "$V6C_OUT")" ]; then
+    ip6tables -F "$V6C_IN" 2>/dev/null
+    ip6tables -F "$V6C_OUT" 2>/dev/null
+    for _vs_e in $_vs_exp; do
+      ip6tables -A "$V6C_IN"  -i "$_vs_e" -j ACCEPT 2>/dev/null
+      ip6tables -A "$V6C_OUT" -o "$_vs_e" -j ACCEPT 2>/dev/null
+      # IPV6_PER_IFACE_ENFORCE (or an older version) may have switched
+      # IPv6 off on it before it was known as a carrier interface.
+      [ "$(_sysctl_r "/proc/sys/net/ipv6/conf/$_vs_e/disable_ipv6")" = "1" ] && \
+        echo 0 2>/dev/null > "/proc/sys/net/ipv6/conf/$_vs_e/disable_ipv6"
+    done
+    ipt_snap_stale
+    if [ -n "$_vs_want" ]; then
+      log_info "IPv4 only: carrier IPv6 allowed on $_vs_want"
+    elif [ -n "$_vs_have_in$_vs_have_out" ]; then
+      log_info "IPv4 only: no carrier service network any more, carrier IPv6 closed"
+    fi
+  fi
+  unset _vs_force _vs_fix _vs_c _vs_t _vs_p _vs_n _vs_sig _vs_now _vs_osig _vs_ot _vs_old _vs_want \
+        _vs_exp _vs_exp_s _vs_e _vs_have_in _vs_have_out
+  return 0
+}
+
+v6c_teardown() {
+  while ip6tables -D INPUT  -j "$V6ND"    2>/dev/null; do :; done
+  while ip6tables -D OUTPUT -j "$V6ND"    2>/dev/null; do :; done
+  ip6tables -F "$V6ND" 2>/dev/null; ip6tables -X "$V6ND" 2>/dev/null
+  while ip6tables -D INPUT  -j "$V6C_IN"  2>/dev/null; do :; done
+  while ip6tables -D OUTPUT -j "$V6C_OUT" 2>/dev/null; do :; done
+  ip6tables -F "$V6C_IN"  2>/dev/null; ip6tables -X "$V6C_IN"  2>/dev/null
+  ip6tables -F "$V6C_OUT" 2>/dev/null; ip6tables -X "$V6C_OUT" 2>/dev/null
+  rm -f "$V6C_FILE" 2>/dev/null
+  ipt_snap_stale
+}
+
+# r22: list files live in lists/, resolver lists in resolvers/. A toml from
+# before (an old copy edited on the sdcard, a restored backup) still names
+# them bare - point those keys at the new folders. Only a bare file name is
+# changed; a path the user wrote (with a /) is left alone. Returns 0 when
+# the file was changed.
+toml_fix_paths() {
+  [ -f "$CONFIG" ] || return 1
+  grep -qE "^[[:space:]]*((blocked|allowed)_(names|ips)_file|cache_file)[[:space:]]*=[[:space:]]*['\"][^/'\"]+['\"]" "$CONFIG" 2>/dev/null || return 1
+  sed -i -E \
+    -e "s#^([[:space:]]*(blocked|allowed)_(names|ips)_file[[:space:]]*=[[:space:]]*)(['\"])([^/'\"]+)(['\"])#\1\4lists/\5\6#" \
+    -e "s#^([[:space:]]*cache_file[[:space:]]*=[[:space:]]*)(['\"])([^/'\"]+)(['\"])#\1\2resolvers/\3\4#" \
+    "$CONFIG"
+  mirror_to_sd dnscrypt-proxy.toml
+  log_info "config: list paths pointed to lists/ and resolvers/ (r22 layout)"
+  return 0
 }
 
 # Make the two toml keys the IP mode owns say what the mode needs.
@@ -805,6 +1105,7 @@ toml_apply_ip_mode() { # <v6 listener 0|1> <block_ipv6 true|false>
 # loopback loses it.
 apply_ip_mode() {
   APPLY_RESTART=0
+  toml_fix_paths && APPLY_RESTART=1
   _v6nat=0
   have_ip6_nat && _v6nat=1
 
@@ -844,8 +1145,9 @@ apply_ip_mode() {
 }
 
 # ── Let Android see IPv6 again after IPv4-only mode ─────────────────────────
-# IPv4-only mode switches IPv6 off in the kernel, and the interfaces lose
-# their IPv6 addresses. Switched back on, the kernel gets them again from
+# IPv4-only mode before r22 switched IPv6 off in the kernel, and the
+# interfaces lost their IPv6 addresses (since r22 the DROP policy also
+# starves them of router advertisements). Switched back on, the kernel gets them again from
 # the router within seconds - but Android keeps the network's old picture
 # (IPv4 only) until the network reconnects, so apps and the browser never
 # try IPv6 ("IPv6 not detected"). This checks, and only if Android is

@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.1.18-r22
+
+VoLTE keeps working in IPv4 only, rules can be typed straight into My Rules, and every file of the module now lives in one folder.
+
+* **Fixed: no VoLTE and no mobile data during calls in IPv4 only.** Most carriers run VoLTE and Wi-Fi calling (IMS) on a separate mobile network that is IPv6 only. IPv4 only switched IPv6 off in the kernel, which took that network down: calls fell back to 2G and mobile data stopped for the whole call. Now IPv6 stays on in the kernel and the firewall (ip6tables DROP) blocks it everywhere except:
+  * the carrier's service networks - IMS, MMS, emergency calls - found through Android whatever the interface is called, and followed when Android moves them to another one. Apps cannot use these networks, so nothing leaks
+  * IPv6 Neighbor Discovery, which those networks need to get their address (it never leaves the local link and carries no app data)
+  * a new **Carrier IPv6 (VoLTE)** row in System → Firewall shows which interface is open. *Per-interface IPv6 off* leaves these interfaces alone too
+* **Note:** some ROMs (seen on HyperOS) show *"VoLTE service not available"* after every reboot, in every IP mode, because they check before IMS has registered. If the VoLTE icon appears a moment later, it is a false alarm - see Help → IP mode
+* **My Rules: add without opening files.** A field above *Allowed* and one above *Blocked by you* - type a domain and tap Allow or Block (or press Enter). A pasted link works (`https://hf.co/models` adds `hf.co`), and several domains can be added at once, separated by spaces or commas. ✕ still removes a rule
+* **One folder for everything.** The module used to spread its files over `/data/adb` (`dnscrypt-proxy/`, `dnscrypt-proxy-state/`, `dnscrypt-proxy-android.conf`, `dnscrypt-proxy.log`, `dnscrypt-action.log`, `dnscrypt-prev-private-dns`). Now there is only `/data/adb/dnscrypt-proxy/`:
+  * `dnscrypt-proxy.toml` and `settings.conf` at the top
+  * `lists/` (your custom, allow and IP lists, the built blocklist, the download cache), `resolvers/`, `logs/`, `state/`, `backup/`
+  * the update moves everything by itself at the first boot, and keeps anything you change between flashing and rebooting. Settings, lists, resolvers and the log carry over
+  * an old `dnscrypt-proxy.toml` copied back from the sdcard is pointed at the new folders automatically
+  * the sdcard mirror `/storage/emulated/0/dnscrypt-proxy/` is unchanged
+* **Companion modules:** ipset-arm64 reads `dnscrypt-proxy.toml`, which stays where it was. WG Shield 1.0-r2 reads the new places; with WG Shield 1.0-r1 only its DNSCrypt row shows *unknown*
+* System → VPN says *IPv6 is off on this phone (IP mode)* in IPv4 only, whatever a WG Shield tunnel reports
+* Command-line examples in Help and README now use the full form `su -c '/system/bin/sh …/ctl.sh …'`
+
+---
 ## 2.1.18-r21
 
 **dnscrypt-proxy binary updated** to the latest upstream build (reports 2.1.19, commit [`7019609`](https://github.com/DNSCrypt/dnscrypt-proxy/commit/701960906026982144ad89ccdd665b61da29464d)):

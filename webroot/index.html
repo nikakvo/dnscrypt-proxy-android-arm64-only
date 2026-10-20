@@ -241,6 +241,8 @@
     .btn-s.b { border-color: rgba(0,170,255,0.45); color: var(--blue); }
     .btn-s.a { border-color: rgba(255,170,0,0.45); color: var(--amber); }
     .btn-s:disabled, .inrow button:disabled { opacity: 0.4; }
+    .rule-add { margin: 6px 0 8px; }
+    .inrow button.r { border-color: rgba(255,68,102,0.4); color: var(--red); }
     .btn-s.busy { animation: btnPulse 1s ease-in-out infinite; }
     .btn-row2 { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
     #chk-out { margin-top: 10px; }
@@ -529,10 +531,18 @@
 
     <div class="section">
       <div class="section-title"><span class="s-accent" style="background:var(--amber)"></span>My Rules</div>
-      <div class="note" style="margin-top:0">Allow wins over every blocklist. Block adds to <b>custom-blocked-names.txt</b>, which is kept through every update. Both take effect immediately.</div>
+      <div class="note" style="margin-top:0">Allow wins over every blocklist. Block adds to <b>custom-blocked-names.txt</b>, which is kept through every update. Type a domain (or paste a link) and tap Allow or Block - both take effect immediately.</div>
       <div class="sub-h"><span>Allowed</span><span id="n-allow"></span></div>
+      <div class="inrow rule-add">
+        <input id="add-allow" type="text" placeholder="domain to allow, e.g. hf.co" autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter')addRules('allow')">
+        <button id="add-allow-btn" onclick="addRules('allow')">✓ Allow</button>
+      </div>
       <div class="rule-list" id="rl-allow"><div class="empty">Loading…</div></div>
       <div class="sub-h"><span>Blocked by you</span><span id="n-block"></span></div>
+      <div class="inrow rule-add">
+        <input id="add-block" type="text" placeholder="domain to block, e.g. ads.example.com" autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter')addRules('block')">
+        <button id="add-block-btn" class="r" onclick="addRules('block')">✕ Block</button>
+      </div>
       <div class="rule-list" id="rl-block"><div class="empty">Loading…</div></div>
     </div>
 
@@ -612,7 +622,7 @@
     <div class="section">
       <div class="section-title"><span class="s-accent" style="background:var(--muted)"></span>Settings</div>
       <div id="sys-set"><div class="empty">Loading…</div></div>
-      <div class="note">Applied immediately and kept in <b>/data/adb/dnscrypt-proxy-android.conf</b>, which survives updates.</div>
+      <div class="note">Applied immediately and kept in <b>/data/adb/dnscrypt-proxy/settings.conf</b>, which survives updates.</div>
     </div>
   </div>
 
@@ -1134,7 +1144,9 @@ function rowCtl(name, detail, ctrl) {
 // The tunnel this proxy's own (encrypted) queries leave through
 function vpnRow(s) {
   if (s.vpn_via === 'wg-shield') {
-    const v6 = s.wgs_ipv6 === 'tunnel' ? 'IPv4 + IPv6' : s.wgs_ipv6 === 'off' ? 'IPv4 — IPv6 is off on this phone (IP mode)' : 'IPv4 — this tunnel has no IPv6';
+    // IPv4 only blocks IPv6 in the firewall (r22) - whatever WG Shield reports
+    const ipv4Mode = (s.ip_mode_effective || s.ip_mode) === 'ipv4';
+    const v6 = ipv4Mode || s.wgs_ipv6 === 'off' ? 'IPv4 - IPv6 is off on this phone (IP mode)' : s.wgs_ipv6 === 'tunnel' ? 'IPv4 + IPv6' : 'IPv4 - this tunnel has no IPv6';
     return row('VPN', `Through WG Shield · <span style="color:#7dd3fc">${esc(s.wgs_tunnel)}</span> (${v6}) — the resolvers see the VPN's address`, 'ok', 'wg shield');
   }
   if (s.vpn_via === 'android') return row('VPN', 'an Android VPN (app) is connected — the resolvers see its address', 'ok', 'vpn');
@@ -1255,6 +1267,16 @@ function renderStatus(s) {
   f += !v6on
     ? row('IPv6 killswitch', `ip6tables OUTPUT policy: ${esc(s.ipv6_policy || '—')}`, s.ipv6_policy === 'DROP' ? 'ok' : 'bad', s.ipv6_policy === 'DROP' ? 'armed' : 'open')
     : row('IPv6 killswitch', 'IPv6 is allowed by the IP mode', 'skip', 'off');
+  if (!v6on) {
+    // r22: carrier service networks (IMS = VoLTE) keep IPv6 in IPv4 only
+    const vc = (s.v6_carrier || '').trim();
+    const vcList = vc ? vc.split(/\s+/).map(e => { const [i, k] = e.split(':'); return `${esc(i)} (${esc(k || '?')})`; }).join(', ') : '';
+    f += !onoff(s.rule_v6_carrier)
+      ? row('Carrier IPv6 (VoLTE)', 'exception for IMS / MMS networks not in place yet', 'warn', 'missing')
+      : vc
+        ? row('Carrier IPv6 (VoLTE)', `allowed on ${vcList} - Android keeps these networks for the system`, 'ok', 'open')
+        : row('Carrier IPv6 (VoLTE)', 'no IMS / MMS network up right now', 'skip', 'none');
+  }
   f += row('xt_owner match', 'needed for the leak guard', ownerOk ? 'ok' : 'warn', ownerOk ? 'present' : 'missing');
   {
     const r = s.hotspot_rules || 'off', p = HS_RULES[r] || ['skip', r];
@@ -1293,9 +1315,9 @@ function renderStatus(s) {
   let st2 = '';
   st2 += sw('QUIC_BLOCK', 'Block QUIC (UDP/443)', 'stops browsers using their own DNS-over-HTTPS; HTTP/3 falls back to TCP');
   st2 += sw('HEALTH_RESTART', 'Auto-restart when hung', 'restart dnscrypt-proxy if it stops answering (max 5 per 15 min)');
-  st2 += sw('IPV6_PER_IFACE_ENFORCE', 'Per-interface IPv6 off', 'IPv4 mode only: also force disable_ipv6 on every interface (can fight the modem)');
+  st2 += sw('IPV6_PER_IFACE_ENFORCE', 'Per-interface IPv6 off', 'IPv4 mode only: also force disable_ipv6 on every interface except the carrier\'s VoLTE / MMS ones (can fight the modem)');
   const kl = s.setting_LOG_KEEP_LINES || '1500';
-  st2 += rowCtl('Log size', 'lines kept in /data/adb/dnscrypt-proxy.log',
+  st2 += rowCtl('Log size', 'lines kept in /data/adb/dnscrypt-proxy/logs/dnscrypt-proxy.log',
     `<select class="log-sel" onchange="setSetting('LOG_KEEP_LINES', this.value)">${['500', '1500', '3000', '5000'].concat([kl]).filter((v, i, a) => a.indexOf(v) === i).map(v => `<option value="${v}" ${v === kl ? 'selected' : ''}>${v}</option>`).join('')}</select>`);
   $('sys-set').innerHTML = st2;
 
@@ -1318,7 +1340,7 @@ async function privateDnsOff() {
 // IP mode
 // ═════════════════════════════════════════════════════════════════════════
 const IPM_TEXT = {
-  ipv4:   '<b>IPv4 only.</b> IPv6 is switched off in the kernel and the firewall, and AAAA answers are blocked. Strongest leak protection — but no connection at all on an IPv6-only carrier.',
+  ipv4:   '<b>IPv4 only.</b> IPv6 is blocked by the firewall and AAAA answers are blocked. Only the carrier\'s own service networks (VoLTE / Wi-Fi calling, MMS) keep IPv6, so calls stay on 4G/5G. Strongest leak protection - but no connection at all on an IPv6-only carrier.',
   compat: '<b>IPv6 compatible.</b> IPv6 stays on so an IPv6-only (464XLAT) carrier can connect; IPv6 DNS is sent through the proxy too. AAAA answers stay blocked, so apps keep using IPv4.',
   dual:   '<b>Dual stack.</b> IPv6 fully on, IPv6 DNS through the proxy, AAAA answered — apps may connect over IPv6. Sites see your IPv6 address.'
 };
@@ -1518,6 +1540,46 @@ async function checkDomain() {
   } finally {
     $('chk-btn').disabled = false;
   }
+}
+
+// Text typed or pasted into an add field -> clean domain names. Takes a
+// full URL too (https://hf.co/models -> hf.co); several names may be
+// separated by spaces, commas or new lines.
+function parseDomains(text) {
+  return [...new Set(String(text).split(/[\s,;]+/).map(x => x.trim().toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')   // scheme
+    .replace(/[\/?#].*$/, '')                  // path, query, fragment
+    .replace(/^[^@]*@/, '')                    // user@
+    .replace(/:\d+$/, '')                      // port
+    .replace(/^\*?\./, '')                      // *.name / .name
+    .replace(/\.$/, ''))
+    .filter(Boolean))];
+}
+
+async function addRules(what) {
+  const inp = $('add-' + what), btn = $('add-' + what + '-btn');
+  const names = parseDomains(inp.value);
+  if (!names.length) { toast('Type a domain first', 'err'); return; }
+  const bad = names.filter(n => !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(n));
+  if (bad.length) { toast(`Not a valid domain: ${bad.join(', ')}`, 'err'); return; }
+  btn.disabled = true;
+  let ok = 0;
+  const errs = [];
+  try {
+    for (const d of names) {
+      try {
+        const r = parseKV(await ctl(what + ' ' + shq(d), 90000));
+        if (r.ok === '1') {
+          ok++;
+          if (r.warning) errs.push(r.warning);
+        } else errs.push(`${d}: ${r.error || 'failed'}`);
+      } catch (e) { errs.push(`${d}: ${e.message}`); }
+    }
+  } finally { btn.disabled = false; }
+  if (errs.length) toast(errs.join(' · '), 'err');
+  else toast(`${ACT_TEXT[what]}: ${names.length === 1 ? names[0] : ok + ' domains'}`, 'ok');
+  if (ok) inp.value = '';
+  loadRules();
 }
 
 async function loadRules() {

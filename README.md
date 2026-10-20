@@ -1,6 +1,10 @@
 <p align="center">
+  <img src="dnscrypt-proxy.png" alt="DNSCrypt Proxy Arm64" width="640">
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.18--r20-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.18--r22-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -18,7 +22,7 @@ Encrypted DNS for the whole device. Every app's DNS goes through [dnscrypt-proxy
 - **Encrypted DNS for every app** — a transparent iptables redirect, nothing to configure per app
 - **No leak window** — DNS is locked down at boot before the network is up; a leak guard drops anything that escapes
 - **Blocklists** — OISD, HaGeZi, add-ons and your own URLs, merged and deduplicated; your custom list is always added on top
-- **Tools** — check why a domain is blocked and by which list, allow or block with one tap
+- **Tools** — check why a domain is blocked and by which list, allow or block with one tap, or type (or paste a link) straight into your allow and block lists
 - **Resolvers** — pick from 700+ public resolvers, see what each one declares (no-log, filtering, DNSSEC), test latency
 - **IPv4 / IPv6 modes** — strict IPv4, IPv6-compatible for IPv6-only carriers, or full dual stack — switchable live
 - **Hotspot clients** — devices on your hotspot get the same encrypted, filtered DNS, even with their own DNS server set; optional DoT block; connected devices shown live
@@ -112,11 +116,11 @@ ads.*              names starting with "ads."
 
 | Mode | IPv6 | IPv6 DNS | AAAA | For |
 |---|---|---|---|---|
-| **IPv4 only** (default) | off | — | blocked | strongest leak protection |
+| **IPv4 only** (default) | blocked (carrier VoLTE / MMS excepted) | - | blocked | strongest leak protection |
 | **IPv6 compatible** | on | via the proxy | blocked | IPv6-only carriers (464XLAT) |
 | **Dual stack** | on | via the proxy | answered | full IPv6 |
 
-Switch in **System → IP Mode**, applied immediately. The IPv6 modes need IPv6 NAT in the kernel (`CONFIG_IP6_NF_NAT`); without it they run *limited* — IPv6 DNS is dropped instead of redirected, with no leak.
+Switch in **System → IP Mode**, applied immediately. **IPv4 only** blocks IPv6 in the firewall, not in the kernel: the carrier's own service networks (VoLTE and Wi-Fi calling, MMS, emergency calls) are often IPv6-only, so they are found through Android and left open - calls stay on 4G/5G and mobile data keeps working during calls. Apps cannot use those networks, so nothing leaks. The IPv6 modes need IPv6 NAT in the kernel (`CONFIG_IP6_NF_NAT`); without it they run *limited* — IPv6 DNS is dropped instead of redirected, with no leak.
 
 ---
 
@@ -145,13 +149,22 @@ Change them in **Tools → Resolvers**. Protocol, logging, filtering and DNSSEC 
 
 | Path | Purpose |
 |---|---|
-| `/data/adb/dnscrypt-proxy/` | Everything the daemon reads — config, lists, cached downloads |
-| `/storage/emulated/0/dnscrypt-proxy/` | Editable copy — changes are picked up within a minute |
-| `/data/adb/dnscrypt-proxy-android.conf` | Module settings (all changeable in the WebUI) |
-| `/data/adb/dnscrypt-proxy.log` | Log |
+| `/data/adb/dnscrypt-proxy/` | Everything the module keeps, in one folder (below) |
+| `/storage/emulated/0/dnscrypt-proxy/` | Editable copy - changes are picked up within a minute |
 | `http://127.0.0.1:5555` | dnscrypt-proxy's own monitoring page |
 
-Settings, custom list, allow list, IP lists, chosen resolvers and cached blocklists are all kept across module updates. The config as it was before the last update is kept as `/data/adb/dnscrypt-proxy/dnscrypt-proxy.toml.before-update`.
+```
+/data/adb/dnscrypt-proxy/
+├── dnscrypt-proxy.toml   the daemon's config
+├── settings.conf         module settings (all changeable in the WebUI)
+├── lists/                your custom, allow and IP lists, the built blocklist, download cache
+├── resolvers/            the public resolver list
+├── logs/                 dnscrypt-proxy.log, action.log
+├── state/                runtime files, cleared at every boot
+└── backup/               the config as it was before the last update
+```
+
+Settings, custom list, allow list, IP lists, chosen resolvers and cached blocklists are all kept across module updates.
 
 ---
 
@@ -160,7 +173,7 @@ Settings, custom list, allow list, IP lists, chosen resolvers and cached blockli
 Everything the WebUI does is available from a root shell (e.g. Termux):
 
 ```sh
-su -c sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status
+su -c '/system/bin/sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status'
 ```
 
 | Command | |
@@ -187,7 +200,7 @@ On **dnsleaktest.com** → Extended test:
 
 - No entries from your ISP or carrier ✅
 - Cloudflare / Quad9 / Mullvad (or your chosen resolvers) ✅
-- No IPv6 address in IPv4-only mode ✅
+- No IPv6 address in IPv4-only mode ✅ (VoLTE keeps working - its network is not one apps can use)
 
 ---
 

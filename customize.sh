@@ -236,10 +236,19 @@ fi
 
 BINARY_PATH="$MODPATH/binary/dnscrypt-proxy-arm64"
 CONFIG_PATH="$MODPATH/config"
+# r22: one folder for everything (see sh/common.sh, "Paths").
 DATA_DIR="/data/adb/dnscrypt-proxy"
+LISTS_DIR="$DATA_DIR/lists"
+RESOLVERS_DIR="$DATA_DIR/resolvers"
+LOGS_DIR="$DATA_DIR/logs"
+BACKUP_DIR="$DATA_DIR/backup"
 SD_DIR="/storage/emulated/0/dnscrypt-proxy"
 CONFIG_FILE="$DATA_DIR/dnscrypt-proxy.toml"
-SYNC_FILES="dnscrypt-proxy.toml custom-blocked-names.txt allowed-names.txt allowed-ips.txt blocked-ips.txt"
+LIST_FILES="custom-blocked-names.txt allowed-names.txt allowed-ips.txt blocked-ips.txt"
+SYNC_FILES="dnscrypt-proxy.toml $LIST_FILES"
+data_path() { # sdcard mirror name -> file on /data
+  case "$1" in dnscrypt-proxy.toml) echo "$CONFIG_FILE" ;; *) echo "$LISTS_DIR/$1" ;; esac
+}
 
 # A running dnscrypt-proxy (this module, before the update) is left alone.
 # Stopping it opened DNS until the reboot: its watchdog tried to start it
@@ -261,8 +270,33 @@ ui_print "* Creating the binary path."
 mkdir -p "$MODPATH/system/bin"
 
 ui_print "* Creating the runtime path: $DATA_DIR"
-mkdir -p "$DATA_DIR" "$DATA_DIR/sources"
+mkdir -p "$DATA_DIR" "$LISTS_DIR" "$RESOLVERS_DIR" "$LOGS_DIR" "$BACKUP_DIR"
 mkdir -p "$SD_DIR"
+
+# -----------------------------------------------
+# r22: from r21 or older - files spread over /data/adb and flat in
+# $DATA_DIR. They are COPIED into the new layout here, never moved: the
+# old version keeps running until the reboot and still uses the old paths
+# (moving the blocklist away under the running daemon would empty it on
+# its next reload). The first boot of this version (post-fs-data,
+# layout_migrate) takes anything changed meanwhile and removes the old
+# copies. The download cache (sources/) is moved then too - it is big.
+# -----------------------------------------------
+_legacy=0
+for _f in $LIST_FILES blocked-names.txt custom-sources.txt .last_update .last_update_epoch \
+          .last_update_attempt .last_update_report; do
+  if [ -f "$DATA_DIR/$_f" ] && [ ! -f "$LISTS_DIR/$_f" ]; then
+    cp -p "$DATA_DIR/$_f" "$LISTS_DIR/$_f" 2>/dev/null && _legacy=1
+  fi
+done
+if [ -f /data/adb/dnscrypt-proxy-android.conf ] && [ ! -f "$DATA_DIR/settings.conf" ]; then
+  cp -p /data/adb/dnscrypt-proxy-android.conf "$DATA_DIR/settings.conf" 2>/dev/null && _legacy=1
+fi
+if [ -f /data/adb/dnscrypt-prev-private-dns ] && [ ! -f "$BACKUP_DIR/prev-private-dns" ]; then
+  cp -p /data/adb/dnscrypt-prev-private-dns "$BACKUP_DIR/prev-private-dns" 2>/dev/null
+fi
+[ "$_legacy" -eq 1 ] && ui_print "* New folder layout: everything now lives in $DATA_DIR (the old files are moved at the next boot)"
+unset _f _legacy
 
 if [ -f "$BINARY_PATH" ]; then
   ui_print "* Copying the binary file."
@@ -279,18 +313,18 @@ fi
 # -----------------------------------------------
 for OLD in "$SD_DIR" /sdcard/dnscrypt-proxy /data/media/0/dnscrypt-proxy; do
   [ -d "$OLD" ] || continue
-  if [ -f "$OLD/blocked-names.txt" ] && [ ! -f "$DATA_DIR/blocked-names.txt" ]; then
+  if [ -f "$OLD/blocked-names.txt" ] && [ ! -f "$LISTS_DIR/blocked-names.txt" ]; then
     ui_print "* Migrating blocked-names.txt from $OLD"
-    cp -f "$OLD/blocked-names.txt" "$DATA_DIR/blocked-names.txt" 2>/dev/null
+    cp -f "$OLD/blocked-names.txt" "$LISTS_DIR/blocked-names.txt" 2>/dev/null
   fi
   # The name was misspelled "gustum-blocked-names.txt" up to r8.
   if [ -f "$OLD/gustum-blocked-names.txt" ] && [ ! -f "$OLD/custom-blocked-names.txt" ]; then
     mv -f "$OLD/gustum-blocked-names.txt" "$OLD/custom-blocked-names.txt" 2>/dev/null
     ui_print "* Renamed gustum-blocked-names.txt -> custom-blocked-names.txt"
   fi
-  if [ -f "$OLD/custom-blocked-names.txt" ] && [ ! -f "$DATA_DIR/custom-blocked-names.txt" ]; then
+  if [ -f "$OLD/custom-blocked-names.txt" ] && [ ! -f "$LISTS_DIR/custom-blocked-names.txt" ]; then
     ui_print "* Migrating custom-blocked-names.txt from $OLD"
-    cp -f "$OLD/custom-blocked-names.txt" "$DATA_DIR/custom-blocked-names.txt" 2>/dev/null
+    cp -f "$OLD/custom-blocked-names.txt" "$LISTS_DIR/custom-blocked-names.txt" 2>/dev/null
   fi
 done
 
@@ -306,8 +340,8 @@ done
 # short-lived rollback copy.)
 BACKUP_NAME="dnscrypt-proxy.toml.before-update"
 if [ -f "$CONFIG_FILE" ]; then
-  ui_print "* Backing up existing config to: $BACKUP_NAME"
-  cp -f "$CONFIG_FILE" "$DATA_DIR/$BACKUP_NAME" 2>/dev/null
+  ui_print "* Backing up existing config to: backup/$BACKUP_NAME"
+  cp -f "$CONFIG_FILE" "$BACKUP_DIR/$BACKUP_NAME" 2>/dev/null
 fi
 _old=0
 for _b in "$DATA_DIR"/dnscrypt-proxy.toml-*.bak; do
@@ -317,44 +351,27 @@ done
 [ "$_old" -gt 0 ] && ui_print "* Removed $_old dated config backup(s) from older versions"
 unset _b _old
 
-# Stash the user's real lists so the template copy cannot flatten them
-[ -f "$DATA_DIR/blocked-names.txt" ] && \
-  mv -f "$DATA_DIR/blocked-names.txt" "$DATA_DIR/.blocked-names.preserve" 2>/dev/null
-[ -f "$DATA_DIR/custom-blocked-names.txt" ] && \
-  mv -f "$DATA_DIR/custom-blocked-names.txt" "$DATA_DIR/.custom-blocked-names.preserve" 2>/dev/null
-# Your allow list (WebUI -> Allow) is user data too, and so are the two IP
-# lists: they are mirrored to the sdcard for editing, and up to r12 every
-# update replaced them with the empty templates.
-for _keep in allowed-names.txt allowed-ips.txt blocked-ips.txt; do
-  [ -f "$DATA_DIR/$_keep" ] && \
-    mv -f "$DATA_DIR/$_keep" "$DATA_DIR/.$_keep.preserve" 2>/dev/null
-done
-
+# Refresh what the module owns; the user's lists (custom, allow, the two IP
+# lists - mirrored to the sdcard for editing) and the built blocklist are
+# only created from the templates when they do not exist yet. Up to r12
+# every update replaced them with the empty templates.
 if [ -d "$CONFIG_PATH" ]; then
   ui_print "* Installing configuration into $DATA_DIR"
-  for f in "$CONFIG_PATH"/*; do
-    [ -f "$f" ] || continue
-    cp -f "$f" "$DATA_DIR/" 2>/dev/null
+  [ -f "$CONFIG_PATH/dnscrypt-proxy.toml" ] || abort "Configuration file (.toml) is missing!"
+  cp -f "$CONFIG_PATH/dnscrypt-proxy.toml" "$CONFIG_FILE" 2>/dev/null
+  for f in public-resolvers.md public-resolvers.md.minisig relays.md relays.md.minisig; do
+    [ -f "$CONFIG_PATH/$f" ] && cp -f "$CONFIG_PATH/$f" "$RESOLVERS_DIR/$f" 2>/dev/null
+  done
+  for f in $LIST_FILES blocked-names.txt; do
+    if [ -f "$LISTS_DIR/$f" ]; then
+      ui_print "* Kept your existing $f"
+    elif [ -f "$CONFIG_PATH/$f" ]; then
+      cp -f "$CONFIG_PATH/$f" "$LISTS_DIR/$f" 2>/dev/null
+    fi
   done
 else
   abort "Configuration file (.toml) is missing!"
 fi
-
-if [ -f "$DATA_DIR/.blocked-names.preserve" ]; then
-  mv -f "$DATA_DIR/.blocked-names.preserve" "$DATA_DIR/blocked-names.txt"
-  ui_print "* Restored your existing blocked-names.txt"
-fi
-if [ -f "$DATA_DIR/.custom-blocked-names.preserve" ]; then
-  mv -f "$DATA_DIR/.custom-blocked-names.preserve" "$DATA_DIR/custom-blocked-names.txt"
-  ui_print "* Restored your existing custom-blocked-names.txt"
-fi
-for _keep in allowed-names.txt allowed-ips.txt blocked-ips.txt; do
-  if [ -f "$DATA_DIR/.$_keep.preserve" ]; then
-    mv -f "$DATA_DIR/.$_keep.preserve" "$DATA_DIR/$_keep"
-    ui_print "* Restored your existing $_keep"
-  fi
-done
-unset _keep
 rm -f "$DATA_DIR/gustum-blocked-names.txt" 2>/dev/null
 
 # -----------------------------------------------
@@ -374,13 +391,13 @@ toml_names() { # <toml> -> names, one per line
        END{while(match(s,/\047[^\047]+\047/)){print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH)}}' "$1"
 }
 md_stamp() { # <name>
-  awk -v n="## $1" '$0==n{f=1;next} f&&/^## /{exit} f&&/^sdns:\/\//{print;exit}' "$DATA_DIR/public-resolvers.md"
+  awk -v n="## $1" '$0==n{f=1;next} f&&/^## /{exit} f&&/^sdns:\/\//{print;exit}' "$RESOLVERS_DIR/public-resolvers.md"
 }
 old_stamp() { # <toml> <name>
   awk -v n="[static.'$2']" '$0==n{f=1;next} f&&/^stamp/{sub(/^stamp[ \t]*=[ \t]*\047/,""); sub(/\047.*$/,""); print; exit} f&&/^\[/{exit}' "$1"
 }
 
-OLD_TOML="$DATA_DIR/$BACKUP_NAME"
+OLD_TOML="$BACKUP_DIR/$BACKUP_NAME"
 if [ -n "$BACKUP_NAME" ] && [ -f "$OLD_TOML" ]; then
   OLD_LIST=$(toml_names "$OLD_TOML" | tr '\n' ' ')
   NEW_LIST=$(toml_names "$CONFIG_FILE" | tr '\n' ' ')
@@ -425,12 +442,14 @@ fi
 # -----------------------------------------------
 ui_print "* Mirroring editable files to $SD_DIR"
 for f in $SYNC_FILES; do
-  [ -f "$DATA_DIR/$f" ] && cp -f "$DATA_DIR/$f" "$SD_DIR/$f" 2>/dev/null
+  _dp=$(data_path "$f")
+  [ -f "$_dp" ] && cp -f "$_dp" "$SD_DIR/$f" 2>/dev/null
 done
+unset _dp
 # Make the /data copies unambiguously the newest, so the first sync pass
 # after boot does not mistake the mirror for a user edit and restart the
 # daemon for nothing.
-find "$DATA_DIR" -maxdepth 1 -type f -exec touch {} \; 2>/dev/null
+find "$DATA_DIR" "$LISTS_DIR" -maxdepth 1 -type f -exec touch {} \; 2>/dev/null
 
 cat > "$SD_DIR/READ-ME-FIRST.txt" << 'SDEOF'
 This folder is a MIRROR for editing.
@@ -449,8 +468,8 @@ off it meant racing the storage stack on every boot - and when the
 race was lost, the DNS redirect was already installed with nothing
 listening behind it. That is what caused "no internet until I reflash".
 
-blocked-names.txt is not mirrored here - it is 7.6 MB and generated by
-the Update Blocklist button. Look for it in /data/adb/dnscrypt-proxy/.
+blocked-names.txt is not mirrored here - it is several MB and generated
+by the Update Blocklist button. Look for it in /data/adb/dnscrypt-proxy/lists/.
 SDEOF
 
 # -----------------------------------------------
@@ -526,7 +545,7 @@ fi
 # -----------------------------------------------
 # Settings file, created once and never overwritten.
 # -----------------------------------------------
-CONF="/data/adb/dnscrypt-proxy-android.conf"
+CONF="$DATA_DIR/settings.conf"
 # No settings file = this module was never installed here (it is created
 # below, and uninstall removes it). Used for the Private DNS record.
 FIRST_INSTALL=0
@@ -558,7 +577,7 @@ IP_MODE=ipv4
 # 1 = yes, fight it anyway.
 IPV6_PER_IFACE_ENFORCE=0
 
-# How many lines of /data/adb/dnscrypt-proxy.log to keep. Rotation kicks
+# How many lines of logs/dnscrypt-proxy.log to keep. Rotation kicks
 # in at twice this number. Default 1500, roughly half a day and about
 # 350 KB: dnscrypt-proxy logs a two-line "Network change detected" pair
 # about once a minute on devices whose modem keeps recreating its rmnet
@@ -632,7 +651,7 @@ ADD2EOF
   if ! grep -q '^LOG_KEEP_LINES=' "$CONF" 2>/dev/null; then
     cat >> "$CONF" << 'ADD3EOF'
 
-# How many lines of /data/adb/dnscrypt-proxy.log to keep. Rotation kicks
+# How many lines of logs/dnscrypt-proxy.log to keep. Rotation kicks
 # in at twice this number. Default 1500, roughly half a day.
 LOG_KEEP_LINES=1500
 ADD3EOF
@@ -686,7 +705,7 @@ ui_print "* Disabling Android 9+ Private DNS mode."
 # switched Private DNS on for someone who had it off. On an update the
 # current value is the module's own "off", so it is not recorded then; a
 # record from the first install is kept as it is.
-PREV_PDNS_FILE=/data/adb/dnscrypt-prev-private-dns
+PREV_PDNS_FILE="$BACKUP_DIR/prev-private-dns"
 if [ "$FIRST_INSTALL" -eq 1 ] && [ ! -f "$PREV_PDNS_FILE" ]; then
   PREV_PDNS=$(settings get global private_dns_mode 2>/dev/null)
   # "null" = never set: the Android default, which is opportunistic.
@@ -703,7 +722,7 @@ rm -rf "$MODPATH/binary"
 
 ui_print " "
 ui_print "* Done! DNSCrypt Proxy installed cleanly."
-ui_print "* Config now lives in /data/adb/dnscrypt-proxy"
+ui_print "* Everything now lives in /data/adb/dnscrypt-proxy"
 ui_print "* Edit via /storage/emulated/0/dnscrypt-proxy"
 ui_print "* Reboot your device to activate."
 ui_print " "
