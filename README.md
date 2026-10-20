@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="dnscrypt-proxy.png" alt="DNSCrypt Proxy Arm64" width="640">
-</p>
+<p align="center"><img src="dnscrypt-proxy.png" alt="DNSCrypt Proxy Arm64" width="640"></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
