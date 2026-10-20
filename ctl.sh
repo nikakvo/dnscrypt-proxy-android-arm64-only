@@ -4,7 +4,7 @@
 # Everything the WebUI does goes through here, and every command can be
 # run by hand from a root shell:
 #
-#   su -c sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status
+#   su -c '/system/bin/sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status'
 #
 # Output is key=value, one per line, so it parses the same in the WebUI,
 # in a script and by eye. Exit code 0 = ok, 1 = failed, 2 = usage error.
