@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.18--r23-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.19-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -248,7 +248,7 @@ Remove the module in your root manager and reboot. All firewall rules are remove
 
 ## Notes
 
-- dnscrypt-proxy binary: built from upstream `main` (reports 2.1.19)
+- dnscrypt-proxy binary: official [2.1.19](https://github.com/DNSCrypt/dnscrypt-proxy/releases/tag/2.1.19) release (android_arm64)
 - Built and tested on a Poco F6 Pro with a [GKI_Kernel_SukiSU](https://github.com/nikakvo/GKI_Kernel_SukiSU) kernel, SukiSU Ultra and [Xiaomi.eu](https://xiaomi.eu/community/)
 - Blocklists by [OISD](https://oisd.nl) and [HaGeZi](https://github.com/hagezi/dns-blocklists) · proxy by [DNSCrypt](https://github.com/DNSCrypt/dnscrypt-proxy)
 

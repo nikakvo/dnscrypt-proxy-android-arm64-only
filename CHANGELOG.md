@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.19
+
+**dnscrypt-proxy updated to the official [2.1.19](https://github.com/DNSCrypt/dnscrypt-proxy/releases/tag/2.1.19) release** (the module had an upstream `main` build until now):
+
+* **PQDNSCrypt (post-quantum DNSCrypt):** resumed queries now get normal UDP padding, which hides their size better. Oversized tickets are rejected, and oversized queries fall back to TCP
+* Network changes (Wi-Fi to mobile data and back) are detected more reliably, so the PQDNSCrypt keys rotate whenever the connection changes
+* Domain rules in the blocklist, your custom list and the allow list now always match at a dot: `example.com` covers `example.com` and `ads.example.com`, never `badexample.com`. IP allow/block rules now handle IPv4-mapped IPv6 addresses correctly
+* The **Monitor** dashboard (`127.0.0.1:5555`) shows the running version. Other websites open in your browser can no longer read its data. The WebUI reads it directly, so nothing changes there
+* `dnscrypt-proxy.toml` is unchanged: 2.1.19 adds no new settings, so your settings and lists carry over as they are
+
+* **Note:** some ROMs (seen on HyperOS) show "VoLTE service not available" after every reboot, in every IP mode. If the VoLTE icon appears a moment later, it is a false alarm and VoLTE works
+
+---
+
 ## 2.1.18-r23
 
 Small update for the networking set.
