@@ -39,7 +39,7 @@ rm -f "$STATE_DIR/ipv6_killswitch_lifted" \
 # A lock or a half-finished build from before the reboot is meaningless now,
 # and the pid inside the lock may already belong to something else.
 rm -rf "$STATE_DIR/blocklist.lock" "$LISTS_DIR/sources/.work" \
-       "$STATE_DIR/hotspot.lock" 2>/dev/null
+       "$STATE_DIR/hotspot.lock" "$STATE_DIR/v6c.lock" 2>/dev/null
 
 # -----------------------------------------------
 # DNS rules. Flush first so a reload never stacks duplicates and rules

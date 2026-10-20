@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.18-r23
+
+Small update for the networking set.
+
+* **System → VPN** finds WG Shield 1.0-r4, which keeps its status file in its own folder now (`/data/adb/wg-shield/state/`); older WG Shield versions still work
+* **Fixed:** switching the IP mode to IPv4 only from the WebUI could, for a few seconds, leave the carrier's VoLTE network without its IPv6 exception - the WebUI and the watchdog rebuilt it at the same moment. They now take turns
+* **Fixed: System → Network said "no interface up (airplane mode?)" on mobile data.** Mobile data interfaces (`rmnet_*`) report their state as "unknown", never "up", so only Wi-Fi counted. It now asks Android for its default network, and shows which one (*connected (rmnet_data3)*)
+* Nothing changed in how DNS is handled
+
+---
+
 ## 2.1.18-r22
 
 VoLTE keeps working in IPv4 only, rules can be typed straight into My Rules, and every file of the module now lives in one folder.

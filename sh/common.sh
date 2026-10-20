@@ -615,7 +615,15 @@ is_listening() {
   return 1
 }
 
+# A network is up. First Android's own answer: its default network (the
+# "fwmark 0x0/0xffff iif lo lookup X" rule, see net_default_iface). Mobile
+# data (rmnet_*, ccmni*) and tunnels report operstate "unknown", never "up",
+# so the operstate test alone said "no interface up" on mobile data with
+# Wi-Fi off (r23). It stays as the fallback for when the rule is not there.
 has_live_interface() {
+  _dn=$(net_default_iface)
+  if [ -n "$_dn" ] && [ -d "/sys/class/net/$_dn" ]; then unset _dn; return 0; fi
+  unset _dn
   for _if in /sys/class/net/*; do
     [ "${_if##*/}" = "lo" ] && continue
     if [ "$(cat "$_if/operstate" 2>/dev/null)" = "up" ]; then unset _if; return 0; fi
@@ -957,7 +965,39 @@ v6c_list() {
 # current carrier networks. Every watchdog tick in IPv4-only mode, and from
 # ip6_stack_off with "force". Calls dumpsys only when the ip rule signature
 # changed, after V6C_RECHECK seconds, on force, or when the chains are off.
+# The watchdog and ctl.sh (an IP-mode switch from the WebUI) can both run
+# this at the same moment: one flushed the chains while the other filled
+# them, and the carrier ACCEPT could be missing until the next tick (seen in
+# the harness). A short mkdir lock serialises them; the snapshot is read
+# fresh inside it.
+V6C_LOCK="$STATE_DIR/v6c.lock"
+_v6c_lock() {
+  _vl=0
+  while ! mkdir "$V6C_LOCK" 2>/dev/null; do
+    _vp=""; read -r _vp 2>/dev/null < "$V6C_LOCK/pid"
+    # holder gone (killed, crashed): take it over at once
+    if [ -n "$_vp" ] && ! kill -0 "$_vp" 2>/dev/null; then rm -rf "$V6C_LOCK"; continue; fi
+    _vl=$((_vl + 1))
+    if [ "$_vl" -ge 50 ]; then   # ~5 s: holder hung - take it over
+      rm -rf "$V6C_LOCK"; mkdir "$V6C_LOCK" 2>/dev/null; break
+    fi
+    sleep 0.1 2>/dev/null || sleep 1
+  done
+  echo "$$" > "$V6C_LOCK/pid" 2>/dev/null
+  unset _vl _vp
+}
+_v6c_unlock() { rm -rf "$V6C_LOCK" 2>/dev/null; }
+
 v6c_sync() {
+  _v6c_lock
+  ipt_snap_stale
+  _v6c_sync "$@"
+  _vs_rc=$?
+  _v6c_unlock
+  return $_vs_rc
+}
+
+_v6c_sync() {
   _vs_force=${1:-}
   ipt_snap
   [ "$S6OK" = 1 ] || return 0
@@ -1043,6 +1083,7 @@ v6c_sync() {
 }
 
 v6c_teardown() {
+  _v6c_lock
   while ip6tables -D INPUT  -j "$V6ND"    2>/dev/null; do :; done
   while ip6tables -D OUTPUT -j "$V6ND"    2>/dev/null; do :; done
   ip6tables -F "$V6ND" 2>/dev/null; ip6tables -X "$V6ND" 2>/dev/null
@@ -1052,6 +1093,7 @@ v6c_teardown() {
   ip6tables -F "$V6C_OUT" 2>/dev/null; ip6tables -X "$V6C_OUT" 2>/dev/null
   rm -f "$V6C_FILE" 2>/dev/null
   ipt_snap_stale
+  _v6c_unlock
 }
 
 # r22: list files live in lists/, resolver lists in resolvers/. A toml from
@@ -1218,7 +1260,7 @@ net_refresh_for_ipv6() {
 # rule ("31000: from all fwmark 0x0/0xffff iif lo lookup <iface>"). Hotspot,
 # VPN and IMS interfaces also have addresses and must not count (r17).
 net_default_iface() {
-  ip rule 2>/dev/null | awk '/fwmark 0x0\/0xffff iif lo lookup/ { print $NF; exit }'
+  ip rule 2>/dev/null | awk '/fwmark 0(x0)?\/0xffff iif lo lookup/ { print $NF; exit }'
 }
 net_has_ipv4() {
   _ni=$(net_default_iface)
@@ -1245,13 +1287,20 @@ vpn_has_ipv6() {
 # VPN there, so its tunnel is read from the status file it publishes
 # (key=value: state, tunnel, ipv6 = tunnel | blocked | off, ...).
 WGS_MODDIR="${DNSC_WGS_MODDIR:-/data/adb/modules/wg-shield}"
-WGS_STATUS="${DNSC_WGS_STATUS:-/data/adb/wg-shield-state/status}"
+# WG Shield 1.0-r4+ keeps its status in /data/adb/wg-shield/state/, older
+# versions in /data/adb/wg-shield-state/ - chosen on every read.
+WGS_STATUS="${DNSC_WGS_STATUS:-/data/adb/wg-shield/state/status}"
+WGS_STATUS_OLD="${DNSC_WGS_STATUS_OLD:-/data/adb/wg-shield-state/status}"
 wgs_installed() { # -> absent | disabled | enabled
   if [ ! -f "$WGS_MODDIR/module.prop" ]; then echo absent
   elif [ -f "$WGS_MODDIR/disable" ] || [ -f "$WGS_MODDIR/remove" ]; then echo disabled
   else echo enabled; fi
 }
-wgs_get() { sed -n "s/^$1=//p" "$WGS_STATUS" 2>/dev/null | head -n 1; }
+wgs_get() {
+  if [ -f "$WGS_STATUS" ]; then _wf=$WGS_STATUS; else _wf=$WGS_STATUS_OLD; fi
+  sed -n "s/^$1=//p" "$_wf" 2>/dev/null | head -n 1
+  unset _wf
+}
 net_has_clat() {
   for _c in /sys/class/net/v4-*; do
     [ -e "$_c" ] && { unset _c; return 0; }

@@ -1301,7 +1301,7 @@ function renderStatus(s) {
     : rowCtl('Android Private DNS', `<span class="c-a">${esc(pdns)} — Android may send DNS around the proxy</span>`,
         `<button class="btn-s r" id="pdns-off" onclick="privateDnsOff()">Turn off</button>`);
   y += vpnRow(s);
-  y += row('Network', onoff(s.live_interface) ? 'an interface is up' : 'no interface up (airplane mode?)',
+  y += row('Network', onoff(s.live_interface) ? (s.net_iface ? `connected (${esc(s.net_iface)})` : 'an interface is up') : 'no interface up (airplane mode?)',
     onoff(s.live_interface) ? 'ok' : 'skip', onoff(s.live_interface) ? 'up' : 'down');
   y += row('Busybox', esc(s.busybox || 'none'), s.busybox && s.busybox !== 'none' ? 'ok' : 'warn', s.busybox && s.busybox !== 'none' ? 'found' : 'missing');
   y += row('Blocklist', `${num(s.blocklist_domains || s.blocklist_lines).toLocaleString()} domains · updated ${esc(s.blocklist_updated || '—')}`, 'skip', 'info');
