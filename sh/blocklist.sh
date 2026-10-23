@@ -113,15 +113,20 @@ bl_selected() { # prints the selected ids that exist, one per line
 # ("||name^"). Strips comments, inline comments, CR line endings and blanks.
 # allow_tld=0 drops single-label plain names ("zip", "top"): from a
 # downloaded list that would block a whole TLD. The custom list may.
-bl_normalize() { # <allow_tld 0|1>
-  awk -v allow_tld="$1" '
+# [reject_file] (2.1.20): lines that are not a rule dnscrypt-proxy can use
+# (two words, regex:, characters a rule cannot have) are written there as
+# found, instead of disappearing without a trace.
+bl_normalize() { # <allow_tld 0|1> [reject_file]
+  awk -v allow_tld="$1" -v rej="$2" '
     {
       sub(/\r$/, "")
       sub(/[ \t]*#.*$/, "")
       gsub(/^[ \t]+|[ \t]+$/, "")
       if ($0 == "") next
+      o = $0
       if (NF >= 2) {
-        if ($1 == "0.0.0.0" || $1 == "127.0.0.1" || $1 == "::" || $1 == "::1") { $0 = $2 } else next
+        if ($1 == "0.0.0.0" || $1 == "127.0.0.1" || $1 == "::" || $1 == "::1") { $0 = $2 }
+        else { if (rej != "") print o > rej; next }
       }
       if (substr($0, 1, 2) == "||" && substr($0, length($0), 1) == "^") { $0 = substr($0, 3, length($0) - 3) }
       $0 = tolower($0)
@@ -139,6 +144,7 @@ bl_normalize() { # <allow_tld 0|1>
         gsub(/[a-z0-9_.*=?-]/, "", t)
         gsub(/[][]/, "", t)
         if (t == "" && index($0, ".") + index($0, "*") > 0) print $0
+        else if (rej != "") print o > rej
       }
     }'
 }
@@ -233,9 +239,15 @@ bl_build() {
   _raw=$(wc -l < "$_w/all"); _raw=$((_raw + 0))
 
   _custom_n=0
+  _ignored=0
   if [ -f "$BL_CUSTOM" ]; then
-    bl_normalize 1 < "$BL_CUSTOM" > "$_w/custom"
+    : > "$_w/custom.rej"
+    bl_normalize 1 "$_w/custom.rej" < "$BL_CUSTOM" > "$_w/custom"
     _custom_n=$(LC_ALL=C sort -u "$_w/custom" | wc -l); _custom_n=$((_custom_n + 0))
+    _ignored=$(wc -l < "$_w/custom.rej"); _ignored=$((_ignored + 0))
+    if [ "$_ignored" -gt 0 ]; then
+      log_warn "custom-blocked-names.txt: $_ignored line(s) ignored, not a valid rule: $(awk 'NR <= 5 { printf "%s[%s]", (NR > 1 ? " " : ""), $0 }' "$_w/custom.rej")$([ "$_ignored" -gt 5 ] && echo ' ...')"
+    fi
   else
     : > "$_w/custom"
   fi
@@ -284,12 +296,13 @@ bl_build() {
 
   echo "  Source rules : $_raw"
   echo "  Custom rules : $_custom_n"
+  [ "$_ignored" -gt 0 ] && echo "  Ignored      : $_ignored invalid line(s) in custom-blocked-names.txt"
   echo "  Unique names : $_uniq"
   echo "  Redundant    : $((_uniq - _final_plain)) subdomains of blocked parents removed"
   echo "  Final        : $_final rules"
   BL_FINAL=$_final
   BL_USED=$(echo $_used)
-  unset _w _used _missing _id _raw _custom_n _uniq _final_plain _patterns _final
+  unset _w _used _missing _id _raw _custom_n _ignored _uniq _final_plain _patterns _final
   return 0
 }
 

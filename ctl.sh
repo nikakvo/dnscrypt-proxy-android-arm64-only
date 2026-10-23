@@ -660,6 +660,14 @@ cmd_rules_list() {
   fi
   if [ -f "$BL_CUSTOM" ]; then
     sed 's/\r$//; s/[ \t]*#.*$//; s/^[ \t]*//; s/[ \t]*$//' "$BL_CUSTOM" | grep -v '^$' | sed 's/^/block=/'
+    # Lines the blocklist build skips (same check as the build), so the
+    # WebUI can mark them instead of showing them as working rules.
+    _rj="$STATE_DIR/.rules.rej"
+    : > "$_rj" 2>/dev/null
+    bl_normalize 1 "$_rj" < "$BL_CUSTOM" > /dev/null 2>&1
+    sed 's/^/ignored=/' "$_rj" 2>/dev/null
+    rm -f "$_rj"
+    unset _rj
   fi
   echo "ok=1"
 }

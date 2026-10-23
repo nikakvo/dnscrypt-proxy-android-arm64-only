@@ -1585,23 +1585,29 @@ async function addRules(what) {
 async function loadRules() {
   try {
     const out = await ctl('rules-list', 15000);
-    const allow = [], block = [];
+    const allow = [], block = [], ignored = new Set();
     out.split('\n').forEach(l => {
       if (l.startsWith('allow=')) allow.push(l.slice(6));
       else if (l.startsWith('block=')) block.push(l.slice(6));
+      else if (l.startsWith('ignored=')) ignored.add(l.slice(8));
     });
     const plain = x => /^[a-z0-9._*-]+$/i.test(x) && !/^=|\*$/.test(x);
     const list = (arr, act) => arr.length
       ? arr.slice().reverse().map(x => {
           const name = x.replace(/^\*\./, '').replace(/^\./, '');
-          const del = plain(x) ? `<button onclick="ruleAction('${act}', '${esc(name)}')">✕</button>` : '<span class="pat">pattern</span>';
-          return `<div class="rule-row"><span title="${esc(x)}">${esc(x)}</span>${del}</div>`;
+          const bad = act === 'unblock' && ignored.has(x);
+          const del = bad ? '<span class="pat c-r">ignored</span>'
+            : plain(x) ? `<button onclick="ruleAction('${act}', '${esc(name)}')">✕</button>` : '<span class="pat">pattern</span>';
+          return `<div class="rule-row"><span title="${esc(x)}"${bad ? ' class="c-r"' : ''}>${esc(x)}</span>${del}</div>`;
         }).join('')
       : '<div class="empty">None.</div>';
+    const nIgn = block.filter(x => ignored.has(x)).length;
     $('rl-allow').innerHTML = list(allow, 'unallow');
-    $('rl-block').innerHTML = list(block, 'unblock');
+    $('rl-block').innerHTML = list(block, 'unblock') + (nIgn
+      ? `<div class="empty c-r">${nIgn} line${nIgn === 1 ? ' is' : 's are'} not a valid rule and ${nIgn === 1 ? 'is' : 'are'} skipped. Fix or remove ${nIgn === 1 ? 'it' : 'them'} in /sdcard/dnscrypt-proxy/custom-blocked-names.txt.</div>`
+      : '');
     $('n-allow').textContent = allow.length;
-    $('n-block').textContent = block.length;
+    $('n-block').textContent = nIgn ? `${block.length} (${nIgn} ignored)` : block.length;
   } catch (e) {
     $('rl-allow').innerHTML = `<div class="empty c-r">${esc(e.message)}</div>`;
   }

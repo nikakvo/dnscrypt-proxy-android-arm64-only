@@ -249,6 +249,7 @@
     <tr><td>ads[0-9].*.com</td><td>glob pattern</td></tr>
   </table></div>
   <p>Anything after <code>#</code> is a comment. The WebUI lists pattern rules but only removes plain names; edit patterns in the file.</p>
+  <p>A line that is not one of the rules above (two names on one line, characters a domain cannot have, or a <code>regex:</code> rule) is skipped when the blocklist is built, so one bad line can never break the whole list. The WebUI marks such lines <strong>ignored</strong> in red and the log names them; fix or remove them in the file. Regex rules are not supported by this module: dnscrypt-proxy rejects the whole list if a single regex is invalid.</p>
 </div>
 
 <!-- 7 -->
