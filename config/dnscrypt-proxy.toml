@@ -65,7 +65,7 @@ ipv4_servers = true
 # Use servers reachable over IPv6 -- Do not enable if you don't have IPv6 connectivity
 ipv6_servers = false
 
-# Use servers implementing the DNSCrypt protocol
+# Use servers implementing the DNSCrypt and PQDNSCrypt protocols
 dnscrypt_servers = true
 
 # Use servers implementing the DNS-over-HTTPS protocol
@@ -190,7 +190,7 @@ lb_strategy = 'wp2'
 
 ## Set to `true` to constantly try to estimate the latency of all the resolvers
 ## and adjust the load-balancing parameters accordingly, or to `false` to disable.
-## Default is `true` that makes 'p2' `lb_strategy` work well.
+## Default is `true`, which makes the `wp2` `lb_strategy` work well.
 
 # lb_estimator = true
 
@@ -244,7 +244,7 @@ lb_strategy = 'wp2'
 
 ## Automatic log files rotation
 
-# Maximum log files size in MB - Set to 0 for unlimited.
+# Maximum log files size in MB - 0 uses the logger's default size limit.
 log_files_max_size = 10
 
 # How long to keep backup files, in days
@@ -258,8 +258,8 @@ log_files_max_backups = 1
 #                           Certificate Management                             #
 ###############################################################################
 
-## The maximum concurrency to reload certificates from the resolvers.
-## Default is 10.
+## The maximum concurrency to refresh resolvers (DNSCrypt, DoH, and ODoH).
+## Default is 10. Reduce this on constrained devices such as small routers.
 
 # cert_refresh_concurrency = 10
 
@@ -276,7 +276,7 @@ cert_refresh_delay = 60
 # cert_ignore_timestamp = false
 
 
-## DNSCrypt: Create a new, unique key for every single DNS query
+## DNSCrypt: Create a new, unique X25519 key pair for every single DNS query
 ## This may improve privacy but can also have a significant impact on CPU usage
 ## Only enable if you don't have a lot of network load
 
@@ -296,12 +296,20 @@ pqdnscrypt = true
 # tls_disable_session_tickets = false
 
 
-## DoH: Use TLS 1.2 and specific cipher suite instead of the server preference
-## 49199 = TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-## 49195 = TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
-## 52392 = TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
-## 52393 = TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+## DoH: Check the certificate hashes of server stamps on every new connection,
+## not only at startup and when certificates are reloaded.
 ##
+## This improves security, but also increases the risks of downtime if you
+## don't use DNSCrypt servers in addition to DoH servers.
+##
+## MODULE NOTE (2.1.20): left at the upstream default (off). The pinned
+## Cloudflare stamp carries no certificate hash, so it would change nothing
+## there, and a DoH server rotating its certificate would fail on the next
+## connection instead of at the next certificate refresh.
+
+# doh_check_cert_hashes_on_connect = false
+
+
 ## Prefer RSA certificates over ECDSA for TLS connections.
 ## When this is enabled, some servers may become impossible to use,
 ## or may stop working later as they upgrade their configuration.
@@ -367,7 +375,7 @@ bootstrap_resolvers = ['9.9.9.9:53', '149.112.112.112:53', '45.11.45.11:53']
 ##   to the system DNS
 ##
 ## (*) this is incompatible with systemd sockets.
-## `listen_addrs` must not be empty.
+## `listen_addresses` must not be empty.
 
 ignore_system_dns = true
 
@@ -502,7 +510,7 @@ cache_size = 8192
 
 ## Minimum TTL for cached entries
 
-## Lowered from 3600 to 600 — 1h minimum TTL on mobile causes stale
+## Lowered from 3600 to 600 - 1h minimum TTL on mobile causes stale
 ## cached responses after network/IP changes (WiFi <-> mobile data).
 cache_min_ttl = 600
 
@@ -553,7 +561,7 @@ cache_neg_max_ttl = 600
 ## Path of the DoH URL. This is not a file, but the part after the hostname
 ## in the URL. By convention, `/dns-query` is frequently chosen.
 ## For each `listen_address` the complete URL to access the server will be:
-## `https://<listen_address><path>` (ex: `https://127.0.0.1/dns-query`)
+## `https://<listen_address><path>` (ex: `https://127.0.0.1:3000/dns-query`)
 
 # path = '/dns-query'
 
@@ -782,7 +790,7 @@ allowed_ips_file = 'lists/allowed-ips.txt'
 ## Refer to the documentation for URLs of public sources.
 ##
 ## A prefix can be prepended to server names in order to
-## avoid collisions if different sources share the same for
+## avoid collisions if different sources share the same names for
 ## different servers. In that case, names listed in `server_names`
 ## must include the prefixes.
 ##
