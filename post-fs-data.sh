@@ -35,7 +35,8 @@ rm -f "$STATE_DIR/ipv6_killswitch_lifted" \
       "$STATE_DIR/probe_queries" "$STATE_DIR/ip_mode_applied" "$STATE_DIR/v6_carrier" \
       "$STATE_DIR/ip6_nat" "$STATE_DIR/paused_until" \
       "$STATE_DIR/update.pending" "$STATE_DIR/watchdog.wake" \
-      "$STATE_DIR/hotspot_applied" "$STATE_DIR/ipt_wait" "$STATE_DIR/owner_match_ok"
+      "$STATE_DIR/hotspot_applied" "$STATE_DIR/ipt_wait" "$STATE_DIR/owner_match_ok" \
+      "$STATE_DIR/captive" "$STATE_DIR/captive_rules" "$STATE_DIR/captive_uids"
 # A lock or a half-finished build from before the reboot is meaningless now,
 # and the pid inside the lock may already belong to something else.
 rm -rf "$STATE_DIR/blocklist.lock" "$LISTS_DIR/sources/.work" \

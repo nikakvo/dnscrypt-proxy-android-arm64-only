@@ -93,6 +93,11 @@ cmd_status() {
   # IPv4 only (r22): carrier service networks that keep IPv6 (IMS = VoLTE)
   echo "v6_carrier=$(v6c_list)"
   echo "rule_v6_carrier=$([ "$(sn_jumps "$S6F" OUTPUT "$V6C_OUT")" -ge 1 ] 2>/dev/null && echo 1 || echo 0)"
+  # Wi-Fi login (2.1.20-r1): networks Android has not validated yet, whose
+  # own DNS answers Android's check and the login page ("netId:iface:kind")
+  echo "captive=$(cap_list)"
+  echo "rule_captive=$(yn sn_has "$S4N" "$P_CAPJ_UDP")"
+  echo "captive_routes=$(_cap_rule_count -4)"
 
   # IP mode and the network it is running on
   echo "ip_mode=$IP_MODE"

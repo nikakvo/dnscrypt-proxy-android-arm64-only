@@ -41,10 +41,10 @@
 172.31.*
 192.168.*
 
-# Link-local (APIPA) — RFC3927
+# Link-local (APIPA) - RFC3927
 169.254.*
 
-# CGNAT (Carrier-Grade NAT) — RFC6598
+# CGNAT (Carrier-Grade NAT) - RFC6598
 100.64.*
 100.65.*
 100.66.*
@@ -110,12 +110,12 @@
 100.126.*
 100.127.*
 
-# Documentation ranges (TEST-NET) — RFC5737
+# Documentation ranges (TEST-NET) - RFC5737
 192.0.2.*
 198.51.100.*
 203.0.113.*
 
-# Reserved / future use — RFC1112
+# Reserved / future use - RFC1112
 240.*
 241.*
 242.*
@@ -138,14 +138,14 @@
 ::1
 # Unspecified
 ::
-# ULA (Unique Local Addresses, private IPv6) — RFC4193
+# ULA (Unique Local Addresses, private IPv6) - RFC4193
 fc*
 fd*
-# Link-local — RFC4291
+# Link-local - RFC4291
 fe80*
-# Documentation — RFC3849
+# Documentation - RFC3849
 2001:db8*
-# Deprecated site-local — RFC3879
+# Deprecated site-local - RFC3879
 fec*
 fed*
 fee*

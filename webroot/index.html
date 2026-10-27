@@ -420,11 +420,11 @@
 <div id="banner"><span class="live-dot"></span>Connecting…</div>
 
 <div class="stats">
-  <div class="sc"><div class="lbl">Total</div><div class="val" id="s-total">—</div></div>
-  <div class="sc"><div class="lbl">Passed</div><div class="val" id="s-pass">—</div></div>
-  <div class="sc"><div class="lbl">Rejected</div><div class="val r" id="s-reject">—</div></div>
-  <div class="sc"><div class="lbl">NXDomain</div><div class="val a" id="s-nx">—</div></div>
-  <div class="sc"><div class="lbl">Resolvers</div><div class="val b" id="s-resolvers">—</div></div>
+  <div class="sc"><div class="lbl">Total</div><div class="val" id="s-total">-</div></div>
+  <div class="sc"><div class="lbl">Passed</div><div class="val" id="s-pass">-</div></div>
+  <div class="sc"><div class="lbl">Rejected</div><div class="val r" id="s-reject">-</div></div>
+  <div class="sc"><div class="lbl">NXDomain</div><div class="val a" id="s-nx">-</div></div>
+  <div class="sc"><div class="lbl">Resolvers</div><div class="val b" id="s-resolvers">-</div></div>
 </div>
 
 <nav class="tabs">
@@ -449,15 +449,15 @@
 
     <div class="section">
       <div class="section-title"><span class="s-accent" style="background:var(--red)"></span>Blocklist</div>
-      <div class="d-stat"><span class="k">Rules Loaded</span><span class="v r" id="bl-count">—</span></div>
-      <div class="d-stat wrap"><span class="k">Sources</span><span class="v" id="bl-sources">—</span></div>
-      <div class="d-stat wrap"><span class="k">Automatic Update</span><span class="v" id="bl-auto">—</span></div>
-      <div class="d-stat"><span class="k">Latest Update</span><span class="v m" id="bl-updated">—</span></div>
+      <div class="d-stat"><span class="k">Rules Loaded</span><span class="v r" id="bl-count">-</span></div>
+      <div class="d-stat wrap"><span class="k">Sources</span><span class="v" id="bl-sources">-</span></div>
+      <div class="d-stat wrap"><span class="k">Automatic Update</span><span class="v" id="bl-auto">-</span></div>
+      <div class="d-stat"><span class="k">Latest Update</span><span class="v m" id="bl-updated">-</span></div>
     </div>
 
     <div class="section">
       <div class="section-title"><span class="s-accent" style="background:var(--amber)"></span>Update Blocklist</div>
-      <div id="upd-status">Ready — tap Update to fetch the selected lists</div>
+      <div id="upd-status">Ready - tap Update to fetch the selected lists</div>
       <div class="upd-row">
         <button class="src-btn" id="src-btn" onclick="toggleSources()">
           <span class="sl">Sources</span><span id="src-summary">…</span><span class="chev">▾</span>
@@ -559,7 +559,7 @@
         <button onclick="searchResolvers()">Search</button>
       </div>
       <div id="res-found"></div>
-      <div class="note">Latency is one TCP handshake to the resolver's address — a rough measure of distance. Protocol, DNSSEC, logging and filtering are what each operator declares in its signed stamp. dnscrypt-proxy spreads queries over the selected resolvers and prefers the fastest.</div>
+      <div class="note">Latency is one TCP handshake to the resolver's address - a rough measure of distance. Protocol, DNSSEC, logging and filtering are what each operator declares in its signed stamp. dnscrypt-proxy spreads queries over the selected resolvers and prefers the fastest.</div>
     </div>
   </div>
 
@@ -648,7 +648,7 @@
 </main>
 
 <footer>
-  <span id="last-refresh">—</span>
+  <span id="last-refresh">-</span>
   <span id="src-info"></span>
   <button id="refresh-btn" onclick="refreshNow()">↺ Refresh</button>
 </footer>
@@ -771,7 +771,7 @@ document.addEventListener('click', e => {
     _pressed = null;
     e.preventDefault();
     e.stopImmediatePropagation();
-    if (_busyN > 0) toast('Wait — the previous action is still running', 'err');
+    if (_busyN > 0) toast('Wait - the previous action is still running', 'err');
   }
 }, true);
 
@@ -826,7 +826,7 @@ const num = v => { const n = parseInt(v, 10); return isNaN(n) ? 0 : n; };
 
 function fmtDur(sec) {
   sec = num(sec);
-  if (sec < 1) return '—';
+  if (sec < 1) return '-';
   const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600),
         m = Math.floor(sec % 3600 / 60), s = sec % 60;
   if (d) return `${d}d ${h}h ${m}m`;
@@ -860,7 +860,7 @@ function showTab(name) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// Banner — the one-line answer to "am I protected right now?"
+// Banner - the one-line answer to "am I protected right now?"
 // ═════════════════════════════════════════════════════════════════════════
 let _updRunning = false;
 
@@ -877,34 +877,34 @@ const mmss = t => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 function renderBanner(st, m) {
   if (_updRunning) { setBanner('b-warn', '⚙ Blocklist update in progress…'); return; }
   if (pauseRemaining() > 0) {
-    setBanner('b-warn', `PAUSED — DNS is not encrypted · resumes in ${mmss(pauseRemaining())}`);
+    setBanner('b-warn', `PAUSED - DNS is not encrypted · resumes in ${mmss(pauseRemaining())}`);
     return;
   }
   if (st.watchdog !== 'running') {
-    setBanner('b-error', 'Watchdog not running — protection is not being maintained. Reboot.');
+    setBanner('b-error', 'Watchdog not running - protection is not being maintained. Reboot.');
     return;
   }
   const total = (m && m.total_queries) || 0, blocked = (m && m.blocked_queries) || 0;
   switch (st.state) {
     // Counts only when the daemon's monitoring API answered: right after a
-    // restart it has not started yet, and "0 total · 0 blocked · up —"
+    // restart it has not started yet, and "0 total · 0 blocked · up -"
     // read like the protection had reset to nothing.
     case 'working':
       setBanner('', m && m.total_queries != null
-        ? `Protected — ${total.toLocaleString()} total · ${blocked.toLocaleString()} blocked · up ${fmtDur(st.daemon_uptime)}`
+        ? `Protected - ${total.toLocaleString()} total · ${blocked.toLocaleString()} blocked · up ${fmtDur(st.daemon_uptime)}`
         : 'Protected');
       break;
     case 'running':
-      setBanner('', (m && m.total_queries != null ? `Running — ${total.toLocaleString()} total` : 'Running') + ' · resolution not verifiable on this device');
+      setBanner('', (m && m.total_queries != null ? `Running - ${total.toLocaleString()} total` : 'Running') + ' · resolution not verifiable on this device');
       break;
     case 'degraded':
-      setBanner('b-warn', 'Nothing resolves — no internet or upstream down. Wi-Fi login page? System → Pause');
+      setBanner('b-warn', 'Nothing resolves - no internet or upstream down. Wi-Fi login page? System → Pause');
       break;
     case 'hung':
-      setBanner('b-warn', 'dnscrypt-proxy not responding — restarting it');
+      setBanner('b-warn', 'dnscrypt-proxy not responding - restarting it');
       break;
     case 'failsafe':
-      setBanner('b-error', 'FAILSAFE — DNS is NOT encrypted until dnscrypt-proxy recovers');
+      setBanner('b-error', 'FAILSAFE - DNS is NOT encrypted until dnscrypt-proxy recovers');
       break;
     case 'starting':
       setBanner('b-warn', 'Starting…');
@@ -942,7 +942,7 @@ const stat = (k, v, cls) => `<div class="d-stat"><span class="k">${k}</span><spa
 
 // The API stamps its snapshot in UTC; show it in the phone's own time.
 function fmtSnap(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   if (isNaN(d)) return esc(iso);
   const p = n => String(n).padStart(2, '0');
@@ -956,11 +956,11 @@ function nxCount(m) {
 
 function renderDashboard(st, m) {
   if (st.version) $('hdr-ver').textContent = 'v' + st.version;
-  $('bl-count').textContent = st.blocklist_domains ? num(st.blocklist_domains).toLocaleString() : '—';
-  $('bl-updated').textContent = st.blocklist_updated || '—';
+  $('bl-count').textContent = st.blocklist_domains ? num(st.blocklist_domains).toLocaleString() : '-';
+  $('bl-updated').textContent = st.blocklist_updated || '-';
 
   if (!m || m.total_queries == null) {
-    ['s-total', 's-pass', 's-reject', 's-nx', 's-resolvers'].forEach(id => { $(id).textContent = '—'; });
+    ['s-total', 's-pass', 's-reject', 's-nx', 's-resolvers'].forEach(id => { $(id).textContent = '-'; });
     $('ov-body').innerHTML = `<div class="empty">${st.daemon === 'running' ? 'Monitoring API not answering yet…' : 'dnscrypt-proxy is not running.'}</div>`;
     return;
   }
@@ -979,7 +979,7 @@ function renderDashboard(st, m) {
   const blockPct = Math.round(blocked / t1 * 100);
   const cs = m.cache_stats || {};
   const hit = cs.cache_hit_ratio != null ? (cs.cache_hit_ratio * 100).toFixed(1) + '%'
-            : (m.cache_hit_ratio != null ? (m.cache_hit_ratio * 100).toFixed(1) + '%' : '—');
+            : (m.cache_hit_ratio != null ? (m.cache_hit_ratio * 100).toFixed(1) + '%' : '-');
   $('ov-body').innerHTML =
     stat('Total Queries', total.toLocaleString()) +
     stat('Passed', passed.toLocaleString()) +
@@ -987,7 +987,7 @@ function renderDashboard(st, m) {
     stat('NXDOMAIN', `${nx.toLocaleString()} (${(nx / t1 * 100).toFixed(1)}%)`, 'a') +
     stat('Block Rate', blockPct + '%', blockPct > 30 ? 'r' : blockPct > 10 ? 'a' : '') +
     stat('Avg RTT', Math.round(m.avg_response_time || 0) + 'ms') +
-    stat('Queries/sec', m.queries_per_second != null ? m.queries_per_second.toFixed(2) : '—') +
+    stat('Queries/sec', m.queries_per_second != null ? m.queries_per_second.toFixed(2) : '-') +
     stat('Cache Hit Ratio', hit) +
     stat('Uptime', fmtDur(m.uptime_seconds)) +
     stat('Last Snapshot', fmtSnap(m.generated_at), 'm') +
@@ -1002,8 +1002,8 @@ function renderDashboard(st, m) {
       stat('Fill', Math.round(e / cap * 100) + '%') +
       stat('Hits', (cs.cache_hits || 0).toLocaleString()) +
       stat('Misses', (cs.cache_misses || 0).toLocaleString()) +
-      stat('Min TTL', (cs.min_ttl || '—') + 's') +
-      stat('Max TTL', (cs.max_ttl || '—') + 's');
+      stat('Min TTL', (cs.min_ttl || '-') + 's') +
+      stat('Max TTL', (cs.max_ttl || '-') + 's');
   } else {
     $('sec-cache').style.display = 'none';
   }
@@ -1025,12 +1025,12 @@ function renderDashboard(st, m) {
     const maxQ = Math.max(...resolvers.map(r => r.total_queries || 0)) || 1;
     $('res-body').innerHTML = resolvers.slice().sort((a, b) => (b.score || 0) - (a.score || 0)).map(r => {
       const pct = Math.round((r.total_queries || 0) / maxQ * 100);
-      const score = r.score != null ? (r.score * 100).toFixed(1) : '—';
-      const avg = r.avg_response_ms != null ? Math.round(r.avg_response_ms) : '—';
+      const score = r.score != null ? (r.score * 100).toFixed(1) : '-';
+      const avg = r.avg_response_ms != null ? Math.round(r.avg_response_ms) : '-';
       const ok = r.status === 'healthy';
       return `<div class="d-res">
         <div class="d-res-name">${esc(r.name)} <span style="font-size:10px;color:var(--muted)">${esc(r.proto || '')}</span></div>
-        <div class="d-res-sub">${(r.total_queries || 0).toLocaleString()} queries · avg <span>${avg}ms</span> · score <span>${score}%</span> · <span class="${ok ? '' : 'c-r'}">${esc(r.status || '—')}</span></div>
+        <div class="d-res-sub">${(r.total_queries || 0).toLocaleString()} queries · avg <span>${avg}ms</span> · score <span>${score}%</span> · <span class="${ok ? '' : 'c-r'}">${esc(r.status || '-')}</span></div>
         <div class="d-res-bar"><div class="d-res-fill" style="width:${pct}%"></div></div>
       </div>`;
     }).join('');
@@ -1082,14 +1082,14 @@ function renderRecent() {
         <div class="d-domain" title="${esc(e.domain)}">${esc(e.domain)}</div>
         <div class="d-qtype">${esc(e.type || 'A')}</div>
         <div class="d-status ${cls}">${esc(text)}</div>
-        <div class="d-rtt">${rc === 'PASS' ? (e.response_time || 0) + 'ms' : '—'}</div>
+        <div class="d-rtt">${rc === 'PASS' ? (e.response_time || 0) + 'ms' : '-'}</div>
       </div>`;
     }).join('');
   }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// Poll — state + metrics in one round trip, every 5s while visible
+// Poll - state + metrics in one round trip, every 5s while visible
 // ═════════════════════════════════════════════════════════════════════════
 let _polling = false;
 let _lastState = {};
@@ -1147,14 +1147,14 @@ function vpnRow(s) {
     // IPv4 only blocks IPv6 in the firewall (r22) - whatever WG Shield reports
     const ipv4Mode = (s.ip_mode_effective || s.ip_mode) === 'ipv4';
     const v6 = ipv4Mode || s.wgs_ipv6 === 'off' ? 'IPv4 - IPv6 is off on this phone (IP mode)' : s.wgs_ipv6 === 'tunnel' ? 'IPv4 + IPv6' : 'IPv4 - this tunnel has no IPv6';
-    return row('VPN', `Through WG Shield · <span style="color:#7dd3fc">${esc(s.wgs_tunnel)}</span> (${v6}) — the resolvers see the VPN's address`, 'ok', 'wg shield');
+    return row('VPN', `Through WG Shield · <span style="color:#7dd3fc">${esc(s.wgs_tunnel)}</span> (${v6}) - the resolvers see the VPN's address`, 'ok', 'wg shield');
   }
-  if (s.vpn_via === 'android') return row('VPN', 'an Android VPN (app) is connected — the resolvers see its address', 'ok', 'vpn');
+  if (s.vpn_via === 'android') return row('VPN', 'an Android VPN (app) is connected - the resolvers see its address', 'ok', 'vpn');
   if (s.wgshield === 'enabled' && s.wgs_state && s.wgs_state !== 'off') {
     const bad = s.wgs_state === 'down' || s.wgs_state === 'error';
     return row('VPN', `WG Shield ${esc(s.wgs_state)}${s.wgs_tunnel ? ' · ' + esc(s.wgs_tunnel) : ''}`, bad ? 'warn' : 'skip', s.wgs_state);
   }
-  return row('VPN', 'none — queries go out over your network, still encrypted', 'skip', 'none');
+  return row('VPN', 'none - queries go out over your network, still encrypted', 'skip', 'none');
 }
 function row(name, detail, pill, pillText) {
   return `<div class="row"><div class="rn"><b>${name}</b>${detail ? `<span>${detail}</span>` : ''}</div>
@@ -1192,15 +1192,15 @@ function hotspotRows(s) {
   const what = hsWhat(s);
   const detail = {
     on:      `${what} on ${esc(s.hotspot_ifaces)}`,
-    armed:   `${what} — applied the moment a hotspot starts`,
-    partial: 'a rule is missing — the watchdog puts it back within seconds',
-    paused:  'protection is paused — clients get plain DNS too',
+    armed:   `${what} - applied the moment a hotspot starts`,
+    partial: 'a rule is missing - the watchdog puts it back within seconds',
+    paused:  'protection is paused - clients get plain DNS too',
     off:     active ? 'clients with their own DNS server go around the proxy' : 'switched off'
   }[r] || esc(r);
   // DoT block alone still lets a client with its own server (8.8.8.8)
   // resolve around the proxy: not "protected".
   if (r === 'on' && s.setting_HOTSPOT_DNS !== '1') {
-    h += row('Client protection', `${what} on ${esc(s.hotspot_ifaces)} — clients with their own DNS server go around the proxy`, 'warn', 'dot only');
+    h += row('Client protection', `${what} on ${esc(s.hotspot_ifaces)} - clients with their own DNS server go around the proxy`, 'warn', 'dot only');
   } else {
     h += row('Client protection', detail, r === 'off' && active ? 'warn' : p[0], p[1]);
   }
@@ -1223,7 +1223,7 @@ function renderStatus(s) {
   const tickAge = s.tick_age === '' ? null : num(s.tick_age);
   let h = '';
 
-  h += row('Watchdog', wdOk ? `pid ${esc(s.watchdog_pid)} · last check ${tickAge == null ? '—' : tickAge + 's ago'}` : 'not running — nothing keeps the rules or the daemon alive',
+  h += row('Watchdog', wdOk ? `pid ${esc(s.watchdog_pid)} · last check ${tickAge == null ? '-' : tickAge + 's ago'}` : 'not running - nothing keeps the rules or the daemon alive',
     !wdOk ? 'bad' : (tickAge != null && tickAge > 40 ? 'warn' : 'ok'),
     !wdOk ? 'stopped' : (tickAge != null && tickAge > 40 ? 'stalled' : 'running'));
 
@@ -1233,17 +1233,17 @@ function renderStatus(s) {
   const v6listen = s.ip_mode_effective === 'compat' || s.ip_mode_effective === 'dual';
   h += row('Listener', v6listen ? '127.0.0.1:5354 · [::1]:5354' : '127.0.0.1:5354', onoff(s.listening) ? 'ok' : 'bad', onoff(s.listening) ? 'open' : 'closed');
 
-  const live = { ok: ['ok', 'ok'], silent: ['bad', 'no reply'], unknown: ['skip', 'n/a'] }[s.liveness] || ['skip', s.liveness || '—'];
+  const live = { ok: ['ok', 'ok'], silent: ['bad', 'no reply'], unknown: ['skip', 'n/a'] }[s.liveness] || ['skip', s.liveness || '-'];
   h += row('Liveness check', 'local query every 30s · answered without internet', live[0], live[1]);
 
-  const res = { ok: ['ok', 'resolving'], noanswer: ['warn', 'no answer'], silent: ['bad', 'no reply'], unknown: ['skip', 'n/a'] }[s.resolving] || ['skip', s.resolving || '—'];
-  const resDetail = (s.resolved_ago !== '' ? `last success ${fmtDur(s.resolved_ago)} ago` : 'no success yet') + ` · via ${esc(s.probe_tool || '—')}`;
+  const res = { ok: ['ok', 'resolving'], noanswer: ['warn', 'no answer'], silent: ['bad', 'no reply'], unknown: ['skip', 'n/a'] }[s.resolving] || ['skip', s.resolving || '-'];
+  const resDetail = (s.resolved_ago !== '' ? `last success ${fmtDur(s.resolved_ago)} ago` : 'no success yet') + ` · via ${esc(s.probe_tool || '-')}`;
   h += row('Resolution check', resDetail, res[0], res[1]);
 
   h += row('Auto-restart', `${num(s.health_restarts)} restart(s) this boot` + (s.last_restart_reason && s.last_restart_reason !== 'none' ? ` · last: ${esc(s.last_restart_reason)}` : ''),
     onoff(s.health_restart_enabled) ? 'ok' : 'skip', onoff(s.health_restart_enabled) ? 'on' : 'off');
 
-  h += row('Failsafe', onoff(s.failsafe) ? 'redirect removed — DNS goes out in plaintext' : 'not triggered',
+  h += row('Failsafe', onoff(s.failsafe) ? 'redirect removed - DNS goes out in plaintext' : 'not triggered',
     onoff(s.failsafe) ? 'bad' : 'ok', onoff(s.failsafe) ? 'active' : 'inactive');
   $('sys-proc').innerHTML = h;
 
@@ -1259,13 +1259,13 @@ function renderStatus(s) {
   if (v6on) {
     f += onoff(s.ip6_nat)
       ? ruleRow('DNS redirect (IPv6)', 'nat OUTPUT :53 → [::1]:5354', onoff(s.rule_nat_v6), true)
-      : row('DNS redirect (IPv6)', 'kernel has no IPv6 NAT — IPv6 DNS is dropped instead', 'warn', 'n/a');
+      : row('DNS redirect (IPv6)', 'kernel has no IPv6 NAT - IPv6 DNS is dropped instead', 'warn', 'n/a');
   }
   f += ruleRow('Leak guard (IPv6)', 'drops port 53 over IPv6 that escaped the redirect', onoff(s.rule_guard_v6), true);
-  f += ruleRow('QUIC block (IPv4)', 'UDP/443 — stops browser DoH bypass', onoff(s.rule_quic_v4), quicOn, 'QUIC_BLOCK=0');
+  f += ruleRow('QUIC block (IPv4)', 'UDP/443 - stops browser DoH bypass', onoff(s.rule_quic_v4), quicOn, 'QUIC_BLOCK=0');
   f += ruleRow('QUIC block (IPv6)', 'UDP/443 over IPv6', onoff(s.rule_quic_v6), quicOn, 'QUIC_BLOCK=0');
   f += !v6on
-    ? row('IPv6 killswitch', `ip6tables OUTPUT policy: ${esc(s.ipv6_policy || '—')}`, s.ipv6_policy === 'DROP' ? 'ok' : 'bad', s.ipv6_policy === 'DROP' ? 'armed' : 'open')
+    ? row('IPv6 killswitch', `ip6tables OUTPUT policy: ${esc(s.ipv6_policy || '-')}`, s.ipv6_policy === 'DROP' ? 'ok' : 'bad', s.ipv6_policy === 'DROP' ? 'armed' : 'open')
     : row('IPv6 killswitch', 'IPv6 is allowed by the IP mode', 'skip', 'off');
   if (!v6on) {
     // r22: carrier service networks (IMS = VoLTE) keep IPv6 in IPv4 only
@@ -1277,34 +1277,48 @@ function renderStatus(s) {
         ? row('Carrier IPv6 (VoLTE)', `allowed on ${vcList} - Android keeps these networks for the system`, 'ok', 'open')
         : row('Carrier IPv6 (VoLTE)', 'no IMS / MMS network up right now', 'skip', 'none');
   }
+  {
+    // 2.1.20-r1: networks Android has not validated yet (hotel Wi-Fi before
+    // the login) - their own DNS answers Android's check and the login page
+    const cp = (s.captive || '').trim();
+    const cpList = cp ? cp.split(/\s+/).map(e => { const p = e.split(':'); return `${esc(p[1] || '?')} (${p[2] === 'login' ? 'login page' : 'being checked'})`; }).join(', ') : '';
+    const cn = 'Wi-Fi login page';
+    f += !ownerOk
+      ? row(cn, 'kernel has no xt_owner match', 'skip', 'off')
+      : !onoff(s.rule_captive)
+        ? row(cn, 'exception for Wi-Fi login pages not in place', 'bad', 'missing')
+        : cp
+          ? row(cn, `${cpList} - only Android's check and the login page use its DNS`, 'ok', 'open')
+          : row(cn, 'every Wi-Fi is checked by Android - all DNS goes through the proxy', 'ok', 'closed');
+  }
   f += row('xt_owner match', 'needed for the leak guard', ownerOk ? 'ok' : 'warn', ownerOk ? 'present' : 'missing');
   {
     const r = s.hotspot_rules || 'off', p = HS_RULES[r] || ['skip', r];
     f += r === 'off'
       ? row('Hotspot client rules', 'HOTSPOT_DNS=0 · HOTSPOT_DOT=0', 'skip', 'off')
-      : row('Hotspot client rules', r === 'armed' ? 'no tethering running — nothing to cover' : `nat PREROUTING + FORWARD on ${esc(s.hotspot_ifaces || '—')}`,
+      : row('Hotspot client rules', r === 'armed' ? 'no tethering running - nothing to cover' : `nat PREROUTING + FORWARD on ${esc(s.hotspot_ifaces || '-')}`,
           r === 'on' ? 'ok' : p[0], r === 'on' ? 'active' : p[1]);
   }
   $('sys-fw').innerHTML = f;
 
   // System
-  const pdns = s.private_dns || '—';
+  const pdns = s.private_dns || '-';
   let y = '';
-  y += row('Module', esc(s.version || '—') + ' · versionCode ' + esc(s.version_code || '—'), 'skip', 'info');
-  y += row('SELinux', esc(s.selinux || '—'), s.selinux === 'Enforcing' ? 'ok' : 'warn', (s.selinux || '—').toLowerCase());
+  y += row('Module', esc(s.version || '-') + ' · versionCode ' + esc(s.version_code || '-'), 'skip', 'info');
+  y += row('SELinux', esc(s.selinux || '-'), s.selinux === 'Enforcing' ? 'ok' : 'warn', (s.selinux || '-').toLowerCase());
   // Android's Private DNS (DNS-over-TLS on port 853) is not covered by the
   // port-53 redirect: when it is on, Android may resolve around the proxy
   // and the blocklist. The installer turns it off; Android settings can
   // turn it back on, so offer the switch right here.
   y += pdns === 'off'
-    ? row('Android Private DNS', 'off — DNS stays with this module', 'ok', pdns)
-    : rowCtl('Android Private DNS', `<span class="c-a">${esc(pdns)} — Android may send DNS around the proxy</span>`,
+    ? row('Android Private DNS', 'off - DNS stays with this module', 'ok', pdns)
+    : rowCtl('Android Private DNS', `<span class="c-a">${esc(pdns)} - Android may send DNS around the proxy</span>`,
         `<button class="btn-s r" id="pdns-off" onclick="privateDnsOff()">Turn off</button>`);
   y += vpnRow(s);
   y += row('Network', onoff(s.live_interface) ? (s.net_iface ? `connected (${esc(s.net_iface)})` : 'an interface is up') : 'no interface up (airplane mode?)',
     onoff(s.live_interface) ? 'ok' : 'skip', onoff(s.live_interface) ? 'up' : 'down');
   y += row('Busybox', esc(s.busybox || 'none'), s.busybox && s.busybox !== 'none' ? 'ok' : 'warn', s.busybox && s.busybox !== 'none' ? 'found' : 'missing');
-  y += row('Blocklist', `${num(s.blocklist_domains || s.blocklist_lines).toLocaleString()} domains · updated ${esc(s.blocklist_updated || '—')}`, 'skip', 'info');
+  y += row('Blocklist', `${num(s.blocklist_domains || s.blocklist_lines).toLocaleString()} domains · updated ${esc(s.blocklist_updated || '-')}`, 'skip', 'info');
   $('sys-sys').innerHTML = y;
 
   renderIpMode(s);
@@ -1342,7 +1356,7 @@ async function privateDnsOff() {
 const IPM_TEXT = {
   ipv4:   '<b>IPv4 only.</b> IPv6 is blocked by the firewall and AAAA answers are blocked. Only the carrier\'s own service networks (VoLTE / Wi-Fi calling, MMS) keep IPv6, so calls stay on 4G/5G. Strongest leak protection - but no connection at all on an IPv6-only carrier.',
   compat: '<b>IPv6 compatible.</b> IPv6 stays on so an IPv6-only (464XLAT) carrier can connect; IPv6 DNS is sent through the proxy too. AAAA answers stay blocked, so apps keep using IPv4.',
-  dual:   '<b>Dual stack.</b> IPv6 fully on, IPv6 DNS through the proxy, AAAA answered — apps may connect over IPv6. Sites see your IPv6 address.'
+  dual:   '<b>Dual stack.</b> IPv6 fully on, IPv6 DNS through the proxy, AAAA answered - apps may connect over IPv6. Sites see your IPv6 address.'
 };
 
 function renderIpMode(s) {
@@ -1352,18 +1366,18 @@ function renderIpMode(s) {
   const nat = onoff(s.ip6_nat), v4 = onoff(s.net_ipv4), v6 = onoff(s.net_ipv6), clat = onoff(s.net_clat);
   let h = '';
   if (eff.endsWith('-limited')) {
-    h += row('Active mode', 'kernel has no IPv6 NAT — IPv6 DNS is dropped, apps must use IPv4 DNS', 'warn', 'limited');
+    h += row('Active mode', 'kernel has no IPv6 NAT - IPv6 DNS is dropped, apps must use IPv4 DNS', 'warn', 'limited');
   } else {
     h += row('Active mode', eff === mode ? 'applied' : `applying (${esc(eff)})`, eff === mode ? 'ok' : 'warn', eff);
   }
-  h += row('Kernel IPv6 NAT', nat ? 'IPv6 DNS can be redirected into the proxy' : 'CONFIG_IP6_NF_NAT missing — IPv6 modes run limited', nat ? 'ok' : 'warn', nat ? 'available' : 'missing');
+  h += row('Kernel IPv6 NAT', nat ? 'IPv6 DNS can be redirected into the proxy' : 'CONFIG_IP6_NF_NAT missing - IPv6 modes run limited', nat ? 'ok' : 'warn', nat ? 'available' : 'missing');
   // What the network in use offers - not the mode (r17: the "dual" tag here
   // was read as the Dual stack mode)
   const net = clat ? 'IPv6-only with 464XLAT (IPv4 is translated)' : [v4 ? 'IPv4' : null, v6 ? 'IPv6' : null].filter(Boolean).join(' + ') || 'no global address';
   const via = s.net_iface ? ` (${esc(s.net_iface)})` : '';
   h += row('Network offers' + via, net, clat || v4 || v6 ? 'ok' : 'skip', clat ? '464xlat' : (v4 && v6 ? 'v4 + v6' : v4 ? 'v4 only' : v6 ? 'v6 only' : 'none'));
   if (mode !== 'ipv4' && s.vpn_via === 'wg-shield' && onoff(s.vpn_v6_guarded) && v6) {
-    h += '<div class="src-warn" style="color:var(--blue);border-color:rgba(0,170,255,0.35)">ℹ WG Shield\'s tunnel <b>' + esc(s.wgs_tunnel) + '</b> carries only IPv4, so it blocks IPv6 while it is on — nothing leaks, but IPv6 is not used. A tunnel with IPv6 (Proton\'s configs have it) carries both.</div>';
+    h += '<div class="src-warn" style="color:var(--blue);border-color:rgba(0,170,255,0.35)">ℹ WG Shield\'s tunnel <b>' + esc(s.wgs_tunnel) + '</b> carries only IPv4, so it blocks IPv6 while it is on - nothing leaks, but IPv6 is not used. A tunnel with IPv6 (Proton\'s configs have it) carries both.</div>';
   } else if (mode === 'dual' && onoff(s.vpn_active) && !onoff(s.vpn_ipv6) && v6) {
     h += '<div class="src-warn">⚠ Your VPN carries only IPv4. In Dual stack, apps\' IPv6 goes <b>around the VPN</b> and sites see your real IPv6 address. Use <b>IPv6 compatible</b>, or enable IPv6 in the VPN config.</div>';
   }
@@ -1378,13 +1392,13 @@ async function setIpMode(mode) {
   if (cur && cur.dataset.v === mode) return;
   if (mode !== 'ipv4' && !confirm('Allow IPv6 on this device?\n\nDNS stays encrypted, but IPv6 traffic is no longer blocked by the firewall.')) return;
   $('ipm-seg').classList.add('busy');
-  $('ipm-desc').innerHTML = IPM_TEXT[mode] + '<br><span class="c-a">Applying — dnscrypt-proxy may restart…</span>';
+  $('ipm-desc').innerHTML = IPM_TEXT[mode] + '<br><span class="c-a">Applying - dnscrypt-proxy may restart…</span>';
   try {
     const r = parseKV(await ctl('ipmode-set ' + shq(mode), 90000));
     if (r.ok === '1') {
       const lim = (r.ip_mode_effective || '').endsWith('-limited');
-      toast(lim ? 'Applied — limited (no IPv6 NAT in kernel)' : `IP mode: ${mode}` + (r.restarted === '1' ? ' — daemon restarted' : ''), lim ? 'err' : 'ok');
-      if (r.net_refresh === '1') setTimeout(() => toast('Checking that Android picks up IPv6 — Wi-Fi or mobile data may reconnect for a moment', 'ok'), 2800);
+      toast(lim ? 'Applied - limited (no IPv6 NAT in kernel)' : `IP mode: ${mode}` + (r.restarted === '1' ? ' - daemon restarted' : ''), lim ? 'err' : 'ok');
+      if (r.net_refresh === '1') setTimeout(() => toast('Checking that Android picks up IPv6 - Wi-Fi or mobile data may reconnect for a moment', 'ok'), 2800);
     } else {
       toast(r.error || 'Could not apply', 'err');
     }
@@ -1402,7 +1416,7 @@ async function setSetting(key, val) {
   if (el) el.classList.add('busy');
   try {
     const r = parseKV(await ctl('set ' + shq(key) + ' ' + shq(val)));
-    toast(r.ok === '1' ? 'Saved — applied' : (r.error || 'Could not save'), r.ok === '1' ? 'ok' : 'err');
+    toast(r.ok === '1' ? 'Saved - applied' : (r.error || 'Could not save'), r.ok === '1' ? 'ok' : 'err');
   } catch (e) { toast(e.message, 'err'); }
   finally { if (el) el.classList.remove('busy'); loadStatus(); }
 }
@@ -1414,7 +1428,7 @@ function renderPause() {
   const left = pauseRemaining();
   $('resume-btn').disabled = left <= 0;
   $('pause-state').innerHTML = left > 0
-    ? `<span class="c-a">Paused — DNS goes out unencrypted. Resumes in ${mmss(left)}.</span>`
+    ? `<span class="c-a">Paused - DNS goes out unencrypted. Resumes in ${mmss(left)}.</span>`
     : 'For Wi-Fi login pages (hotel, airport, train) that need the network\'s own DNS. Encrypted DNS comes back on its own when the time is up, and after any reboot.';
 }
 setInterval(() => { if (_pauseLeft > 0) { renderPause(); if (pauseRemaining() > 0) renderBanner(_lastState, null); } }, 1000);
@@ -1526,7 +1540,7 @@ async function checkDomain() {
     }
     const live = r.live === 'reply'
       ? (r.live_type === 'HINFO' ? 'blocked answer (HINFO)' : `${r.live_rcode}${num(r.live_answers) ? ' · ' + r.live_answers + ' answer(s)' : ''}${r.live_ip ? ' · ' + r.live_ip : ''}${r.live_type && r.live_type !== 'A' ? ' · ' + r.live_type : ''}`)
-      : ({ noreply: 'no reply', down: 'dnscrypt-proxy is not running', unavailable: 'no tool to ask with' }[r.live] || r.live || '—');
+      : ({ noreply: 'no reply', down: 'dnscrypt-proxy is not running', unavailable: 'no tool to ask with' }[r.live] || r.live || '-');
     h += stat('Live answer', esc(live), r.live === 'reply' ? '' : 'a');
     const btns = [];
     if (r.in_allow === '1') btns.push(`<button class="btn-s r" onclick="ruleAction('unallow', '${esc(r.domain)}')">Remove allow</button>`);
@@ -1685,7 +1699,7 @@ async function applyResolvers() {
   $('res-apply').disabled = true; $('res-apply').classList.add('busy');
   try {
     const r = parseKV(await ctl('resolvers-set ' + shq(sel.join(',')), 120000));
-    if (r.ok === '1') { toast(`Resolvers applied — back in ${r.took}s`, 'ok'); RES.applied = sel; }
+    if (r.ok === '1') { toast(`Resolvers applied - back in ${r.took}s`, 'ok'); RES.applied = sel; }
     else toast(r.error || 'Could not apply', 'err');
   } catch (e) { toast(e.message, 'err'); }
   finally { $('res-apply').classList.remove('busy'); await loadResolvers(); poll(); }
@@ -1716,7 +1730,7 @@ function addResolver(name) {
   $('res-found').innerHTML = '';
   $('res-q').value = '';
   renderResolvers();
-  toast(`${name} added — tap Apply`, 'ok');
+  toast(`${name} added - tap Apply`, 'ok');
 }
 
 let _statusBusy = false;
@@ -1748,11 +1762,11 @@ async function doAction(cmd) {
     if (cmd === 'probe') {
       msg = r.listening === '1' ? `liveness: ${r.liveness} (${r.liveness_bytes}b) · resolution: ${r.resolving} (${r.resolving_bytes}b) · via ${r.probe_tool}` : 'dnscrypt-proxy is not listening';
     } else if (cmd === 'restart') {
-      msg = r.ok === '1' ? `Restarted — new pid ${r.daemon_pid}, back in ${r.took}s` : r.error;
+      msg = r.ok === '1' ? `Restarted - new pid ${r.daemon_pid}, back in ${r.took}s` : r.error;
     } else if (cmd === 'reload') {
-      msg = r.ok === '1' ? (r.method === 'reload' ? 'Lists reloaded — confirmed by dnscrypt-proxy' : 'Reload not acknowledged — daemon restarted instead') : r.error;
+      msg = r.ok === '1' ? (r.method === 'reload' ? 'Lists reloaded - confirmed by dnscrypt-proxy' : 'Reload not acknowledged - daemon restarted instead') : r.error;
     } else {
-      msg = r.ok === '1' ? 'Rules reapplied' + (r.rules_present === '1' ? ' — all present' : ' — some still missing, see Firewall') : r.error;
+      msg = r.ok === '1' ? 'Rules reapplied' + (r.rules_present === '1' ? ' - all present' : ' - some still missing, see Firewall') : r.error;
     }
     $('act-result').textContent = msg || 'done';
     $('act-result').className = r.ok === '1' ? 'c-g' : 'c-r';
@@ -1878,7 +1892,7 @@ function attachUpdate() {
   _updRunning = true;
   _updSeen = '';
   setUpdRunningUI(true);
-  setUpdStatus('⚙ Running — downloading & deduplicating…', 'var(--amber)');
+  setUpdStatus('⚙ Running - downloading & deduplicating…', 'var(--amber)');
   setBanner('b-warn', '⚙ Blocklist update in progress…');
   clearInterval(_updTimer);
   _updTimer = setInterval(pollUpdate, 2000);
@@ -1896,7 +1910,7 @@ async function pollUpdate() {
       box.scrollTop = box.scrollHeight;
     }
     if (st.running !== '1') finishUpdate(log);
-  } catch (e) { /* transient — keep polling */ }
+  } catch (e) { /* transient - keep polling */ }
 }
 
 function finishUpdate(logText) {
@@ -1905,8 +1919,8 @@ function finishUpdate(logText) {
   _updRunning = false;
   setUpdRunningUI(false);
   const txt = logText || '';
-  if (/! ERROR/.test(txt)) setUpdStatus('✗ Update failed — kept the existing list', 'var(--red)');
-  else if (/! FAILED|using the copy from/.test(txt)) setUpdStatus('⚠ Updated, but some sources failed — see below', 'var(--amber)');
+  if (/! ERROR/.test(txt)) setUpdStatus('✗ Update failed - kept the existing list', 'var(--red)');
+  else if (/! FAILED|using the copy from/.test(txt)) setUpdStatus('⚠ Updated, but some sources failed - see below', 'var(--amber)');
   else setUpdStatus('✓ Blocklist updated', 'var(--green)');
   setTimeout(() => { poll(); loadSources(); }, 800);
 }
@@ -1979,7 +1993,7 @@ function renderSources() {
   $('src-summary').textContent = sel.length ? srcName(sel[0]) + (sel.length > 1 ? ` +${sel.length - 1}` : '') : 'custom list only';
   $('bl-sources').innerHTML = sel.length
     ? `<span class="chips">${sel.map(x => `<span class="chip">${esc(srcName(x))}</span>`).join('')}</span>`
-    : '<span class="c-m">none — custom list only</span>';
+    : '<span class="c-m">none - custom list only</span>';
   renderAuto();
   document.querySelectorAll('#auto-seg button').forEach(b => b.classList.toggle('on', b.dataset.v === SRC.auto));
 
@@ -1993,8 +2007,8 @@ function renderSources() {
     }
     const cache = s.rules ? `<span class="cache">${num(s.rules).toLocaleString()} rules · ${esc(s.date)}</span>` : '';
     let note = '';
-    if (r && s.on && r.status === 'cached') note = `<span class="c-a">${esc(r.note)} — using the last good copy</span>`;
-    else if (r && s.on && r.status === 'failed') note = `<span class="c-a">${esc(r.note)}${SRC.legacy ? ' — the previous list stays in its place' : ''}</span>`;
+    if (r && s.on && r.status === 'cached') note = `<span class="c-a">${esc(r.note)} - using the last good copy</span>`;
+    else if (r && s.on && r.status === 'failed') note = `<span class="c-a">${esc(r.note)}${SRC.legacy ? ' - the previous list stays in its place' : ''}</span>`;
     const del = s.group === 'Custom' ? `<button class="src-del" onclick="event.preventDefault();event.stopPropagation();delUrl('${esc(s.id)}')">✕</button>` : '';
     return `<label class="src-row">
       <input type="checkbox" ${s.on ? 'checked' : ''} onchange="onSrcToggle()" data-id="${esc(s.id)}">
@@ -2015,7 +2029,7 @@ function renderSources() {
 
   const mains = sel.filter(s => MAIN_LISTS.has(s.id));
   let warn = '';
-  if (mains.length > 1) warn += `<div class="src-warn">⚠ ${mains.length} main lists selected. They overlap heavily — duplicates are removed, but every extra list still costs download time and memory. One main list plus add-ons is usually enough.</div>`;
+  if (mains.length > 1) warn += `<div class="src-warn">⚠ ${mains.length} main lists selected. They overlap heavily - duplicates are removed, but every extra list still costs download time and memory. One main list plus add-ons is usually enough.</div>`;
   if (!sel.length) warn += '<div class="src-warn">⚠ Nothing selected: only custom-blocked-names.txt will be blocked.</div>';
   if (SRC.legacy) warn += `<div class="note">Until the next update the list from before this version (${num(SRC.legacy.rules).toLocaleString()} rules) is used in place of anything not downloaded yet.</div>`;
   $('src-warn').innerHTML = warn;
@@ -2030,12 +2044,12 @@ function renderAuto() {
   const iv = SRC.auto === 'weekly' ? 604800 : 86400;
   const now = num(SRC.now), last = num(SRC.autoLast), att = num(SRC.autoAttempt);
   let sub;
-  if (!last) sub = 'no update yet — first run within ~10 min';
+  if (!last) sub = 'no update yet - first run within ~10 min';
   else {
     let due = last + iv;
     // A failed attempt holds the next try back by an hour.
     if (att > last && due <= now) due = Math.max(due, att + 3600);
-    if (due <= now) sub = 'due now — runs within ~10 min';
+    if (due <= now) sub = 'due now - runs within ~10 min';
     else {
       const d = new Date(due * 1000);
       const left = due - now;
@@ -2063,7 +2077,7 @@ function onSrcToggle() {
   _srcSaveTimer = setTimeout(async () => {
     try {
       const r = parseKV(await ctl('sources-set ' + shq(ids.join(','))));
-      if (r.ok === '1') { toast('Sources saved — tap Update to apply', 'ok'); return; }
+      if (r.ok === '1') { toast('Sources saved - tap Update to apply', 'ok'); return; }
       toast(r.error || 'Could not save', 'err');
     } catch (e) { toast(e.message, 'err'); }
     loadSources();
@@ -2085,7 +2099,7 @@ async function delUrl(id) {
   if (!confirm('Remove this list?')) return;
   try {
     const r = parseKV(await ctl('sources-del-url ' + shq(id)));
-    toast(r.ok === '1' ? 'List removed — tap Update to apply' : (r.error || 'Could not remove'), r.ok === '1' ? 'ok' : 'err');
+    toast(r.ok === '1' ? 'List removed - tap Update to apply' : (r.error || 'Could not remove'), r.ok === '1' ? 'ok' : 'err');
   } catch (e) { toast(e.message, 'err'); }
   loadSources();
 }

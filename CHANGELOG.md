@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.1.20-r1
+
+Hotel and airport Wi-Fi login pages now work without pausing protection, and a gap in the bootstrap exemption is closed.
+
+* **Wi-Fi login pages (captive portals) work by themselves.** Until you log in on a hotel, airport or train Wi-Fi, nothing reaches the internet - so the encrypted resolvers cannot answer, and Android could not even find the login page (its network check and the login page resolve names through this module too). Now, while Android has not checked a new Wi-Fi yet, or has found a login page on it:
+  * Android's network check and the login page (Android's login app) use **the network's own DNS server**. The *Sign in to Wi-Fi network* notification appears and the login page loads
+  * every other app gets **no answer** from that DNS server, so the network never sees which sites your apps look up. Nothing works there before the login anyway
+  * as soon as Android sees the internet working after the login, all DNS goes through the proxy again (within seconds)
+  * a Wi-Fi that Android does not validate and that has no login page (a printer, a car, a network that blocks Android's check) goes back to normal after 90 seconds
+  * works the same with or without WG Shield. A new **Wi-Fi login page** row in System → Firewall shows which network is open; the Log has a line when one opens or closes
+  * **Pause** is still there for a login page that has to be opened in a browser
+* **Fixed: app DNS could go around the proxy when the network's DNS server was Quad9.** The exemption that lets dnscrypt-proxy reach its bootstrap resolvers (9.9.9.9, 149.112.112.112, 45.11.45.11) matched every query sent by root - and on Android every app's DNS query is sent by the system's resolver, which runs as root. On a network that hands out one of those addresses as its DNS server (some routers use Quad9), app queries skipped the proxy and its blocklists. The exemption now only covers connections that are not tied to a network: dnscrypt-proxy itself and WG Shield's look-up of a server name
+* Help → *Wi-Fi login pages & pause* rewritten; texts use plain hyphens throughout
+* dnscrypt-proxy itself is unchanged (2.1.20)
+
+---
+
+## 2.1.20
+
+**dnscrypt-proxy updated to the official [2.1.20](https://github.com/DNSCrypt/dnscrypt-proxy/releases/tag/2.1.20) release:**
+
+* Fewer needless re-probes on network changes: only real (global) address changes count
+* PQDNSCrypt over TCP: padding fixed
+* HTTP/3 responses are capped at 4 KB
+* `dnscrypt-proxy.toml` refreshed from upstream: the new `doh_check_cert_hashes_on_connect` option is included, commented out (off, the upstream default), and comments match upstream again. Your settings and lists carry over as they are
+* **My Rules:** lines in `custom-blocked-names.txt` that are not a valid rule (two words, bad characters, `regex:` lines) were always skipped silently. They are now shown in red with an **IGNORED** badge in My Rules and named in the log, so you can fix them in `/sdcard/dnscrypt-proxy/custom-blocked-names.txt`
+
+---
+
 ## 2.1.19
 
 **dnscrypt-proxy updated to the official [2.1.19](https://github.com/DNSCrypt/dnscrypt-proxy/releases/tag/2.1.19) release** (the module had an upstream `main` build until now):
@@ -59,10 +88,10 @@ VoLTE keeps working in IPv4 only, rules can be typed straight into My Rules, and
 
 ## 2.1.18-r20
 
-Knows WG Shield Arm64 — the kernel WireGuard module of the same set.
+Knows WG Shield Arm64 - the kernel WireGuard module of the same set.
 
-* **System → VPN** — a new row shows which tunnel this proxy's encrypted queries leave through: *Through WG Shield · tunnel (IPv4 + IPv6)*, *WG Shield down*, *an Android VPN (app) is connected*, or *none*. WG Shield runs without Android's VPN, so it is read from WG Shield's status file. The IPv6 part says why a tunnel carries IPv4 only: the IP mode switched IPv6 off, or the tunnel has no IPv6
-* **IP mode note** — with WG Shield's tunnel carrying only IPv4, the old warning *"IPv6 goes around the VPN"* was wrong: WG Shield blocks IPv6 around such a tunnel. It is now a blue note (nothing leaks, IPv6 is not used; a tunnel with IPv6 carries both). The warning stays for VPN apps that carry only IPv4
+* **System → VPN** - a new row shows which tunnel this proxy's encrypted queries leave through: *Through WG Shield · tunnel (IPv4 + IPv6)*, *WG Shield down*, *an Android VPN (app) is connected*, or *none*. WG Shield runs without Android's VPN, so it is read from WG Shield's status file. The IPv6 part says why a tunnel carries IPv4 only: the IP mode switched IPv6 off, or the tunnel has no IPv6
+* **IP mode note** - with WG Shield's tunnel carrying only IPv4, the old warning *"IPv6 goes around the VPN"* was wrong: WG Shield blocks IPv6 around such a tunnel. It is now a blue note (nothing leaks, IPv6 is not used; a tunnel with IPv6 carries both). The warning stays for VPN apps that carry only IPv4
 * Help → VPN & companion modules: WG Shield
 * Nothing changed in how DNS is handled
 
@@ -71,7 +100,7 @@ Knows WG Shield Arm64 — the kernel WireGuard module of the same set.
 
 Faster rule removal, a searchable query list, and an installer fix.
 
-* **Unblock is fast now.** Removing a domain from your custom list used to rebuild the whole blocklist — sort and prune every downloaded source — for one line, which took seconds on a phone with nothing on screen to show it was working. Now only that line is taken out of the live list and dnscrypt-proxy reloads:
+* **Unblock is fast now.** Removing a domain from your custom list used to rebuild the whole blocklist - sort and prune every downloaded source - for one line, which took seconds on a phone with nothing on screen to show it was working. Now only that line is taken out of the live list and dnscrypt-proxy reloads:
   * if a downloaded list blocks the name too, nothing changes and the WebUI says which list still blocks it
   * if a blocked parent already covers it, it only leaves your custom list
   * subdomains that the sources block and that were dropped as redundant under your rule come back, so nothing a list blocks gets unblocked by accident. The result is the same, line for line, as a full rebuild
@@ -95,10 +124,10 @@ QUIC / HTTP/3 library updated (quic-go v0.63.0)
 
 Friendlier to VPN apps, and two IPv6 fixes.
 
-* **No more firewall lock while checking.** Android's firewall has one global lock. VPN apps such as WireGuard (`wg-quick`) run their firewall commands without waiting for it and fail outright if anyone holds it at that moment — *"wg-quick returned 4"* or *"124"*, a tunnel that will not start or stop. The watchdog and the WebUI checked the rules with commands that take the lock: measured, **282 times in 30 seconds** with the WebUI open. They now read the tables with `iptables-save`, which never takes the lock: **0**. Only real changes (repairs, switches) still take it, briefly
-* The two one-time kernel probes (xt_owner, IPv6 NAT) are remembered for the boot — the WebUI status no longer repeats them on every refresh
-* **Dual stack on mobile data.** IPv4-only mode switches off IPv6 router advertisements for new interfaces, and the mobile data interfaces created meanwhile kept that after switching to Dual or IPv6 compatible — no IPv6 on mobile data until a reboot (Wi-Fi was re-armed by Android). Switching back now restores them
-* **System → IP mode:** the network row now describes the network in use (e.g. `rmnet_data1`: *IPv4 + IPv6*, tag *v4 + v6*) instead of every interface — the hotspot and the VPN no longer count — and its tag no longer reads *dual*, which looked like the Dual stack mode
+* **No more firewall lock while checking.** Android's firewall has one global lock. VPN apps such as WireGuard (`wg-quick`) run their firewall commands without waiting for it and fail outright if anyone holds it at that moment - *"wg-quick returned 4"* or *"124"*, a tunnel that will not start or stop. The watchdog and the WebUI checked the rules with commands that take the lock: measured, **282 times in 30 seconds** with the WebUI open. They now read the tables with `iptables-save`, which never takes the lock: **0**. Only real changes (repairs, switches) still take it, briefly
+* The two one-time kernel probes (xt_owner, IPv6 NAT) are remembered for the boot - the WebUI status no longer repeats them on every refresh
+* **Dual stack on mobile data.** IPv4-only mode switches off IPv6 router advertisements for new interfaces, and the mobile data interfaces created meanwhile kept that after switching to Dual or IPv6 compatible - no IPv6 on mobile data until a reboot (Wi-Fi was re-armed by Android). Switching back now restores them
+* **System → IP mode:** the network row now describes the network in use (e.g. `rmnet_data1`: *IPv4 + IPv6*, tag *v4 + v6*) instead of every interface - the hotspot and the VPN no longer count - and its tag no longer reads *dual*, which looked like the Dual stack mode
 * **New warning:** in Dual stack with a VPN that carries only IPv4 (for example a WireGuard config with only an IPv4 address), apps' IPv6 goes around the VPN and sites see your real IPv6 address. The System tab now says so and suggests IPv6 compatible, or IPv6 in the VPN config
 
 ## 2.1.18-r16
@@ -109,7 +138,7 @@ A small fix release, found while building a companion module (VPN for hotspot cl
   * every `iptables` / `ip6tables` call waits for the lock (`-w`, the form this device supports is detected once per boot) instead of failing at once
   * the hotspot jump is counted from one listing; a duplicate left by r15 is removed on the next watchdog tick and logged as `hotspot: removed N duplicate … jump(s)`
   * the uninstaller waits for the lock too, so it can no longer stop half-way and leave rules behind
-* **Fixed: the module could not be installed or updated while a hotspot was running.** The installer counted any running `dnsmasq` as a conflicting DNS app — including Android's own tethering DNS forwarder, which netd starts with every hotspot and which the hotspot protection relies on. Android's `dnsmasq` is now recognised and ignored; a `dnsmasq` from another module or app is still reported
+* **Fixed: the module could not be installed or updated while a hotspot was running.** The installer counted any running `dnsmasq` as a conflicting DNS app - including Android's own tethering DNS forwarder, which netd starts with every hotspot and which the hotspot protection relies on. Android's `dnsmasq` is now recognised and ignored; a `dnsmasq` from another module or app is still reported
 * The installer banner showed a hard-coded old version number; it now reads the version from the module being installed
 
 ## 2.1.18-r15
@@ -118,17 +147,17 @@ A small fix release, found while building a companion module (VPN for hotspot cl
 
 Devices on your Wi-Fi hotspot, USB or Bluetooth tethering can now get the same encrypted, filtered DNS as the phone. Two switches in **System → Hotspot**, both off by default:
 
-* **Protect hotspot clients** — every DNS query a client sends, to any server (8.8.8.8, 1.1.1.1, a router preset…), is answered by the phone and goes through dnscrypt-proxy and your blocklists. The client does not notice: the answer comes back from the address it asked. IPv6 DNS from clients is refused so they use IPv4
-* **Block DoT for hotspot clients** — blocks DNS-over-TLS (port 853). A phone with Private DNS on *Automatic* falls back to normal DNS and so to you; one with a Private DNS *hostname* set has no DNS until its owner switches it to Automatic or Off — which is why it is a separate switch
+* **Protect hotspot clients** - every DNS query a client sends, to any server (8.8.8.8, 1.1.1.1, a router preset…), is answered by the phone and goes through dnscrypt-proxy and your blocklists. The client does not notice: the answer comes back from the address it asked. IPv6 DNS from clients is refused so they use IPv4
+* **Block DoT for hotspot clients** - blocks DNS-over-TLS (port 853). A phone with Private DNS on *Automatic* falls back to normal DNS and so to you; one with a Private DNS *hostname* set has no DNS until its owner switches it to Automatic or Off - which is why it is a separate switch
 
 Clients that use the phone as their DNS server (the default everywhere) were already covered before this release: Android's tethering DNS forwarder sends their queries on from the phone itself, through the same redirect. The new switch closes the gap for clients with their own server.
 
 * **Connected devices.** While a hotspot runs, the Dashboard shows a Hotspot card with the number of connected devices and each one's IP and MAC. The count comes from the Wi-Fi driver, so it matches Android's own "N devices connected" and drops the moment a device leaves; for USB and Bluetooth tethering it is an estimate from recent traffic
-* Follows the tethering Android actually runs — the interface is taken from Android's own tethering rules, so it works with any interface name, on mobile data and with the phone itself on Wi-Fi. The rules go on within seconds of a hotspot starting and come off when it stops; the watchdog puts back anything Android removes
+* Follows the tethering Android actually runs - the interface is taken from Android's own tethering rules, so it works with any interface name, on mobile data and with the phone itself on Wi-Fi. The rules go on within seconds of a hotspot starting and come off when it stops; the watchdog puts back anything Android removes
 * Pause, failsafe and a stopped daemon affect clients exactly as they affect the phone. The rules live in their own chains (`DNSC_HS_PRE`, `DNSC_HS_FWD`), are removed completely when both switches are off, and on uninstall
-* Status in **System → Hotspot** and **Firewall**: *protected*, *waiting* (on, no hotspot running), *dot only* (only the DoT block is on — clients with their own server still go around), *repairing*, *paused*
+* Status in **System → Hotspot** and **Firewall**: *protected*, *waiting* (on, no hotspot running), *dot only* (only the DoT block is on - clients with their own server still go around), *repairing*, *paused*
 * New settings `HOTSPOT_DNS`, `HOTSPOT_DOT` (added to an existing settings file with `0`); new command `ctl.sh hotspot`
-* Help: new section **12 · System — hotspot**, including what no DNS filter can see (a browser's own DNS-over-HTTPS)
+* Help: new section **12 · System - hotspot**, including what no DNS filter can see (a browser's own DNS-over-HTTPS)
 
 ### Fixed
 
@@ -141,18 +170,18 @@ Clients that use the phone as their DNS server (the default everywhere) were alr
 
 ## 2.1.18-r13
 
-A bug-fix release. Every fix was reproduced first — on the phone or in a test harness that runs the module under both Android's own shell (mksh + toybox) and KernelSU's busybox — and verified after. Nothing to configure: settings, lists and resolvers carry over.
+A bug-fix release. Every fix was reproduced first - on the phone or in a test harness that runs the module under both Android's own shell (mksh + toybox) and KernelSU's busybox - and verified after. Nothing to configure: settings, lists and resolvers carry over.
 
 ### dnscrypt-proxy
 
-* Binary built from the current upstream `main` branch — it reports **2.1.19**, which is not yet a tagged release. The configuration format is unchanged
+* Binary built from the current upstream `main` branch - it reports **2.1.19**, which is not yet a tagged release. The configuration format is unchanged
 * 2.1.19 matches suffix rules only at label boundaries; the WebUI's **Check** already worked that way, so both now agree
 
 ### Fixed
 
 * **Blocklist sources showed no rule count and no date.** Android's shell (mksh) treats `|` inside `${var%…}` as "or", so the `date|count` of every cached source came out empty. The WebUI now shows "N rules · date" for each source again
-* **Reloads never reached dnscrypt-proxy from the watchdog.** KernelSU runs module scripts with its busybox, whose `pkill -x` compares against the daemon's full path and matched nothing — every list reload from the sdcard or a custom-list rebuild turned into a restart. Processes are now found by name in `/proc`, which works with every toolset and skips zombies. The installer had the same problem and could not stop the running daemon on an update
-* **The WebUI stayed blank while DNS was down.** The Google font was loaded with an `@import` that held back the page's script until the request finished — with no DNS, until it timed out. The font now loads in the background; the page works instantly with or without it
+* **Reloads never reached dnscrypt-proxy from the watchdog.** KernelSU runs module scripts with its busybox, whose `pkill -x` compares against the daemon's full path and matched nothing - every list reload from the sdcard or a custom-list rebuild turned into a restart. Processes are now found by name in `/proc`, which works with every toolset and skips zombies. The installer had the same problem and could not stop the running daemon on an update
+* **The WebUI stayed blank while DNS was down.** The Google font was loaded with an `@import` that held back the page's script until the request finished - with no DNS, until it timed out. The font now loads in the background; the page works instantly with or without it
 * **The watchdog could hang forever without busybox.** Android's own `nc` only uses `-w` for connecting, so a UDP health check never returned. The right option is now picked per tool, with `timeout` as a second guard
 * **Firewall repair put rules in the wrong order.** When Android removed only part of the redirect, the missing rule went back above the bootstrap exemptions, which then never matched. Exemptions are now re-seated on top whenever the redirect is repaired
 * **Pause left a partial redirect in place.** While paused, any leftover rule is now removed, not only a complete set
@@ -167,14 +196,14 @@ A bug-fix release. Every fix was reproduced first — on the phone or in a test 
 
 ### Faster
 
-* **Restart, IP mode switch and new resolvers**: back in ~1–3 s instead of up to 15 — the WebUI now wakes the watchdog instead of waiting for its next 10-second tick
+* **Restart, IP mode switch and new resolvers**: back in ~1–3 s instead of up to 15 - the WebUI now wakes the watchdog instead of waiting for its next 10-second tick
 * **"Starting…" after a restart** now lasts about as long as dnscrypt-proxy actually needs (2–3 s) instead of ~10 s more
 * **Check a domain** answers in well under a second instead of 3–6 s
 
 ### WebUI
 
 * New **Starting…** banner while dnscrypt-proxy is fetching its resolvers' certificates, instead of a false "Nothing resolves"
-* **One action at a time**: while a command runs, other buttons are dimmed and ignored — including taps made while the screen was busy, which Android used to deliver all at once afterwards (switching IP mode several times in a row, each one restarting the daemon)
+* **One action at a time**: while a command runs, other buttons are dimmed and ignored - including taps made while the screen was busy, which Android used to deliver all at once afterwards (switching IP mode several times in a row, each one restarting the daemon)
 * **Android Private DNS**: when it is on (it goes around the module), System shows a **Turn off** button. Also `ctl.sh private-dns-off`
 * "Last Snapshot" is shown in the phone's time instead of UTC
 * The banner no longer shows "0 total · 0 blocked" while dnscrypt-proxy's statistics are not available yet

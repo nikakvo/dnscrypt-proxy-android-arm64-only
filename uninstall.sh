@@ -91,6 +91,11 @@ for IP in $BOOTSTRAP_IPS; do
   iptables -t nat -D OUTPUT -p udp -d "$IP" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
   iptables -D OUTPUT ! -o lo -p tcp -d "$IP" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
   iptables -D OUTPUT ! -o lo -p udp -d "$IP" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+  # 2.1.20-r1: the same rules with the "not bound to a network" mark
+  iptables -t nat -D OUTPUT -p tcp -d "$IP" --dport 53 -m owner --uid-owner 0 -m mark --mark 0x0/0x10000 -j RETURN 2>/dev/null
+  iptables -t nat -D OUTPUT -p udp -d "$IP" --dport 53 -m owner --uid-owner 0 -m mark --mark 0x0/0x10000 -j RETURN 2>/dev/null
+  iptables -D OUTPUT ! -o lo -p tcp -d "$IP" --dport 53 -m owner --uid-owner 0 -m mark --mark 0x0/0x10000 -j ACCEPT 2>/dev/null
+  iptables -D OUTPUT ! -o lo -p udp -d "$IP" --dport 53 -m owner --uid-owner 0 -m mark --mark 0x0/0x10000 -j ACCEPT 2>/dev/null
 done
 
 # IPv6 DNS redirect (IP modes compat / dual, r14+)
@@ -108,6 +113,19 @@ while ip6tables -D FORWARD -j DNSC_HS_FWD 2>/dev/null; do :; done
 iptables -t nat -F DNSC_HS_PRE 2>/dev/null; iptables -t nat -X DNSC_HS_PRE 2>/dev/null
 iptables -F DNSC_HS_FWD 2>/dev/null;        iptables -X DNSC_HS_FWD 2>/dev/null
 ip6tables -F DNSC_HS_FWD 2>/dev/null;       ip6tables -X DNSC_HS_FWD 2>/dev/null
+# 2.1.20-r1 Wi-Fi login (captive portal) chains
+for _t in "iptables nat" "iptables filter" "ip6tables nat" "ip6tables filter"; do
+  set -- $_t
+  for _p in tcp udp; do
+    while $1 -t $2 -D OUTPUT -p $_p --dport 53 -j DNSC_CAP 2>/dev/null; do :; done
+  done
+  $1 -t $2 -F DNSC_CAP 2>/dev/null; $1 -t $2 -X DNSC_CAP 2>/dev/null
+done
+unset _t _p
+_UIP=/system/bin/ip; [ -x "$_UIP" ] || _UIP=ip
+_n=0; while "$_UIP" -4 rule del pref 4950 2>/dev/null && [ $_n -lt 200 ]; do _n=$((_n + 1)); done
+_n=0; while "$_UIP" -6 rule del pref 4950 2>/dev/null && [ $_n -lt 200 ]; do _n=$((_n + 1)); done
+unset _UIP _n
 
 # ===============================================
 # STEP 3: Remove QUIC block (both families)

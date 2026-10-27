@@ -1,6 +1,6 @@
 # Third-party notices
 
-The module's own files — scripts and WebUI — are licensed under the
+The module's own files - scripts and WebUI - are licensed under the
 [MIT License](LICENSE), Copyright (c) 2026 Tears Burn (nikakvo).
 
 The parts below are **not** covered by that license and keep their own terms.

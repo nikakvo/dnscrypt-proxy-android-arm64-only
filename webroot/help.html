@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DNSCrypt Proxy — Help</title>
+  <title>DNSCrypt Proxy - Help</title>
   <!-- Loaded without blocking: an @import inside <style> held back every
        script after it until the font request finished or failed. With
        DNS down - exactly when this page is needed - that was a blank
@@ -101,13 +101,13 @@
   <a href="#how">3 · How protection works</a>
   <a href="#dash">4 · Dashboard</a>
   <a href="#blocklist">5 · Blocklists</a>
-  <a href="#check">6 · Tools — check a domain &amp; my rules</a>
-  <a href="#resolvers">7 · Tools — resolvers</a>
-  <a href="#pause">8 · System — pause protection</a>
-  <a href="#status">9 · System — status &amp; actions</a>
-  <a href="#ipmode">10 · System — IP mode</a>
-  <a href="#settings">11 · System — settings</a>
-  <a href="#hotspot">12 · System — hotspot</a>
+  <a href="#check">6 · Tools - check a domain &amp; my rules</a>
+  <a href="#resolvers">7 · Tools - resolvers</a>
+  <a href="#pause">8 · System - Wi-Fi login pages &amp; pause</a>
+  <a href="#status">9 · System - status &amp; actions</a>
+  <a href="#ipmode">10 · System - IP mode</a>
+  <a href="#settings">11 · System - settings</a>
+  <a href="#hotspot">12 · System - hotspot</a>
   <a href="#log">13 · Log</a>
   <a href="#files">14 · Files &amp; configuration</a>
   <a href="#cli">15 · Command line</a>
@@ -119,12 +119,12 @@
 <!-- 1 -->
 <div class="sec-title" id="what">1 · what this module does</div>
 <div class="box">
-  <p>Every DNS lookup on the phone — from every app, the browser, the system — is sent through <strong>dnscrypt-proxy</strong>, encrypted, and answered by a resolver you choose. Your mobile carrier or Wi-Fi owner can no longer read or change your DNS.</p>
+  <p>Every DNS lookup on the phone - from every app, the browser, the system - is sent through <strong>dnscrypt-proxy</strong>, encrypted, and answered by a resolver you choose. Your mobile carrier or Wi-Fi owner can no longer read or change your DNS.</p>
   <p>On the way, lookups for ads, trackers and malware are blocked using public blocklists (OISD, HaGeZi) plus your own rules.</p>
   <div class="tw"><table>
     <tr><th>requirement</th><th></th></tr>
     <tr><td>CPU</td><td>arm64 only</td></tr>
-    <tr><td>Root</td><td>SukiSU Ultra or KernelSU (WebUI built in). Magisk works too — open the WebUI with MMRL or KSU WebUI Standalone.</td></tr>
+    <tr><td>Root</td><td>SukiSU Ultra or KernelSU (WebUI built in). Magisk works too - open the WebUI with MMRL or KSU WebUI Standalone.</td></tr>
     <tr><td>Android</td><td>9 or newer</td></tr>
   </table></div>
 </div>
@@ -135,7 +135,7 @@
   <ol>
     <li>Flash the zip, reboot.</li>
     <li>Open the WebUI. The green banner should say <strong>Protected</strong>.</li>
-    <li>Tap <strong>DNS Test</strong> → run the extended test. You should see Cloudflare, Quad9 or Mullvad — never your carrier or ISP.</li>
+    <li>Tap <strong>DNS Test</strong> → run the extended test. You should see Cloudflare, Quad9 or Mullvad - never your carrier or ISP.</li>
     <li>Dashboard → <strong>Update Blocklist</strong> → pick your lists under <strong>Sources</strong> → <strong>Update</strong>.</li>
   </ol>
   <div class="note">Android's own <strong>Private DNS</strong> is switched off at install, otherwise Android would send DNS around the module. Uninstalling puts back whatever you had before.</div>
@@ -151,20 +151,20 @@
     encrypted (DoH / DNSCrypt) to your resolvers
   </div>
   <h3>No leak at boot</h3>
-  <p>The redirect is installed very early in boot, before the network is up and before dnscrypt-proxy starts. Until the daemon is ready, DNS simply does not work — nothing leaves the phone unencrypted.</p>
+  <p>The redirect is installed very early in boot, before the network is up and before dnscrypt-proxy starts. Until the daemon is ready, DNS simply does not work - nothing leaves the phone unencrypted.</p>
   <h3>Leak guard</h3>
   <p>Any port-53 packet that somehow escaped the redirect and is heading off the device is dropped. The same guard exists for IPv6.</p>
   <h3>QUIC block</h3>
-  <p>Browsers like Chrome can do their own DNS-over-HTTPS over QUIC (UDP/443) and skip the phone's DNS entirely. Blocking UDP/443 makes them fall back to normal HTTPS over TCP, which uses the phone's DNS — and therefore this module. Switchable in Settings.</p>
+  <p>Browsers like Chrome can do their own DNS-over-HTTPS over QUIC (UDP/443) and skip the phone's DNS entirely. Blocking UDP/443 makes them fall back to normal HTTPS over TCP, which uses the phone's DNS - and therefore this module. Switchable in Settings.</p>
   <h3>Watchdog</h3>
   <p>A background script checks everything every 10 seconds:</p>
   <ul>
-    <li><strong>Liveness</strong> every 30 s — a question dnscrypt-proxy answers by itself, without internet. Three missed answers in a row = hung, and it is restarted (at most 5 times in 15 minutes).</li>
-    <li><strong>Resolution</strong> every 60 s — a real lookup through your resolvers. Tells "working" apart from "running, but no upstream".</li>
-    <li><strong>Rules</strong> every tick — Android rebuilds its firewall on every network change or VPN start; missing rules are put back within seconds.</li>
+    <li><strong>Liveness</strong> every 30 s - a question dnscrypt-proxy answers by itself, without internet. Three missed answers in a row = hung, and it is restarted (at most 5 times in 15 minutes).</li>
+    <li><strong>Resolution</strong> every 60 s - a real lookup through your resolvers. Tells "working" apart from "running, but no upstream".</li>
+    <li><strong>Rules</strong> every tick - Android rebuilds its firewall on every network change or VPN start; missing rules are put back within seconds.</li>
   </ul>
   <h3>Failsafe</h3>
-  <p>If dnscrypt-proxy cannot be started (at boot: after a 90-second grace period), the redirect is removed so the phone is not left without internet. DNS then goes out <strong>unencrypted</strong> — the banner turns red — and protection comes back by itself the moment the daemon runs again. An intentional restart never triggers the failsafe.</p>
+  <p>If dnscrypt-proxy cannot be started (at boot: after a 90-second grace period), the redirect is removed so the phone is not left without internet. DNS then goes out <strong>unencrypted</strong> - the banner turns red - and protection comes back by itself the moment the daemon runs again. An intentional restart never triggers the failsafe.</p>
   <div class="note">The health checks are real DNS queries (about 180 an hour). The dashboard subtracts them from its numbers and hides them from the lists.</div>
 </div>
 
@@ -173,7 +173,7 @@
 <div class="box">
   <h3>Header buttons</h3>
   <div class="tw"><table>
-    <tr><td>DNS Test</td><td>dnsleaktest.com — which DNS servers the world sees you using.</td></tr>
+    <tr><td>DNS Test</td><td>dnsleaktest.com - which DNS servers the world sees you using.</td></tr>
     <tr><td>Ads Test 1 / 2</td><td>Ad-blocking test pages.</td></tr>
     <tr><td>My IP</td><td>Your public IP address (useful with a VPN).</td></tr>
     <tr><td>Monitor ↗</td><td>dnscrypt-proxy's own dashboard at <code>127.0.0.1:5555</code>, in your browser.</td></tr>
@@ -182,17 +182,17 @@
   <h3>Banner</h3>
   <div class="tw"><table>
     <tr><td><span class="pill ok">Protected</span></td><td>Everything works.</td></tr>
-    <tr><td><span class="pill warn">Nothing resolves</span></td><td>DNS is still protected, but no answers come back: no internet, a Wi-Fi login page, or the resolvers are unreachable. See <a href="#pause" style="color:var(--blue)">Pause</a>.</td></tr>
-    <tr><td><span class="pill warn">Starting</span></td><td>dnscrypt-proxy was just (re)started and is fetching its resolvers' certificates — usually a few seconds. DNS stays protected meanwhile.</td></tr>
+    <tr><td><span class="pill warn">Nothing resolves</span></td><td>DNS is still protected, but no answers come back: no internet, a Wi-Fi login page, or the resolvers are unreachable. See <a href="#pause" style="color:var(--blue)">Wi-Fi login pages</a>.</td></tr>
+    <tr><td><span class="pill warn">Starting</span></td><td>dnscrypt-proxy was just (re)started and is fetching its resolvers' certificates - usually a few seconds. DNS stays protected meanwhile.</td></tr>
     <tr><td><span class="pill warn">Not responding</span></td><td>dnscrypt-proxy hung and is being restarted.</td></tr>
     <tr><td><span class="pill warn">Paused</span></td><td>You paused protection; a countdown shows when it returns.</td></tr>
-    <tr><td><span class="pill bad">Failsafe</span></td><td>The daemon could not start — DNS is unencrypted until it recovers.</td></tr>
+    <tr><td><span class="pill bad">Failsafe</span></td><td>The daemon could not start - DNS is unencrypted until it recovers.</td></tr>
     <tr><td><span class="pill bad">Watchdog not running</span></td><td>Nothing maintains protection. Reboot.</td></tr>
   </table></div>
   <h3>Numbers and lists</h3>
   <p>Total, Passed, Rejected, NXDomain and healthy Resolvers come from dnscrypt-proxy itself and reset when it restarts. Below: overview, the blocklist, cache, query types, resolver speed, top domains and recent queries.</p>
   <p><strong>Tap any domain</strong> in Top Domains or Recent Queries for <strong>Allow</strong>, <strong>Block</strong> or <strong>Check</strong>. For a name with a parent (<code>ads.tracker.example.com</code>) a second button blocks the parent and everything under it (<code>tracker.example.com</code>); it never offers a bare country suffix like <code>co.uk</code>.</p>
-  <p><strong>Recent Queries</strong> can be narrowed to <strong>Blocked</strong> or <strong>Allowed</strong> answers and filtered by text. dnscrypt-proxy keeps the last 100 queries in memory only — nothing is written to disk. To find what an app still reaches: open the app, then look at Allowed and search for its name or its ad and analytics companies.</p>
+  <p><strong>Recent Queries</strong> can be narrowed to <strong>Blocked</strong> or <strong>Allowed</strong> answers and filtered by text. dnscrypt-proxy keeps the last 100 queries in memory only - nothing is written to disk. To find what an app still reaches: open the app, then look at Allowed and search for its name or its ad and analytics companies.</p>
 </div>
 
 <!-- 5 -->
@@ -207,37 +207,37 @@
     <tr><td>Add-ons</td><td>Pop-up ads, fake &amp; scam, gambling, NSFW, Xiaomi / Samsung / TikTok trackers, URL shorteners. Meant to stack on one main list.</td></tr>
     <tr><td>Your own lists</td><td>Any <code>https://</code> URL. Plain domain lists, hosts files (<code>0.0.0.0 name</code>) and AdBlock lists (<code>||name^</code>) are understood.</td></tr>
   </table></div>
-  <div class="note">One main list plus add-ons is usually enough. Main lists overlap heavily — duplicates are removed, but each one still costs download time and memory.</div>
+  <div class="note">One main list plus add-ons is usually enough. Main lists overlap heavily - duplicates are removed, but each one still costs download time and memory.</div>
   <h3>What Update does</h3>
   <ol>
     <li>Downloads every selected list and checks it (not an error page, not truncated).</li>
     <li>Merges them, removes duplicates, and removes subdomains already covered by a blocked parent (<code>ad.example.com</code> is redundant when <code>example.com</code> is blocked).</li>
-    <li>Adds <strong>custom-blocked-names.txt</strong> on top — always, whatever is selected.</li>
+    <li>Adds <strong>custom-blocked-names.txt</strong> on top - always, whatever is selected.</li>
     <li>Reloads dnscrypt-proxy with no downtime, and confirms it actually reloaded.</li>
   </ol>
-  <p>Each list shows a status: <span class="pill ok">updated</span>, <span class="pill warn">cached</span> — the download failed, its last good copy is used — or <span class="pill bad">failed</span> with no earlier copy. A list never silently disappears because one download failed.</p>
+  <p>Each list shows a status: <span class="pill ok">updated</span>, <span class="pill warn">cached</span> - the download failed, its last good copy is used - or <span class="pill bad">failed</span> with no earlier copy. A list never silently disappears because one download failed.</p>
   <h3>Automatic update</h3>
   <p><strong>Off / Daily / Weekly.</strong> The next run time is shown under Automatic Update. The check happens every ~10 minutes while the phone is awake and DNS works, so a phone that slept through the due time updates shortly after it wakes. A failed attempt waits an hour before retrying.</p>
   <h3>Custom list</h3>
-  <p>Edit <code>custom-blocked-names.txt</code> in <code>/sdcard/dnscrypt-proxy/</code> with any file manager, or use <strong>Block</strong> in the WebUI. Within a minute the blocklist is rebuilt from the cached lists — no download, and removed lines really disappear.</p>
+  <p>Edit <code>custom-blocked-names.txt</code> in <code>/sdcard/dnscrypt-proxy/</code> with any file manager, or use <strong>Block</strong> in the WebUI. Within a minute the blocklist is rebuilt from the cached lists - no download, and removed lines really disappear.</p>
 </div>
 
 <!-- 6 -->
-<div class="sec-title" id="check">6 · tools — check a domain &amp; my rules</div>
+<div class="sec-title" id="check">6 · tools - check a domain &amp; my rules</div>
 <div class="box">
   <h3>Check a domain</h3>
   <p>Type a name and tap <strong>Check</strong>:</p>
   <ul>
-    <li><strong>Verdict</strong> — Allowed, Blocked or Not blocked.</li>
-    <li><strong>Block rule</strong> — the exact rule that matches. It may be a parent: <code>tracker.example.com</code> is blocked by the rule <code>example.com</code>.</li>
-    <li><strong>From</strong> — which list the rule came from: OISD Big, HaGeZi Pro, your custom list…</li>
-    <li><strong>Live answer</strong> — what dnscrypt-proxy answers right now: an IP address, NXDOMAIN, or a blocked answer (HINFO).</li>
+    <li><strong>Verdict</strong> - Allowed, Blocked or Not blocked.</li>
+    <li><strong>Block rule</strong> - the exact rule that matches. It may be a parent: <code>tracker.example.com</code> is blocked by the rule <code>example.com</code>.</li>
+    <li><strong>From</strong> - which list the rule came from: OISD Big, HaGeZi Pro, your custom list…</li>
+    <li><strong>Live answer</strong> - what dnscrypt-proxy answers right now: an IP address, NXDOMAIN, or a blocked answer (HINFO).</li>
   </ul>
   <p>Allow / Block buttons appear under the result.</p>
   <h3>My rules</h3>
-  <p><strong>Allowed</strong> always wins over every blocklist — the way to fix a site or app a list breaks. <strong>Blocked by you</strong> is your custom list; it survives every update. ✕ removes a rule. Everything takes effect immediately.</p>
+  <p><strong>Allowed</strong> always wins over every blocklist - the way to fix a site or app a list breaks. <strong>Blocked by you</strong> is your custom list; it survives every update. ✕ removes a rule. Everything takes effect immediately.</p>
   <p>To add a rule, type the domain in the field above the list and tap <strong>Allow</strong> or <strong>Block</strong> (or press Enter). A pasted link works too - <code>https://hf.co/models</code> adds <code>hf.co</code> - and several domains can be added at once, separated by spaces or commas. No need to open the files.</p>
-  <p>If you unblock a name that a downloaded list also contains, it stays blocked — you are told which list; use Allow for those.</p>
+  <p>If you unblock a name that a downloaded list also contains, it stays blocked - you are told which list; use Allow for those.</p>
   <h3>Rule syntax (for editing the files by hand)</h3>
   <div class="tw"><table>
     <tr><th>rule</th><th>matches</th></tr>
@@ -253,9 +253,9 @@
 </div>
 
 <!-- 7 -->
-<div class="sec-title" id="resolvers">7 · tools — resolvers</div>
+<div class="sec-title" id="resolvers">7 · tools - resolvers</div>
 <div class="box">
-  <p>The servers that actually answer your encrypted queries. Default: <strong>Cloudflare, Quad9, Mullvad</strong> — none of them filter, since the blocklists do that job.</p>
+  <p>The servers that actually answer your encrypted queries. Default: <strong>Cloudflare, Quad9, Mullvad</strong> - none of them filter, since the blocklists do that job.</p>
   <h3>Badges</h3>
   <div class="tw"><table>
     <tr><td>DoH / DNSCrypt</td><td>Protocol. Both are encrypted and authenticated.</td></tr>
@@ -263,10 +263,10 @@
     <tr><td><span class="pill skip">no filter</span> <span class="pill warn">filters</span></td><td>Whether the resolver blocks things itself (ads, malware) on top of your lists.</td></tr>
     <tr><td><span class="pill ok">dnssec</span></td><td>Validates DNSSEC signatures.</td></tr>
   </table></div>
-  <p>These properties are decoded from each resolver's <strong>signed stamp</strong> in the official public-resolvers list — what the operator itself declares, not someone's description.</p>
+  <p>These properties are decoded from each resolver's <strong>signed stamp</strong> in the official public-resolvers list - what the operator itself declares, not someone's description.</p>
   <h3>Choosing</h3>
   <ul>
-    <li><strong>Test latency</strong> measures one TCP handshake to each server — a rough measure of distance, not of DNS speed.</li>
+    <li><strong>Test latency</strong> measures one TCP handshake to each server - a rough measure of distance, not of DNS speed.</li>
     <li>Tick the ones you want (1–8) → <strong>Apply</strong>. The new configuration is checked by dnscrypt-proxy itself before it is used, and if the daemon does not come back with it, the previous resolvers are restored automatically.</li>
     <li><strong>Add from the full list</strong> searches all 700+ public resolvers.</li>
   </ul>
@@ -274,15 +274,25 @@
 </div>
 
 <!-- 8 -->
-<div class="sec-title" id="pause">8 · system — pause protection</div>
+<div class="sec-title" id="pause">8 · system - Wi-Fi login pages &amp; pause</div>
 <div class="box">
-  <p>Hotel, airport and train Wi-Fi often show a login page first, and it only works with the network's own DNS. Until you log in, encrypted DNS cannot get through — the banner shows <strong>Nothing resolves</strong>.</p>
-  <p><strong>Pause 5 / 15 / 60 min</strong> removes the redirect for that time so the login page can load. <strong>Resume</strong> ends it early. It always ends by itself when the time is up and after any reboot.</p>
+  <h3>Wi-Fi login pages (captive portals)</h3>
+  <p>Hotel, airport and train Wi-Fi often show a login page first. Until you log in, nothing reaches the internet - also not the encrypted resolvers - and the login page itself only works with the network's own DNS.</p>
+  <p>This is handled automatically. While Android has not checked a new Wi-Fi network yet, or has found a login page on it:</p>
+  <ul>
+    <li>Android's network check and the login page (Android's login app) resolve names with <strong>the network's own DNS server</strong>. The <strong>Sign in to Wi-Fi network</strong> notification appears and the login page loads.</li>
+    <li>Every other app gets <strong>no answer</strong> from that DNS server - the hotel never sees which sites your apps look up. Nothing works on such a network before the login anyway.</li>
+    <li>As soon as Android sees the internet working after the login, all DNS goes through the proxy again.</li>
+  </ul>
+  <p>Android checks a new Wi-Fi within a second or two, so at home you never notice this. A Wi-Fi that Android does not validate and that has no login page (a printer, a car, a network that blocks Android's check) goes back to normal after 90 seconds: the proxy answers every app again.</p>
+  <p>Open the login page from Android's notification. The <strong>Wi-Fi login page</strong> row in System → Firewall shows which network is open, and the Log has a line when one opens or closes. It works the same with or without WG Shield.</p>
+  <h3>Pause</h3>
+  <p>If a login page still does not load (for example it has to be opened in a browser), use <strong>Pause 5 / 15 / 60 min</strong>: it removes the redirect for that time. <strong>Resume</strong> ends it early. It always ends by itself when the time is up and after any reboot.</p>
   <div class="note warn">While paused, DNS goes out <strong>unencrypted</strong>. Log in, then Resume.</div>
 </div>
 
 <!-- 9 -->
-<div class="sec-title" id="status">9 · system — status &amp; actions</div>
+<div class="sec-title" id="status">9 · system - status &amp; actions</div>
 <div class="box">
   <h3>Protection</h3>
   <div class="tw"><table>
@@ -301,16 +311,16 @@
     <tr><td>Run checks</td><td>Runs both health checks immediately and shows the raw result.</td></tr>
   </table></div>
   <h3>Firewall</h3>
-  <p>Every rule the module needs, checked live: DNS redirect (IPv4 / IPv6), leak guards, QUIC block, the IPv6 killswitch, and whether the kernel has the <code>xt_owner</code> match the IPv4 leak guard needs. <span class="pill ok">active</span> is good, <span class="pill bad">missing</span> is not — Reapply rules fixes it, and the watchdog does too within seconds. <span class="pill skip">off</span> means switched off by a setting.</p>
+  <p>Every rule the module needs, checked live: DNS redirect (IPv4 / IPv6), leak guards, QUIC block, the IPv6 killswitch, the Wi-Fi login page exception (<span class="pill ok">open</span> while a network waits for Android's check or a login), and whether the kernel has the <code>xt_owner</code> match the IPv4 leak guard needs. <span class="pill ok">active</span> is good, <span class="pill bad">missing</span> is not - Reapply rules fixes it, and the watchdog does too within seconds. <span class="pill skip">off</span> means switched off by a setting.</p>
   <h3>System</h3>
   <p>Module version, SELinux, Android Private DNS (should be <span class="pill ok">off</span>), network, busybox and the blocklist size.</p>
-  <p>Android's <strong>Private DNS</strong> uses its own encrypted channel (port 853) and would go around this module and its blocklists. The installer switches it off; if it is on again — Android settings, a restore, another app — a <strong>Turn off</strong> button appears in that row.</p>
+  <p>Android's <strong>Private DNS</strong> uses its own encrypted channel (port 853) and would go around this module and its blocklists. The installer switches it off; if it is on again - Android settings, a restore, another app - a <strong>Turn off</strong> button appears in that row.</p>
   <p>A red or amber dot on the <strong>System</strong> tab means something there needs attention.</p>
-  <p><strong>One action at a time:</strong> while a button's command runs, the other buttons are dimmed and taps on them are ignored — including taps made while the screen was busy, which Android would otherwise deliver all at once afterwards. Tabs, log filters and Refresh always work.</p>
+  <p><strong>One action at a time:</strong> while a button's command runs, the other buttons are dimmed and taps on them are ignored - including taps made while the screen was busy, which Android would otherwise deliver all at once afterwards. Tabs, log filters and Refresh always work.</p>
 </div>
 
 <!-- 10 -->
-<div class="sec-title" id="ipmode">10 · system — ip mode</div>
+<div class="sec-title" id="ipmode">10 · system - ip mode</div>
 <div class="box">
   <div class="tw"><table>
     <tr><th>mode</th><th>ipv6</th><th>ipv6 dns</th><th>aaaa answers</th></tr>
@@ -320,10 +330,10 @@
   </table></div>
   <ul>
     <li><strong>IPv4 only</strong> (default) - IPv6 blocked by the firewall. Strongest leak protection.</li>
-    <li><strong>IPv6 compatible</strong> — for carriers that only give IPv6 (464XLAT). On those, "IPv4 only" means no connection at all. Apps keep using IPv4.</li>
-    <li><strong>Dual stack</strong> — full IPv6. Websites can see your IPv6 address.</li>
+    <li><strong>IPv6 compatible</strong> - for carriers that only give IPv6 (464XLAT). On those, "IPv4 only" means no connection at all. Apps keep using IPv4.</li>
+    <li><strong>Dual stack</strong> - full IPv6. Websites can see your IPv6 address.</li>
   </ul>
-  <p>Switching applies immediately — no reboot. Coming out of <strong>IPv4 only</strong>, the network gets its IPv6 addresses back within seconds, but Android only notices after it reconnects. The module checks this and, only if Android missed it, reconnects Wi-Fi or mobile data by itself for a moment.</p>
+  <p>Switching applies immediately - no reboot. Coming out of <strong>IPv4 only</strong>, the network gets its IPv6 addresses back within seconds, but Android only notices after it reconnects. The module checks this and, only if Android missed it, reconnects Wi-Fi or mobile data by itself for a moment.</p>
   <h3>VoLTE in IPv4 only</h3>
   <p>Most carriers run VoLTE and Wi-Fi calling (IMS) on a separate mobile network that is IPv6 only. Switching IPv6 off in the kernel would take that network down: no VoLTE, calls fall back to 2G and mobile data stops during every call. So <strong>IPv4 only</strong> keeps IPv6 on in the kernel and blocks it in the firewall everywhere except:</p>
   <ul>
@@ -335,13 +345,13 @@
   <p><strong>"VoLTE service not available" after a reboot.</strong> Some ROMs (seen on HyperOS) show this notification at every boot, because they check VoLTE before the IMS network has registered. It appears in every IP mode, also with this module's firewall fully open, and the VoLTE icon shows up a moment later. It is a false alarm: if the icon is there, VoLTE works - dismiss the notification.</p>
   <p>A few carriers run IMS over the normal internet connection instead of a network of its own. The module does not open that one (it would let every app use IPv6), so VoLTE needs <strong>IPv6 compatible</strong> there.</p>
   <h3>Kernel IPv6 NAT</h3>
-  <p>Sending IPv6 DNS into the proxy needs IPv6 NAT in the kernel (<code>CONFIG_IP6_NF_NAT</code>). Without it the IPv6 modes run <span class="pill warn">limited</span>: IPv6 DNS is dropped instead — no leak, but apps must use IPv4 DNS, which an IPv6-only network may not have.</p>
+  <p>Sending IPv6 DNS into the proxy needs IPv6 NAT in the kernel (<code>CONFIG_IP6_NF_NAT</code>). Without it the IPv6 modes run <span class="pill warn">limited</span>: IPv6 DNS is dropped instead - no leak, but apps must use IPv4 DNS, which an IPv6-only network may not have.</p>
   <h3>This network</h3>
   <p>Shows whether the current network has IPv4, IPv6, or is IPv6-only with 464XLAT. If you are on IPv4 only in a network without IPv4, the section tells you to switch.</p>
 </div>
 
 <!-- 11 -->
-<div class="sec-title" id="settings">11 · system — settings</div>
+<div class="sec-title" id="settings">11 · system - settings</div>
 <div class="box">
   <p>Applied immediately, kept through updates.</p>
   <div class="tw"><table>
@@ -353,7 +363,7 @@
 </div>
 
 <!-- 12 -->
-<div class="sec-title" id="hotspot">12 · system — hotspot</div>
+<div class="sec-title" id="hotspot">12 · system - hotspot</div>
 <div class="box">
   <p>For devices that connect to your phone: Wi-Fi hotspot, USB and Bluetooth tethering. Both switches are off by default and kept through updates.</p>
   <h3>Already covered without the switches</h3>
@@ -363,7 +373,7 @@
   <h3>Block DoT for hotspot clients</h3>
   <p>Encrypted DNS over TLS (port 853) is invisible to the switch above. This one blocks it. A phone with Private DNS on <b>Automatic</b> notices and falls back to normal DNS, which then goes through you. A phone with a <b>Private DNS hostname</b> set does not fall back and has no DNS on your hotspot until the owner sets Private DNS to Automatic or Off. That is why it is a separate switch: turn it off for a friend who wants to keep their own. DNS-over-HTTPS inside browsers and apps cannot be told apart from web traffic and is not blocked.</p>
   <h3>What no DNS filter can see</h3>
-  <p>A browser with its own <b>secure DNS</b> provider set — Brave, Chrome, Edge and Firefox all offer it, e.g. "Use secure DNS: Cloudflare" — sends its lookups over HTTPS, mixed in with web traffic. Neither this module nor any other DNS filter can see or redirect them; that browser's sites are then not filtered. On the client, set secure DNS to <b>off</b> or to "your current service provider". After changing it, restart the browser: it keeps the addresses it already looked up. Your own phone's browser is the same.</p>
+  <p>A browser with its own <b>secure DNS</b> provider set - Brave, Chrome, Edge and Firefox all offer it, e.g. "Use secure DNS: Cloudflare" - sends its lookups over HTTPS, mixed in with web traffic. Neither this module nor any other DNS filter can see or redirect them; that browser's sites are then not filtered. On the client, set secure DNS to <b>off</b> or to "your current service provider". After changing it, restart the browser: it keeps the addresses it already looked up. Your own phone's browser is the same.</p>
   <h3>Connected devices</h3>
   <p>When a hotspot is running, the dashboard shows a Hotspot card: how many devices are connected, with their IP and MAC address. The count comes from the Wi-Fi driver, so it matches Android's own "devices connected" and drops as soon as a device leaves. <b>address pending</b> = connected, has not talked to the phone yet. For USB and Bluetooth tethering there is no driver list; the count is then an <b>estimate</b> from recent traffic.</p>
   <h3>Status</h3>
@@ -371,7 +381,7 @@
     <tr><td>protected</td><td>Rules in place for every tethered interface.</td></tr>
     <tr><td>waiting</td><td>Switched on, no hotspot running. The rules go on within seconds of one starting.</td></tr>
     <tr><td>repairing</td><td>Android replaced a rule (it rebuilds the firewall when tethering starts or stops); the watchdog puts it back within a tick.</td></tr>
-    <tr><td>paused</td><td>Protection is paused — clients get plain DNS too.</td></tr>
+    <tr><td>paused</td><td>Protection is paused - clients get plain DNS too.</td></tr>
   </table></div>
   <div class="note">Pause, failsafe and a stopped daemon affect clients exactly as they affect the phone. The rules sit in their own chains (<code>DNSC_HS_PRE</code>, <code>DNSC_HS_FWD</code>) and are removed completely when both switches are off, and on uninstall.</div>
 </div>
@@ -442,20 +452,20 @@
 <div class="sec-title" id="vpn">16 · vpn &amp; companion modules</div>
 <div class="box">
   <h3>With a VPN (e.g. WireGuard)</h3>
-  <p>Works alongside. Remove the <code>DNS =</code> line from the WireGuard app's config (WG Shield ignores it by itself), so the tunnel does not try to set its own DNS server — dnscrypt-proxy stays in charge, and its encrypted queries travel inside the tunnel.</p>
+  <p>Works alongside. Remove the <code>DNS =</code> line from the WireGuard app's config (WG Shield ignores it by itself), so the tunnel does not try to set its own DNS server - dnscrypt-proxy stays in charge, and its encrypted queries travel inside the tunnel.</p>
   <div class="tw"><table>
     <tr><th></th><th>this module</th><th>vpn</th><th>both</th></tr>
     <tr><td>DNS lookups hidden from carrier</td><td>yes</td><td>yes</td><td>yes</td></tr>
     <tr><td>Sites you visit hidden from carrier</td><td>no ¹</td><td>yes</td><td>yes</td></tr>
     <tr><td>Your IP hidden from sites</td><td>no</td><td>yes</td><td>yes</td></tr>
-    <tr><td>Ad &amp; tracker blocking</td><td>yes</td><td>—</td><td>yes</td></tr>
-    <tr><td>Works when the VPN drops</td><td>yes</td><td>—</td><td>yes</td></tr>
+    <tr><td>Ad &amp; tracker blocking</td><td>yes</td><td>-</td><td>yes</td></tr>
+    <tr><td>Works when the VPN drops</td><td>yes</td><td>-</td><td>yes</td></tr>
   </table></div>
   <p style="font-size:12px;color:var(--dim)">¹ Encrypted DNS hides the lookup, but the carrier still sees which IP addresses you connect to and, for most sites, the site name in the TLS handshake.</p>
   <h3>WG Shield Arm64</h3>
-  <p>The kernel WireGuard module of the same set. Android sees no VPN there, so this module reads WG Shield's status: System → VPN shows <em>Through WG Shield</em> with the tunnel's name, and the IP mode's IPv6 note knows whether that tunnel carries IPv6. Nothing else changes — this proxy's queries simply go through the tunnel. WG Shield never sets DNS.</p>
+  <p>The kernel WireGuard module of the same set. Android sees no VPN there, so this module reads WG Shield's status: System → VPN shows <em>Through WG Shield</em> with the tunnel's name, and the IP mode's IPv6 note knows whether that tunnel carries IPv6. Nothing else changes - this proxy's queries simply go through the tunnel. WG Shield never sets DNS.</p>
   <h3>ipset-arm64</h3>
-  <p>A DNS blocker cannot stop an app that connects to a hard-coded IP address — it never asks DNS. The companion module <strong>ipset-arm64</strong> blocks by IP address at the firewall instead. The two do not conflict and cover each other's blind spots.</p>
+  <p>A DNS blocker cannot stop an app that connects to a hard-coded IP address - it never asks DNS. The companion module <strong>ipset-arm64</strong> blocks by IP address at the firewall instead. The two do not conflict and cover each other's blind spots.</p>
   <h3>Conflicting modules and apps</h3>
   <p>The installer looks for other DNS changers (AdAway, systemless hosts, RethinkDNS, NextDNS, Blokada, …) and offers to remove them. Two things fighting over DNS means neither works reliably.</p>
 </div>
@@ -465,7 +475,7 @@
 <div class="box">
   <h3>No internet</h3>
   <ul>
-    <li>Look at the banner. <strong>Nothing resolves</strong> on a public Wi-Fi → it wants a login: <a href="#pause" style="color:var(--blue)">Pause</a>, log in, Resume.</li>
+    <li>Look at the banner. <strong>Nothing resolves</strong> on a public Wi-Fi → it wants a login: tap Android's <strong>Sign in to Wi-Fi network</strong> notification (see <a href="#pause" style="color:var(--blue)">Wi-Fi login pages</a>). If the page does not load: Pause, log in, Resume.</li>
     <li>On mobile data with an IPv6-only carrier → <a href="#ipmode" style="color:var(--blue)">IP mode</a> → IPv6 compatible.</li>
     <li>Otherwise: System → Restart daemon, then check the Log for red lines.</li>
   </ul>
@@ -476,14 +486,14 @@
   <h3>Blocklist update fails</h3>
   <p>The log box shows which list and why. Already-cached lists keep working. Try another source if one site is down.</p>
   <h3>Something else</h3>
-  <p>System tab first — every row is a live check. Then the Log with WARN and ERR only.</p>
+  <p>System tab first - every row is a live check. Then the Log with WARN and ERR only.</p>
 </div>
 
 <!-- 18 -->
 <div class="sec-title" id="uninstall">18 · update &amp; uninstall</div>
 <div class="box">
   <h3>Updating the module</h3>
-  <p>Your settings, custom list, allow list, IP lists (<code>allowed-ips.txt</code>, <code>blocked-ips.txt</code>), chosen resolvers and cached blocklists are kept. The config as it was before the update is kept as <code>/data/adb/dnscrypt-proxy/backup/dnscrypt-proxy.toml.before-update</code> — one file, replaced by each update.</p>
+  <p>Your settings, custom list, allow list, IP lists (<code>allowed-ips.txt</code>, <code>blocked-ips.txt</code>), chosen resolvers and cached blocklists are kept. The config as it was before the update is kept as <code>/data/adb/dnscrypt-proxy/backup/dnscrypt-proxy.toml.before-update</code> - one file, replaced by each update.</p>
   <h3>Uninstall</h3>
   <p>Remove the module in your root manager and reboot. Every firewall rule is removed, IPv6 and Android Private DNS are restored to how they were, and the module's files are deleted.</p>
 </div>

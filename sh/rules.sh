@@ -57,8 +57,19 @@ P_GUARD_UDP='^-A OUTPUT ! -o lo -p udp( -m udp)? --dport 53 -j DROP$'
 P_GUARD_TCP='^-A OUTPUT ! -o lo -p tcp( -m tcp)? --dport 53 -j DROP$'
 P_R6_UDP='^-A OUTPUT -p udp( -m udp)? --dport 53 -j REDIRECT --to-ports 5354$'
 P_QUIC='^-A OUTPUT -p udp( -m udp)? --dport 443 -j DROP$'
+P_CAPJ_UDP='^-A OUTPUT -p udp( -m udp)? --dport 53 -j DNSC_CAP$'
+P_BOOT_NAT='^-A OUTPUT -d 9\.9\.9\.9(/32)? -p udp( -m udp)? --dport 53 -m owner --uid-owner 0 -m mark --mark 0x0/0x10000 -j RETURN$'
 unset _RX_REDIR
 BOOTSTRAP_IPS="9.9.9.9 149.112.112.112 45.11.45.11"
+# 2.1.20-r1: the bootstrap exemption is only for sockets NOT bound to a
+# network (fwmark bit 0x10000 clear). Measured on the phone: every app's DNS
+# query is sent by netd's DnsResolver, which runs as root - so to xt_owner
+# ALL of them are uid 0, and all carry the explicit bit. Without the mark
+# check, an app's query went around the proxy whenever the network's own DNS
+# server was one of the bootstrap addresses (a router handing out Quad9).
+# dnscrypt-proxy (Go) and WG Shield's busybox nslookup never bind their
+# sockets to a network, so they keep the exemption.
+BOOT_MARK="0x0/0x10000"
 OWNER_FLAG_FILE="$STATE_DIR/owner_match_unavailable"
 
 # -----------------------------------------------------------------
@@ -130,15 +141,19 @@ ip6_redirect_wanted() {
 }
 
 rules_install_dns6() {
-  ip6tables -t nat -C OUTPUT -p tcp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null || \
-    ip6tables -t nat -I OUTPUT 1 -p tcp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null
-  ip6tables -t nat -C OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null || \
-    ip6tables -t nat -I OUTPUT 1 -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null
+  _r6_new=0
+  ip6tables -t nat -C OUTPUT -p tcp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null || {
+    ip6tables -t nat -I OUTPUT 1 -p tcp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null; _r6_new=1; }
+  ip6tables -t nat -C OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null || {
+    ip6tables -t nat -I OUTPUT 1 -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null; _r6_new=1; }
+  have_owner_match && _cap_jumps ip6tables nat "$_r6_new"
+  unset _r6_new
 }
 
 rules_remove_dns6() {
   ip6tables -t nat -D OUTPUT -p tcp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null
   ip6tables -t nat -D OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 5354 2>/dev/null
+  _cap_unjump ip6tables nat
 }
 
 # -----------------------------------------------------------------
@@ -159,6 +174,9 @@ rules_flush_all() {
 
   # r15 hotspot chains (defined further down)
   hotspot_teardown
+
+  # 2.1.20-r1 Wi-Fi login chains
+  cap_teardown
 }
 
 # -----------------------------------------------------------------
@@ -187,14 +205,18 @@ rules_install_dns() {
   if have_owner_match; then
     for _ip in $BOOTSTRAP_IPS; do
       for _pr in tcp udp; do
+        # 2.1.20 and older: the same rule without the mark check
+        iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
         if [ "$_nat_new" -eq 1 ]; then
-          iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
+          iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j RETURN 2>/dev/null
         fi
-        iptables -t nat -C OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null || \
-          iptables -t nat -I OUTPUT 1 -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
+        iptables -t nat -C OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j RETURN 2>/dev/null || \
+          iptables -t nat -I OUTPUT 1 -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j RETURN 2>/dev/null
       done
     done
     unset _ip _pr
+    # Wi-Fi login (captive portal) exception, above the DNAT too
+    _cap_jumps iptables nat "$_nat_new"
   fi
 
   # Leak guard: anything on port 53 that did NOT get redirected and is
@@ -211,23 +233,28 @@ rules_install_dns() {
       iptables -I OUTPUT 1 ! -o lo -p udp --dport 53 -j DROP 2>/dev/null; _flt_new=1; }
     for _ip in $BOOTSTRAP_IPS; do
       for _pr in tcp udp; do
+        iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
         if [ "$_flt_new" -eq 1 ]; then
-          iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+          iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j ACCEPT 2>/dev/null
         fi
-        iptables -C OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null || \
-          iptables -I OUTPUT 1 ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+        iptables -C OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j ACCEPT 2>/dev/null || \
+          iptables -I OUTPUT 1 ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j ACCEPT 2>/dev/null
       done
     done
+    _cap_jumps iptables filter "$_flt_new"
     unset _ip _pr _flt_new
   fi
   unset _nat_new
 
   # IPv6 DNS never goes through this proxy. If the IPv6 killswitch is off
   # or has been lifted, port-53 over IPv6 would be a wide open side door.
-  ip6tables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null || \
-    ip6tables -I OUTPUT 1 ! -o lo -p udp --dport 53 -j DROP 2>/dev/null
-  ip6tables -C OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null || \
-    ip6tables -I OUTPUT 1 ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null
+  _g6_new=0
+  ip6tables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null || {
+    ip6tables -I OUTPUT 1 ! -o lo -p udp --dport 53 -j DROP 2>/dev/null; _g6_new=1; }
+  ip6tables -C OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null || {
+    ip6tables -I OUTPUT 1 ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null; _g6_new=1; }
+  have_owner_match && _cap_jumps ip6tables filter "$_g6_new"
+  unset _g6_new
 
   # IPv6 DNS goes through the proxy too, when the IP mode allows IPv6 and
   # the kernel can NAT it. Otherwise the v6 leak guard above drops it.
@@ -254,12 +281,19 @@ rules_remove_dns() {
   ip6tables -D OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null
   ip6tables -D OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null
   for _ip in $BOOTSTRAP_IPS; do
-    iptables -t nat -D OUTPUT -p tcp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
-    iptables -t nat -D OUTPUT -p udp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
-    iptables -D OUTPUT ! -o lo -p tcp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
-    iptables -D OUTPUT ! -o lo -p udp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+    for _pr in tcp udp; do
+      iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j RETURN 2>/dev/null
+      iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j ACCEPT 2>/dev/null
+      # 2.1.20 and older
+      iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
+      iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+    done
   done
-  unset _ip
+  unset _ip _pr
+  _cap_unjump iptables nat
+  _cap_unjump iptables filter
+  _cap_unjump ip6tables filter
+  cap_routes_clear
   rules_remove_dns6
 }
 
@@ -277,10 +311,17 @@ rules_dns_present() {
   sn_has "$S4N" "$P_DNAT_UDP" || return 1
   if have_owner_match; then
     sn_has "$S4F" "$P_GUARD_UDP" || return 1
+    # 2.1.20-r1: Wi-Fi login exception and the marked bootstrap rule
+    # (an update from 2.1.20 reinstalls once and drops the old form)
+    sn_has "$S4N" "$P_CAPJ_UDP" || return 1
+    sn_has "$S4F" "$P_CAPJ_UDP" || return 1
+    sn_has "$S6F" "$P_CAPJ_UDP" || return 1
+    sn_has "$S4N" "$P_BOOT_NAT" || return 1
   fi
   sn_has "$S6F" "$P_GUARD_UDP" || return 1
   if ip6_redirect_wanted && have_ip6_nat; then
     sn_has "$S6N" "$P_R6_UDP" || return 1
+    have_owner_match && { sn_has "$S6N" "$P_CAPJ_UDP" || return 1; }
   fi
   return 0
 }
@@ -650,3 +691,403 @@ _hs_neigh_clients() { # <iface>
   echo "$_nl"
   unset _nl _pass _ip _ws _w _m _s
 }
+
+# -----------------------------------------------------------------
+# Wi-Fi login pages (captive portals) - 2.1.20-r1
+#
+# On a hotel / airport Wi-Fi nothing reaches the internet until you log
+# in, so this proxy cannot resolve anything there - and Android cannot even
+# find the login page: its network check and the login app resolve names
+# through us too. Only the network's own DNS server works before the login.
+#
+# What was measured on the phone: every DNS query of every app is sent by
+# netd's DnsResolver (root), with the network's netId in the low 16 bits
+# of the socket mark and the "explicitly bound" bit 0x10000 set. xt_owner
+# sees uid 0 for all of them, so the login app cannot be told apart by
+# uid here. It CAN be told apart by the network the query is for.
+#
+# So: for every Wi-Fi / Ethernet network Android has NOT validated yet
+# (still checking, or waiting for a login), netd's queries FOR THAT
+# NETWORK skip the redirect and go to the network's own DNS server:
+#   nat    OUTPUT :53 -> DNSC_CAP: -m owner --uid-owner 0
+#                                  -m mark --mark <0x10000+netId>/0x1ffff -j ACCEPT
+#                                  (ACCEPT in nat = no DNAT for it)
+#   filter OUTPUT :53 -> DNSC_CAP: the same, above the leak guard
+# Once Android has validated the network (logged in), the rules go.
+#
+# With WG Shield: its routing sends the queries of Android's check (uid
+# 1073) and of the login app out on the Wi-Fi, and everything else into
+# the tunnel, which is dead until the login - so only those two reach the
+# hotel's DNS (the kernel routes by the app's uid, which netd stamps on the
+# socket; xt_owner cannot see that). Without WG Shield every app's query
+# for that network uses the hotel's DNS until Android has validated it.
+#
+# IPv6: only in the IP modes that allow it (in "IPv4 only" the phone has no
+# IPv6 and Android asks the IPv4 server).
+# -----------------------------------------------------------------
+CAP_CHAIN="DNSC_CAP"
+CAP_FILE="$STATE_DIR/captive"   # 1 signature  2 time of the last dumpsys  3 list
+CAP_RECHECK=60                  # dumpsys at least this often (validation can be lost)
+CAP_FAST=40                     # seconds of 2 s checks after a network change
+
+# _cap_jumps <iptables|ip6tables> <nat|filter> <reseat 0|1>
+# The jumps must sit above the DNAT / REDIRECT / leak guard. When one of
+# those was just (re)inserted at the top, the jumps are moved back above it.
+_cap_jumps() {
+  "$1" -t "$2" -N "$CAP_CHAIN" 2>/dev/null
+  for _cj in tcp udp; do
+    if [ "$3" = 1 ]; then
+      while "$1" -t "$2" -D OUTPUT -p "$_cj" --dport 53 -j "$CAP_CHAIN" 2>/dev/null; do :; done
+    fi
+    "$1" -t "$2" -C OUTPUT -p "$_cj" --dport 53 -j "$CAP_CHAIN" 2>/dev/null || \
+      "$1" -t "$2" -I OUTPUT 1 -p "$_cj" --dport 53 -j "$CAP_CHAIN" 2>/dev/null
+  done
+  unset _cj
+}
+
+_cap_unjump() { # <iptables|ip6tables> <nat|filter>
+  for _cj in tcp udp; do
+    while "$1" -t "$2" -D OUTPUT -p "$_cj" --dport 53 -j "$CAP_CHAIN" 2>/dev/null; do :; done
+  done
+  unset _cj
+}
+
+cap_teardown() {
+  _cap_unjump iptables nat;  _cap_unjump iptables filter
+  _cap_unjump ip6tables nat; _cap_unjump ip6tables filter
+  for _ct in "iptables nat" "iptables filter" "ip6tables nat" "ip6tables filter"; do
+    set -- $_ct
+    "$1" -t "$2" -F "$CAP_CHAIN" 2>/dev/null; "$1" -t "$2" -X "$CAP_CHAIN" 2>/dev/null
+  done
+  rm -f "$CAP_FILE" 2>/dev/null
+  cap_routes_clear
+  ipt_snap_stale
+  unset _ct
+}
+
+# dumpsys connectivity lines -> "netId:iface:login|checking" for every
+# Wi-Fi / Ethernet network with INTERNET, not restricted, not VALIDATED.
+# "login" = Android found a login page (CAPTIVE_PORTAL), "checking" = not
+# decided yet (or no internet there at all).
+cap_parse() {
+  while IFS= read -r _l; do
+    case "$_l" in *"NetworkAgentInfo{network{"*) ;; *) continue ;; esac
+    case "$_l" in *"Transports: "*) ;; *) continue ;; esac
+    case "$_l" in *"Capabilities: "*) ;; *) continue ;; esac
+    _tr=${_l#*Transports: }; _tr=${_tr%% *}
+    case "|$_tr|" in *"|WIFI|"* | *"|ETHERNET|"*) ;; *) continue ;; esac
+    _caps=${_l#*Capabilities: }; _caps=${_caps%% *}
+    case "&$_caps&" in *"&INTERNET&"*) ;; *) continue ;; esac
+    case "&$_caps&" in *"&NOT_RESTRICTED&"*) ;; *) continue ;; esac
+    case "&$_caps&" in *"&VALIDATED&"*) continue ;; esac
+    _nid=${_l#*NetworkAgentInfo\{network\{}; _nid=${_nid%%\}*}
+    case "$_nid" in '' | *[!0-9]*) continue ;; esac
+    [ "$_nid" -gt 0 ] && [ "$_nid" -lt 65536 ] || continue
+    _if=""
+    case "$_l" in *"InterfaceName: "*) _if=${_l#*InterfaceName: }; _if=${_if%% *} ;; esac
+    case "$_if" in '' | *[!A-Za-z0-9_.@-]*) _if="?" ;; esac
+    _k=checking
+    case "&$_caps&" in *"&CAPTIVE_PORTAL&"*) _k=login ;; esac
+    # the network's DNS servers: "DnsAddresses: [ /192.168.1.1,/fd00::1 ]"
+    _dl=""
+    case "$_l" in *"DnsAddresses: ["*)
+      _d=${_l#*DnsAddresses: \[}; _d=${_d%%\]*}
+      _ifs=$IFS; IFS=', '
+      for _a in $_d; do
+        _a=${_a#/}; _a=${_a%%%*}
+        case "$_a" in
+          '' | *[!0-9a-fA-F.:]*) continue ;;
+          [fF][eE]80:*) continue ;;              # link-local: never used for DNS here
+          *:*) ;;                                # IPv6
+          *.*.*.*) case "$_a" in *[!0-9.]*) continue ;; esac ;;
+          *) continue ;;
+        esac
+        _dl="$_dl${_dl:+,}$_a"
+      done
+      IFS=$_ifs ;;
+    esac
+    echo "$_nid:$_if:$_k;$_dl"
+  done
+  unset _l _tr _caps _nid _if _k _d _dl _a _ifs
+}
+
+cap_detect() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 10 dumpsys connectivity 2>/dev/null
+  else
+    dumpsys connectivity 2>/dev/null
+  fi | grep '^ *NetworkAgentInfo{' | cap_parse | sort -u
+}
+
+# Cheap change detector, read every tick: netd adds an "explicit" rule
+# (fwmark 0x1<netId>/0x1ffff) for every network it creates - a reconnect to
+# the same Wi-Fi gets a new netId, so this changes too.
+_cap_sig() {
+  ip rule 2>/dev/null | sed -n 's/.*fwmark \(0x[0-9a-fA-F]*\)\/0x1ffff.*/\1/p' | sort -u | awk '{ printf "%s ", $0 }'
+}
+
+# The cached list ("netId:iface:kind ..."), empty when none. In the file
+# every entry also carries ";<its DNS servers>".
+cap_list() {
+  [ -f "$CAP_FILE" ] && sed -n 3p "$CAP_FILE" 2>/dev/null | sed 's/;[^ ]*//g'
+}
+
+# Marks in the chain of one dump, sorted, one line.
+_cap_have() { # <dump>
+  printf '%s\n' "$1" | sed -n "s/^-A $CAP_CHAIN .*--mark \(0x[0-9a-f]*\)\/0x1ffff .*/\1/p" | sort | awk '{ printf "%s%s", (NR > 1 ? " " : ""), $0 }'
+}
+
+# _cap_fill <iptables|ip6tables> <nat|filter> <dump> <sorted marks>
+_cap_fill() {
+  _cf_n=0; for _cf_m in $4; do _cf_n=$((_cf_n + 1)); done
+  sn_chain "$3" "$CAP_CHAIN" || "$1" -t "$2" -N "$CAP_CHAIN" 2>/dev/null
+  if [ "$(_cap_have "$3")" != "$4" ] || [ "$(sn_count "$3" "$CAP_CHAIN")" != "$_cf_n" ]; then
+    "$1" -t "$2" -F "$CAP_CHAIN" 2>/dev/null
+    for _cf_m in $4; do
+      "$1" -t "$2" -A "$CAP_CHAIN" -m owner --uid-owner 0 -m mark --mark "$_cf_m/0x1ffff" -j ACCEPT 2>/dev/null
+    done
+    _cf_changed=1
+  fi
+  unset _cf_n _cf_m
+}
+
+# ---- Only Android's check and the login page ---------------------------
+# The ACCEPT above lets netd's query go to the network's own DNS server.
+# Which app the query is for, only the routing can see (netd stamps the
+# app's uid on the socket; xt_owner sees root). Without more, WG Shield's
+# "LAN stays local" rule (5012) - or plain netd routing without WG Shield -
+# would carry EVERY app's query for that network to a DNS server on the
+# LAN, and the hotel would see the names. So, while a network is open,
+# every uid EXCEPT Android's network check (1073) and the captive portal
+# login app gets "unreachable" towards that network's DNS servers:
+#   pref 4950  iif lo fwmark <netId>/0xffff to <server> uidrange <a>-<b> unreachable
+# (one rule per uid range around the exempt uids). The route lookup
+# happens before nat, so an app's query to that server fails at once -
+# nothing works on such a network before the login anyway. Before the
+# WG Shield rules (5000+); Android's own rules start at 10000.
+CAP_PREF=4950
+CAP_RULES_FILE="$STATE_DIR/captive_rules"
+CAP_UIDS_FILE="$STATE_DIR/captive_uids"
+CAP_NETSTACK_UID=1073
+CAP_IP="${DNSC_IP:-/system/bin/ip}"
+[ -x "$CAP_IP" ] || CAP_IP=ip
+CAP_PM="${DNSC_PM:-pm}"
+
+# Android's network check + the login app(s), sorted. The package manager
+# answers only after boot; until then NetworkStack alone, asked again later.
+cap_uids() {
+  if [ ! -f "$CAP_UIDS_FILE" ] && [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; then
+    _cu_p=$("$CAP_PM" list packages -U 2>/dev/null)
+    if [ -n "$_cu_p" ]; then
+      _cu_u=$(printf '%s\n' "$_cu_p" | grep -i captiveportal | sed -n 's/.*uid:\([0-9][0-9]*\).*/\1/p')
+      printf '%s\n' $CAP_NETSTACK_UID $_cu_u | sort -un | awk '{ printf "%s%s", (NR > 1 ? " " : ""), $0 } END { print "" }' \
+        > "$CAP_UIDS_FILE.tmp" 2>/dev/null && mv -f "$CAP_UIDS_FILE.tmp" "$CAP_UIDS_FILE"
+    fi
+  fi
+  if [ -s "$CAP_UIDS_FILE" ]; then cat "$CAP_UIDS_FILE"; else echo "$CAP_NETSTACK_UID"; fi
+  unset _cu_p _cu_u
+}
+
+# _cap_routes_want <entries> <v6 0|1>: the rule lines (ip arguments)
+_cap_routes_want() {
+  _rw_lo=0; _rw_r=""
+  for _rw_u in $(cap_uids); do
+    [ "$_rw_u" -gt "$_rw_lo" ] && _rw_r="$_rw_r $_rw_lo-$((_rw_u - 1))"
+    _rw_lo=$((_rw_u + 1))
+  done
+  _rw_r="$_rw_r $_rw_lo-4294967294"
+  for _rw_e in $1; do
+    _rw_n=${_rw_e%%:*}; _rw_s=${_rw_e#*;}
+    [ "$_rw_s" = "$_rw_e" ] && continue
+    _rw_m=$(printf '0x%x' "$_rw_n")
+    _ifs=$IFS; IFS=','
+    for _rw_a in $_rw_s; do
+      IFS=$_ifs
+      case "$_rw_a" in
+        *:*) [ "$2" = 1 ] || continue; _rw_f=-6 ;;
+        *) _rw_f=-4 ;;
+      esac
+      for _rw_x in $_rw_r; do
+        echo "$_rw_f rule add pref $CAP_PREF iif lo fwmark $_rw_m/0xffff to $_rw_a uidrange $_rw_x unreachable"
+      done
+      IFS=','
+    done
+    IFS=$_ifs
+  done
+  unset _rw_lo _rw_r _rw_u _rw_e _rw_n _rw_s _rw_m _rw_a _rw_f _rw_x _ifs
+}
+
+_cap_rule_count() { # <-4|-6>
+  "$CAP_IP" "$1" rule 2>/dev/null | grep -c "^$CAP_PREF:"
+}
+
+# _cap_routes_apply <wanted lines>: add the new ones first, then delete the
+# ones no longer wanted (never a moment without them). A count that does not
+# match (someone flushed rules, a leftover) -> all of ours re-done.
+_cap_routes_apply() {
+  _ra_old=""; [ -f "$CAP_RULES_FILE" ] && _ra_old=$(cat "$CAP_RULES_FILE" 2>/dev/null)
+  _ra_w4=$(printf '%s\n' "$1" | grep -c '^-4 ')
+  _ra_w6=$(printf '%s\n' "$1" | grep -c '^-6 ')
+  if [ "$1" = "$_ra_old" ] && [ "$(_cap_rule_count -4)" = "$_ra_w4" ] && \
+     { [ "$_ra_w6" = 0 ] || [ "$(_cap_rule_count -6)" = "$_ra_w6" ]; }; then
+    unset _ra_old _ra_w4 _ra_w6; return 0
+  fi
+  if [ "$1" != "$_ra_old" ]; then
+    printf '%s\n' "$1" | while IFS= read -r _ra_l; do
+      [ -n "$_ra_l" ] || continue
+      printf '%s\n' "$_ra_old" | grep -qxF -- "$_ra_l" && continue
+      # shellcheck disable=SC2086
+      "$CAP_IP" $_ra_l 2>/dev/null
+    done
+    printf '%s\n' "$_ra_old" | while IFS= read -r _ra_l; do
+      [ -n "$_ra_l" ] || continue
+      printf '%s\n' "$1" | grep -qxF -- "$_ra_l" && continue
+      # shellcheck disable=SC2046,SC2086
+      "$CAP_IP" $(printf '%s' "$_ra_l" | sed 's/ rule add / rule del /') 2>/dev/null
+    done
+  fi
+  if [ "$(_cap_rule_count -4)" != "$_ra_w4" ] || { [ "$_ra_w6" != 0 ] && [ "$(_cap_rule_count -6)" != "$_ra_w6" ]; }; then
+    _cap_routes_flush
+    printf '%s\n' "$1" | while IFS= read -r _ra_l; do
+      # shellcheck disable=SC2086
+      [ -n "$_ra_l" ] && "$CAP_IP" $_ra_l 2>/dev/null
+    done
+  fi
+  if [ -n "$1" ]; then
+    printf '%s\n' "$1" > "$CAP_RULES_FILE" 2>/dev/null
+  else
+    rm -f "$CAP_RULES_FILE" 2>/dev/null
+  fi
+  unset _ra_old _ra_w4 _ra_w6 _ra_l
+}
+
+_cap_routes_flush() {
+  _rf=0
+  while "$CAP_IP" -4 rule del pref "$CAP_PREF" 2>/dev/null && [ "$_rf" -lt 200 ]; do _rf=$((_rf + 1)); done
+  _rf=0
+  while "$CAP_IP" -6 rule del pref "$CAP_PREF" 2>/dev/null && [ "$_rf" -lt 200 ]; do _rf=$((_rf + 1)); done
+  unset _rf
+}
+
+# Pause, failsafe, uninstall: nothing of ours may stay in the routing
+cap_routes_clear() {
+  [ -f "$CAP_RULES_FILE" ] || [ "$(_cap_rule_count -4)" != 0 ] || [ "$(_cap_rule_count -6)" != 0 ] || return 0
+  _cap_routes_flush
+  rm -f "$CAP_RULES_FILE" 2>/dev/null
+}
+
+# Every watchdog tick while protection is on. dumpsys only when a network
+# came or went, while a network is open (to close it right after the
+# login), and every CAP_RECHECK seconds otherwise.
+#
+# A network that is only "being checked" stays open for CAP_WINDOW seconds
+# from the moment it was first seen unvalidated - long enough for Android's
+# check to find a login page (then it stays open as "login" until Android
+# has validated it). A network Android never validates although it works
+# (blocked check servers, "partial connectivity", a LAN without internet)
+# goes back to normal after that: the proxy answers every app again.
+#
+# $CAP_FILE: 1 signature  2 time of the last dumpsys  3 open list (shown)
+#            4 every unvalidated network seen  5 first seen "netId=epoch ..."
+CAP_FAST_UNTIL=0
+CAP_WINDOW=${DNSC_CAP_WINDOW:-90}
+cap_sync() {
+  have_owner_match || return 0
+  ipt_snap
+  _cs_sig=$(_cap_sig)
+  _cs_now=$(date +%s)
+  _cs_osig=""; _cs_ot=0; _cs_old=""; _cs_det=""; _cs_fs=""
+  _cs_had=0
+  if [ -f "$CAP_FILE" ]; then
+    _cs_had=1
+    _cs_osig=$(sed -n 1p "$CAP_FILE" 2>/dev/null)
+    _cs_ot=$(sed -n 2p "$CAP_FILE" 2>/dev/null)
+    _cs_old=$(sed -n 3p "$CAP_FILE" 2>/dev/null)
+    _cs_det=$(sed -n 4p "$CAP_FILE" 2>/dev/null)
+    _cs_fs=$(sed -n 5p "$CAP_FILE" 2>/dev/null)
+  fi
+  case "$_cs_ot" in '' | *[!0-9]*) _cs_ot=0 ;; esac
+  _cs_ran=0
+  if [ "$_cs_had" = 0 ] || [ "$_cs_sig" != "$_cs_osig" ] || [ -n "$_cs_old" ] || \
+     [ $((_cs_now - _cs_ot)) -ge "$CAP_RECHECK" ] || [ "$(mono_now)" -lt "$CAP_FAST_UNTIL" ]; then
+    # Before boot_completed there is no system_server to ask.
+    if [ "$(getprop sys.boot_completed 2>/dev/null)" = "1" ]; then
+      # a network came or went (not the first look after boot): Android
+      # checks it within seconds - look every 2 s for a while
+      [ "$_cs_had" = 1 ] && [ "$_cs_sig" != "$_cs_osig" ] && \
+        CAP_FAST_UNTIL=$(( $(mono_now) + CAP_FAST ))
+      _cs_det=$(cap_detect | awk '{ printf "%s%s", (NR > 1 ? " " : ""), $0 }')
+      _cs_ran=1
+    fi
+  fi
+  # first-seen times, open list
+  _cs_nfs=""; _cs_want=""
+  for _cs_e in $_cs_det; do
+    _cs_n=${_cs_e%%:*}
+    _cs_t=""
+    for _cs_x in $_cs_fs; do
+      [ "${_cs_x%%=*}" = "$_cs_n" ] && { _cs_t=${_cs_x#*=}; break; }
+    done
+    case "$_cs_t" in '' | *[!0-9]*) _cs_t=$_cs_now ;; esac
+    _cs_nfs="$_cs_nfs${_cs_nfs:+ }$_cs_n=$_cs_t"
+    _cs_k=${_cs_e%%;*}; _cs_k=${_cs_k##*:}
+    if [ "$_cs_k" = login ] || [ $((_cs_now - _cs_t)) -lt "$CAP_WINDOW" ]; then
+      _cs_want="$_cs_want${_cs_want:+ }$_cs_e"
+    fi
+  done
+  if [ "$_cs_ran" = 1 ] || [ "$_cs_want" != "$_cs_old" ]; then
+    [ "$_cs_ran" = 1 ] || _cs_now=$_cs_ot
+    printf '%s\n%s\n%s\n%s\n%s\n' "$_cs_sig" "$_cs_now" "$_cs_want" "$_cs_det" "$_cs_nfs" > "$CAP_FILE" 2>/dev/null
+  fi
+
+  _cs_marks=$(for _cs_e in $_cs_want; do printf '0x%x\n' $(( ${_cs_e%%:*} + 65536 )); done | sort | awk '{ printf "%s%s", (NR > 1 ? " " : ""), $0 }')
+  _cf_changed=0
+  _cap_fill iptables nat "$S4N" "$_cs_marks"
+  _cap_fill iptables filter "$S4F" "$_cs_marks"
+  # IPv6 only where the IP mode lets the phone use it
+  _cs_m6=""
+  [ "$(ip_mode_applied | sed 's/-limited$//')" != "ipv4" ] && _cs_m6=$_cs_marks
+  [ "$S6OK" = 1 ] && _cap_fill ip6tables filter "$S6F" "$_cs_m6"
+  if ip6_redirect_wanted && have_ip6_nat; then
+    _cap_fill ip6tables nat "$S6N" "$_cs_m6"
+  fi
+  [ "$_cf_changed" = 1 ] && ipt_snap_stale
+  # routing part: only while the redirect itself is in place (a failsafe
+  # or a pause means plain DNS for everyone - nothing to keep out then)
+  _cs_v6=0; [ -n "$_cs_m6" ] && _cs_v6=1
+  if sn_has "$S4N" "$P_DNAT_UDP" && [ -n "$_cs_want" ]; then
+    _cap_routes_apply "$(_cap_routes_want "$_cs_want" "$_cs_v6")"
+  else
+    cap_routes_clear
+  fi
+
+  _cs_lw=$(printf '%s' "$_cs_want" | sed 's/;[^ ]*//g')
+  _cs_lo=$(printf '%s' "$_cs_old" | sed 's/;[^ ]*//g')
+  if [ "$_cs_lw" != "$_cs_lo" ]; then
+    for _cs_e in $_cs_lw; do
+      case " $_cs_lo " in *" $_cs_e "*) continue ;; esac
+      _cs_i=${_cs_e#*:}; _cs_k=${_cs_i#*:}; _cs_i=${_cs_i%%:*}
+      if [ "$_cs_k" = login ]; then
+        log_info "Wi-Fi login: $_cs_i (network ${_cs_e%%:*}) has a login page - Android's check and the login page use the network's own DNS until you are logged in"
+      else
+        log_info "Wi-Fi login: $_cs_i (network ${_cs_e%%:*}) not checked by Android yet - its own DNS answers Android's check meanwhile"
+      fi
+    done
+    for _cs_e in $_cs_lo; do
+      _cs_n=${_cs_e%%:*}
+      case " $_cs_lw " in *" $_cs_n:"*) continue ;; esac
+      _cs_i=${_cs_e#*:}; _cs_i=${_cs_i%%:*}
+      if printf ' %s ' "$_cs_det" | grep -q " $_cs_n:"; then
+        log_info "Wi-Fi login: $_cs_i (network $_cs_n) not validated by Android after ${CAP_WINDOW}s and no login page - all DNS through the proxy again"
+      else
+        log_info "Wi-Fi login: $_cs_i (network $_cs_n) checked or gone - all DNS through the proxy again"
+      fi
+    done
+  fi
+  unset _cs_sig _cs_now _cs_osig _cs_ot _cs_old _cs_want _cs_marks _cs_m6 _cs_v6 _cs_e _cs_i _cs_k _cs_n _cs_lw _cs_lo _cf_changed \
+        _cs_det _cs_fs _cs_nfs _cs_had _cs_ran _cs_t _cs_x
+  return 0
+}
+
+# 0 while the watchdog should look every 2 s (a network just came or went)
+cap_fast() { [ "$(mono_now)" -lt "$CAP_FAST_UNTIL" ]; }

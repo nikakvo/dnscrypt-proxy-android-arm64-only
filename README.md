@@ -2,14 +2,14 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.19-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.20--r1-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
 
-# DNSCrypt-Proxy Android — arm64
+# DNSCrypt-Proxy Android - arm64
 
-Encrypted DNS for the whole device. Every app's DNS goes through [dnscrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy), encrypted, to resolvers you choose — with ad and tracker blocking, leak protection from the first second of boot, and a WebUI that shows and controls everything.
+Encrypted DNS for the whole device. Every app's DNS goes through [dnscrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy), encrypted, to resolvers you choose - with ad and tracker blocking, leak protection from the first second of boot, and a WebUI that shows and controls everything.
 
 <img width="300" alt="dnscrypt-proxy WebUI" src="https://raw.githubusercontent.com/nikakvo/dnscrypt-proxy-android-arm64-only/main/dnscrypt-proxy.jpg" />
 
@@ -17,15 +17,15 @@ Encrypted DNS for the whole device. Every app's DNS goes through [dnscrypt-proxy
 
 ## Features
 
-- **Encrypted DNS for every app** — a transparent iptables redirect, nothing to configure per app
-- **No leak window** — DNS is locked down at boot before the network is up; a leak guard drops anything that escapes
-- **Blocklists** — OISD, HaGeZi, add-ons and your own URLs, merged and deduplicated; your custom list is always added on top
-- **Tools** — check why a domain is blocked and by which list, allow or block with one tap, or type (or paste a link) straight into your allow and block lists
-- **Resolvers** — pick from 700+ public resolvers, see what each one declares (no-log, filtering, DNSSEC), test latency
-- **IPv4 / IPv6 modes** — strict IPv4, IPv6-compatible for IPv6-only carriers, or full dual stack — switchable live
-- **Hotspot clients** — devices on your hotspot get the same encrypted, filtered DNS, even with their own DNS server set; optional DoT block; connected devices shown live
-- **Pause** — 5 / 15 / 60 minutes for hotel and airport Wi-Fi login pages
-- **Self-healing** — a watchdog restarts a hung daemon, restores firewall rules Android removes, and never leaves the phone without internet
+- **Encrypted DNS for every app** - a transparent iptables redirect, nothing to configure per app
+- **No leak window** - DNS is locked down at boot before the network is up; a leak guard drops anything that escapes
+- **Blocklists** - OISD, HaGeZi, add-ons and your own URLs, merged and deduplicated; your custom list is always added on top
+- **Tools** - check why a domain is blocked and by which list, allow or block with one tap, or type (or paste a link) straight into your allow and block lists
+- **Resolvers** - pick from 700+ public resolvers, see what each one declares (no-log, filtering, DNSSEC), test latency
+- **IPv4 / IPv6 modes** - strict IPv4, IPv6-compatible for IPv6-only carriers, or full dual stack - switchable live
+- **Hotspot clients** - devices on your hotspot get the same encrypted, filtered DNS, even with their own DNS server set; optional DoT block; connected devices shown live
+- **Wi-Fi login pages** - hotel and airport login pages load by themselves: only Android's network check and the login page use the network's own DNS until you are logged in; **Pause** (5 / 15 / 60 minutes) for anything else
+- **Self-healing** - a watchdog restarts a hung daemon, restores firewall rules Android removes, and never leaves the phone without internet
 
 ---
 
@@ -43,7 +43,7 @@ encrypted (DoH / DNSCrypt) → Cloudflare · Quad9 · Mullvad
 
 - Android's Private DNS is switched off at install (it would bypass the module) and restored on uninstall; if it gets switched on again, **System** offers a one-tap **Turn off**
 - QUIC (UDP/443) is blocked by default so browsers cannot use their own built-in DoH
-- Resolvers are pinned as signed stamps — the daemon starts with no download and no bootstrap DNS
+- Resolvers are pinned as signed stamps - the daemon starts with no download and no bootstrap DNS
 
 ---
 
@@ -64,7 +64,7 @@ encrypted (DoH / DNSCrypt) → Cloudflare · Quad9 · Mullvad
    - found → it asks before removing them *(VOL UP = yes · VOL DOWN = abort)* → reboot and flash again
    - none → done in one flash
 3. Reboot
-4. Open the WebUI — the banner should say **Protected**
+4. Open the WebUI - the banner should say **Protected**
 
 ---
 
@@ -90,13 +90,13 @@ Pick any combination under **Sources**:
 | OISD | Small · Big · NSFW Small · NSFW |
 | HaGeZi | Light · Normal · Pro · Pro++ · Ultimate · Threat Intelligence mini / medium |
 | Add-ons | Pop-up ads · Fake & scam · Gambling · NSFW · Xiaomi / Samsung / TikTok trackers · URL shorteners |
-| Your own | any `https://` list — plain domains, hosts or AdBlock format |
+| Your own | any `https://` list - plain domains, hosts or AdBlock format |
 
 On **Update** the selected lists are downloaded and verified, merged, deduplicated, subdomains already covered by a blocked parent are dropped, `custom-blocked-names.txt` is added on top, and dnscrypt-proxy reloads with no downtime.
 
-- Each list is cached. If a download fails, its last good copy is used — a list never silently disappears
+- Each list is cached. If a download fails, its last good copy is used - a list never silently disappears
 - **Automatic update**: off / daily / weekly, with the next run shown in the WebUI
-- **Custom list**: `/sdcard/dnscrypt-proxy/custom-blocked-names.txt` — edits apply within a minute, deletions included, no download needed. Block and Unblock in the WebUI apply at once
+- **Custom list**: `/sdcard/dnscrypt-proxy/custom-blocked-names.txt` - edits apply within a minute, deletions included, no download needed. Block and Unblock in the WebUI apply at once
 
 Rule syntax:
 
@@ -118,26 +118,26 @@ ads.*              names starting with "ads."
 | **IPv6 compatible** | on | via the proxy | blocked | IPv6-only carriers (464XLAT) |
 | **Dual stack** | on | via the proxy | answered | full IPv6 |
 
-Switch in **System → IP Mode**, applied immediately. **IPv4 only** blocks IPv6 in the firewall, not in the kernel: the carrier's own service networks (VoLTE and Wi-Fi calling, MMS, emergency calls) are often IPv6-only, so they are found through Android and left open - calls stay on 4G/5G and mobile data keeps working during calls. Apps cannot use those networks, so nothing leaks. The IPv6 modes need IPv6 NAT in the kernel (`CONFIG_IP6_NF_NAT`); without it they run *limited* — IPv6 DNS is dropped instead of redirected, with no leak.
+Switch in **System → IP Mode**, applied immediately. **IPv4 only** blocks IPv6 in the firewall, not in the kernel: the carrier's own service networks (VoLTE and Wi-Fi calling, MMS, emergency calls) are often IPv6-only, so they are found through Android and left open - calls stay on 4G/5G and mobile data keeps working during calls. Apps cannot use those networks, so nothing leaks. The IPv6 modes need IPv6 NAT in the kernel (`CONFIG_IP6_NF_NAT`); without it they run *limited* - IPv6 DNS is dropped instead of redirected, with no leak.
 
 ---
 
 ## Hotspot
 
-Devices connected to your phone — Wi-Fi hotspot, USB or Bluetooth tethering — that use the phone as their DNS server are covered automatically. Two switches in **System → Hotspot** (both off by default) go further:
+Devices connected to your phone - Wi-Fi hotspot, USB or Bluetooth tethering - that use the phone as their DNS server are covered automatically. Two switches in **System → Hotspot** (both off by default) go further:
 
 | Switch | What it does |
 |---|---|
 | **Protect hotspot clients** | Every DNS query from a client, to any server (8.8.8.8, 1.1.1.1, …), goes through dnscrypt-proxy and your blocklists |
 | **Block DoT for hotspot clients** | Blocks port 853. Private DNS *Automatic* on a client falls back to you; a Private DNS *hostname* leaves that client without DNS until it is switched off |
 
-While a hotspot runs, the Dashboard shows how many devices are connected, with IP and MAC — the same count Android shows. A browser with its own DNS-over-HTTPS provider set (Brave, Chrome, Firefox) cannot be filtered by any DNS module.
+While a hotspot runs, the Dashboard shows how many devices are connected, with IP and MAC - the same count Android shows. A browser with its own DNS-over-HTTPS provider set (Brave, Chrome, Firefox) cannot be filtered by any DNS module.
 
 ---
 
 ## Resolvers
 
-Default: **Cloudflare · Quad9 · Mullvad** — none of them filter, the blocklists do that.
+Default: **Cloudflare · Quad9 · Mullvad** - none of them filter, the blocklists do that.
 
 Change them in **Tools → Resolvers**. Protocol, logging, filtering and DNSSEC are decoded from each resolver's signed stamp in the official [public-resolvers](https://github.com/DNSCrypt/dnscrypt-resolvers) list. A new selection is checked by dnscrypt-proxy before it is used, and rolled back automatically if the daemon does not come up with it.
 
@@ -204,39 +204,39 @@ On **dnsleaktest.com** → Extended test:
 
 ## With a VPN
 
-Works alongside WireGuard and other VPNs. Remove the `DNS =` line from the tunnel config so dnscrypt-proxy stays in charge — its encrypted queries then travel inside the tunnel. With [WG Shield Arm64](https://github.com/nikakvo/wg-shield-arm64) (kernel WireGuard without an app) there is nothing to remove: it ignores that line, and **System → VPN** shows *Through WG Shield* with the tunnel's name.
+Works alongside WireGuard and other VPNs. Remove the `DNS =` line from the tunnel config so dnscrypt-proxy stays in charge - its encrypted queries then travel inside the tunnel. With [WG Shield Arm64](https://github.com/nikakvo/wg-shield-arm64) (kernel WireGuard without an app) there is nothing to remove: it ignores that line, and **System → VPN** shows *Through WG Shield* with the tunnel's name.
 
-Encrypted DNS hides *what you look up*; your carrier still sees which IP addresses you connect to. A VPN hides that. For apps that connect to hard-coded IP addresses and never use DNS, see the companion module [ipset-arm64](https://github.com/nikakvo/ipset_arm64). Android's VPN covers only the phone's own apps — to send your **hotspot devices** through the VPN too, see [VPN Hotspot Arm64](https://github.com/nikakvo/vpn-hotspot-arm64).
+Encrypted DNS hides *what you look up*; your carrier still sees which IP addresses you connect to. A VPN hides that. For apps that connect to hard-coded IP addresses and never use DNS, see the companion module [ipset-arm64](https://github.com/nikakvo/ipset_arm64). Android's VPN covers only the phone's own apps - to send your **hotspot devices** through the VPN too, see [VPN Hotspot Arm64](https://github.com/nikakvo/vpn-hotspot-arm64).
 
 ---
 
 ## The networking set
 
-Four modules built to work together — each one works on its own, and each adds a layer for the phone **and everyone on its hotspot**:
+Four modules built to work together - each one works on its own, and each adds a layer for the phone **and everyone on its hotspot**:
 
 | | Module | What it adds |
 |---|---|---|
-| 🟢 | **DNSCrypt Proxy Arm64** *(this module)* | Encrypted DNS with ad / tracker blocklists — for the phone and for hotspot devices, even those with their own DNS server set |
-| 🔵 | [ipset-arm64](https://github.com/nikakvo/ipset_arm64) | IP blocklists (FireHOL, Spamhaus) in the kernel — stops apps and devices that connect to hard-coded IP addresses, which DNS blocking cannot see |
-| 🟡 | [VPN Hotspot Arm64](https://github.com/nikakvo/vpn-hotspot-arm64) | Sends hotspot, USB and Bluetooth devices through the phone's VPN, with kill switch — Android's VPN only covers the phone's own apps |
-| 🩵 | [WG Shield Arm64](https://github.com/nikakvo/wg-shield-arm64) | Always-on kernel WireGuard for the phone, with kill switch — no app; this module's queries travel inside its tunnel |
+| 🟢 | **DNSCrypt Proxy Arm64** *(this module)* | Encrypted DNS with ad / tracker blocklists - for the phone and for hotspot devices, even those with their own DNS server set |
+| 🔵 | [ipset-arm64](https://github.com/nikakvo/ipset_arm64) | IP blocklists (FireHOL, Spamhaus) in the kernel - stops apps and devices that connect to hard-coded IP addresses, which DNS blocking cannot see |
+| 🟡 | [VPN Hotspot Arm64](https://github.com/nikakvo/vpn-hotspot-arm64) | Sends hotspot, USB and Bluetooth devices through the phone's VPN, with kill switch - Android's VPN only covers the phone's own apps |
+| 🩵 | [WG Shield Arm64](https://github.com/nikakvo/wg-shield-arm64) | Always-on kernel WireGuard for the phone, with kill switch - no app; this module's queries travel inside its tunnel |
 
 ```
 device on your hotspot  /  app on the phone
    │  DNS      → DNSCrypt Proxy   encrypted, filtered
    │  traffic  → ipset            listed networks dropped
    │  hotspot  → VPN Hotspot      into the tunnel (kill switch)
-   ▼  tunnel   → WG Shield        kernel WireGuard, always on — or any VPN app
+   ▼  tunnel   → WG Shield        kernel WireGuard, always on - or any VPN app
 internet
 ```
 
 - **Order is fixed and checked** by each module: DNSCrypt's hotspot filter → ipset → VPN Hotspot → Android. Nothing reaches the VPN around the two filters
-- **With the whole set**, hotspot devices get your filtered DNS (DNSCrypt's own queries travel inside the tunnel), your IP blocklists and your VPN exit — on Wi-Fi and on mobile data
-- **WG Shield never sets DNS** — DNS stays with this module; the System tab shows the tunnel its queries use
-- **VPN apps stay happy** — none of the modules holds Android's firewall lock while checking, so WireGuard (`wg-quick`) and other VPN apps connect and disconnect without errors
+- **With the whole set**, hotspot devices get your filtered DNS (DNSCrypt's own queries travel inside the tunnel), your IP blocklists and your VPN exit - on Wi-Fi and on mobile data
+- **WG Shield never sets DNS** - DNS stays with this module; the System tab shows the tunnel its queries use
+- **VPN apps stay happy** - none of the modules holds Android's firewall lock while checking, so WireGuard (`wg-quick`) and other VPN apps connect and disconnect without errors
 - **On its own** it encrypts and filters DNS for the phone and hotspot devices; their other traffic goes out as Android sends it.
 
-**Tested together** on a Poco F6 Pro (vermeer), Xiaomi.eu ROM (HyperOS 3, Android 16), kernel [GKI_Kernel_SukiSU](https://github.com/nikakvo/GKI_Kernel_SukiSU) (SukiSU Ultra), with WG Shield, WireGuard (kernel backend) and v2rayNG; hotspot devices: a Windows laptop and a stock Android phone. Other devices should work but are not tested — reports welcome.
+**Tested together** on a Poco F6 Pro (vermeer), Xiaomi.eu ROM (HyperOS 3, Android 16), kernel [GKI_Kernel_SukiSU](https://github.com/nikakvo/GKI_Kernel_SukiSU) (SukiSU Ultra), with WG Shield, WireGuard (kernel backend) and v2rayNG; hotspot devices: a Windows laptop and a stock Android phone. Other devices should work but are not tested - reports welcome.
 
 ---
 
@@ -255,7 +255,7 @@ Remove the module in your root manager and reboot. All firewall rules are remove
 ---
   ## License
 
-  The module's scripts and WebUI are [MIT](LICENSE). The bundled binary and the blocklists keep their own licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+  The module's scripts and WebUI are [MIT](LICENSE). The bundled binary and the blocklists keep their own licenses - see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
   
 ---
 

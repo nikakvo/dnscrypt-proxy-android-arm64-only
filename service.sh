@@ -66,7 +66,7 @@ unset _p _pid
 echo "$MYPID" > "$WATCHDOG_PIDFILE"
 # USR1 = "the daemon was just stopped, look now" (see wake_watchdog). The
 # trap only has to exist: it interrupts the wait at the end of the loop.
-trap ':' USR1
+trap 'WOKE=1' USR1
 echo "$MYPID" > "$WATCHDOG_WAKE"
 
 if daemon_any; then
@@ -585,6 +585,10 @@ while true; do
   # exactly as (un)protected as the phone. Pause and the switches are
   # handled inside.
   hotspot_sync
+  # ── Wi-Fi login pages (captive portals), every tick unless paused ──
+  # Not gated on the daemon: at a hotel before the login it cannot reach a
+  # server and may not even listen yet.
+  [ -f "$PAUSE_FILE" ] || cap_sync
 
   # No failsafe here. The daemon can be down at this point for a good
   # reason - ctl.sh just stopped it for a restart or an IP mode switch - and
@@ -646,9 +650,23 @@ while true; do
   fi
 
   # Interruptible: wake_watchdog (USR1) ends the wait early.
-  sleep "$TICK" &
-  _slp=$!
-  wait "$_slp" 2>/dev/null
-  kill "$_slp" 2>/dev/null
-  unset _slp
+  # Right after a network came or went, the Wi-Fi login check runs every
+  # 2 s inside the wait (Android checks a new Wi-Fi within seconds); the
+  # rest of the tick keeps its normal pace.
+  WOKE=0
+  _wt=0
+  while [ "$_wt" -lt "$TICK" ] && [ "$WOKE" = 0 ]; do
+    _st=$TICK; cap_fast && _st=2
+    [ $((_wt + _st)) -gt "$TICK" ] && _st=$((TICK - _wt))
+    sleep "$_st" &
+    _slp=$!
+    wait "$_slp" 2>/dev/null
+    kill "$_slp" 2>/dev/null
+    _wt=$((_wt + _st))
+    if [ "$WOKE" = 0 ] && [ "$_wt" -lt "$TICK" ] && cap_fast && [ ! -f "$PAUSE_FILE" ]; then
+      ipt_snap_stale
+      cap_sync
+    fi
+  done
+  unset _slp _wt _st
 done
