@@ -1,8 +1,8 @@
 id=dnscrypt-proxy-android
 name=DNSCrypt Proxy Arm64
-version=2.1.20-r1
-versionCode=51
+version=2.1.20-r2
+versionCode=52
 author=Tears Burn
-description=Encrypted DNS for the whole device. Leak-proof redirect, blocklists, IPv4/IPv6 modes and a live WebUI. Status: Init
+description=Encrypted DNS for the whole device. Leak-proof redirect, blocklists, IPv4/IPv6 modes and a live WebUI. Status: Failsafe 📵 DNS unprotected
 updateJson=https://raw.githubusercontent.com/nikakvo/dnscrypt-proxy-android-arm64-only/main/update.json
 banner=dnscrypt-proxy.png

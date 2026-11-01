@@ -1,8 +1,8 @@
-<p align="center"><img src="dnscrypt-proxy.png" alt="DNSCrypt Proxy Arm64" width="640"></p>
+<p align="center"><img src="readme-banner.png" alt="DNSCrypt Proxy Arm64"></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.20--r1-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.20--r2-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -89,7 +89,7 @@ Pick any combination under **Sources**:
 |---|---|
 | OISD | Small · Big · NSFW Small · NSFW |
 | HaGeZi | Light · Normal · Pro · Pro++ · Ultimate · Threat Intelligence mini / medium |
-| Add-ons | Pop-up ads · Fake & scam · Gambling · NSFW · Xiaomi / Samsung / TikTok trackers · URL shorteners |
+| Add-ons | Pop-up ads · Fake & scam · Gambling · NSFW · device trackers (Xiaomi, Samsung, TikTok, Apple, Amazon, Windows / Office, Huawei, OPPO / Realme, Vivo) · Badware hosters · URL shorteners |
 | Your own | any `https://` list - plain domains, hosts or AdBlock format |
 
 On **Update** the selected lists are downloaded and verified, merged, deduplicated, subdomains already covered by a blocked parent are dropped, `custom-blocked-names.txt` is added on top, and dnscrypt-proxy reloads with no downtime.
@@ -212,7 +212,7 @@ Encrypted DNS hides *what you look up*; your carrier still sees which IP address
 
 ## The networking set
 
-Four modules built to work together - each one works on its own, and each adds a layer for the phone **and everyone on its hotspot**:
+Five modules built to work together - each one works on its own, and each adds a layer for the phone **and everyone on its hotspot**:
 
 | | Module | What it adds |
 |---|---|---|
@@ -220,6 +220,7 @@ Four modules built to work together - each one works on its own, and each adds a
 | 🔵 | [ipset-arm64](https://github.com/nikakvo/ipset_arm64) | IP blocklists (FireHOL, Spamhaus) in the kernel - stops apps and devices that connect to hard-coded IP addresses, which DNS blocking cannot see |
 | 🟡 | [VPN Hotspot Arm64](https://github.com/nikakvo/vpn-hotspot-arm64) | Sends hotspot, USB and Bluetooth devices through the phone's VPN, with kill switch - Android's VPN only covers the phone's own apps |
 | 🩵 | [WG Shield Arm64](https://github.com/nikakvo/wg-shield-arm64) | Always-on kernel WireGuard for the phone, with kill switch - no app; this module's queries travel inside its tunnel |
+| 🩷 | [LAN Cloak Arm64](https://github.com/nikakvo/lan-cloak-arm64) | What the local network sees of the phone: clean DHCP, no announcements |
 
 ```
 device on your hotspot  /  app on the phone
@@ -233,6 +234,7 @@ internet
 - **Order is fixed and checked** by each module: DNSCrypt's hotspot filter → ipset → VPN Hotspot → Android. Nothing reaches the VPN around the two filters
 - **With the whole set**, hotspot devices get your filtered DNS (DNSCrypt's own queries travel inside the tunnel), your IP blocklists and your VPN exit - on Wi-Fi and on mobile data
 - **WG Shield never sets DNS** - DNS stays with this module; the System tab shows the tunnel its queries use
+- **LAN Cloak** hides the phone on the Wi-Fi network itself (DHCP, announcements) and never touches DNS; the System tab shows its state
 - **VPN apps stay happy** - none of the modules holds Android's firewall lock while checking, so WireGuard (`wg-quick`) and other VPN apps connect and disconnect without errors
 - **On its own** it encrypts and filters DNS for the phone and hotspot devices; their other traffic goes out as Android sends it.
 

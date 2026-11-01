@@ -219,7 +219,7 @@
     .src-row input:checked::after { content: '✓'; position: absolute; inset: 0; color: var(--green); font-size: 11px; line-height: 14px; text-align: center; }
     .src-row .si { flex: 1; min-width: 0; }
     .src-row .si b { display: block; font-weight: normal; font-size: 11px; color: var(--text); }
-    .src-row .si span { display: block; font-size: 9px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .src-row .si span { display: block; font-size: 9px; color: var(--muted); margin-top: 2px; white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
     .src-row .si span.cache { color: #2f7a55; }
     .src-row .pill { margin-top: 1px; }
     .src-del { background: transparent; border: 1px solid rgba(255,68,85,0.4); color: var(--red); font-family: var(--mono); font-size: 10px; border-radius: 2px; padding: 1px 7px; cursor: pointer; flex-shrink: 0; }
@@ -318,6 +318,7 @@
     .pill.warn { color: var(--amber);  border-color: rgba(255,170,0,0.4);  background: rgba(255,170,0,0.07); }
     .pill.bad  { color: var(--red);    border-color: rgba(255,68,85,0.45); background: rgba(255,68,85,0.08); }
     .pill.skip { color: var(--muted);  border-color: var(--border);        background: transparent; }
+    .pill.lanc { color: #ff3dd2;       border-color: rgba(255,61,210,0.4); background: rgba(255,61,210,0.06); }
 
     .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
     .act {
@@ -715,16 +716,27 @@ function legacyExec(cmd) {
   return { errno: 0, stdout: typeof r === 'string' ? r : (r && r.stdout) || '', stderr: '' };
 }
 
+// Which form of ksu.exec works. On a quick reopen the root manager can run
+// the page's first command before it has registered the new page, and that
+// answer never comes. So the check is asked again a moment later, several
+// times, and the first answer wins - instead of waiting seconds for a lost
+// one and then falling back to the slow form that blocks the page.
 async function detectExecMode() {
   if (!hasBridge()) throw new Error('no root bridge');
-  try {
-    const r = await callbackExec('echo dnsc_ok', 3000);
-    if ((r.stdout || '').indexOf('dnsc_ok') >= 0) return 'callback';
-  } catch (e) {}
-  try {
-    const l = legacyExec('echo dnsc_ok');
-    if ((l.stdout || '').indexOf('dnsc_ok') >= 0) return 'legacy';
-  } catch (e) {}
+  const viaCallback = await new Promise(resolve => {
+    let done = false;
+    const finish = v => { if (!done) { done = true; resolve(v); } };
+    const ask = () => {
+      if (done) return;
+      callbackExec('echo dnsc_ok', 15000).then(
+        r => { if ((r.stdout || '').indexOf('dnsc_ok') >= 0) finish(true); },
+        e => { if (!/timeout/.test(String(e && e.message))) finish(false); });
+    };
+    [0, 400, 1000, 2000, 3500, 6000].forEach(t => setTimeout(ask, t));
+    setTimeout(() => finish(false), 16000);
+  });
+  if (viaCallback) return 'callback';
+  try { const l = legacyExec('echo dnsc_ok'); if ((l.stdout || '').indexOf('dnsc_ok') >= 0) return 'legacy'; } catch (e) {}
   throw new Error('root shell unavailable');
 }
 
@@ -1156,6 +1168,20 @@ function vpnRow(s) {
   }
   return row('VPN', 'none - queries go out over your network, still encrypted', 'skip', 'none');
 }
+// LAN Cloak (same set): read only, from its own status file
+function lancRow(s) {
+  const age = parseInt(s.lancloak_age, 10);
+  if (s.lancloak === 'absent' || !s.lancloak) return row('LAN Cloak', 'hides the phone on Wi-Fi - not installed', 'skip', 'not installed');
+  if (s.lancloak === 'disabled') return row('LAN Cloak', 'disabled in the root manager', 'warn', 'disabled');
+  if (!s.lancloak_state || !(age < 60)) return row('LAN Cloak', 'no report from its watchdog', 'warn', 'no status');
+  if (s.lancloak_state === 'on') {
+    const d = s.lancloak_dhcp === 'on' ? 'DHCP cleaned' : s.lancloak_dhcp === 'waiting' ? 'DHCP: waiting for Wi-Fi' : 'DHCP untouched';
+    const a = s.lancloak_announce === 'on' ? 'announcements blocked' : 'announcements allowed';
+    return row('LAN Cloak', `<em style="font-style:normal;color:#ff3dd2">${d} · ${a}</em>`, 'lanc', 'cloaked');
+  }
+  if (s.lancloak_state === 'error') return row('LAN Cloak', s.lancloak_reason === 'dhcp' ? 'DHCP guard failed - see LAN Cloak' : 'firewall rules failed - see LAN Cloak', 'warn', 'error');
+  return row('LAN Cloak', s.lancloak_reason === 'nothing-selected' ? 'nothing selected in its settings' : 'turned off in its settings', 'skip', 'off');
+}
 function row(name, detail, pill, pillText) {
   return `<div class="row"><div class="rn"><b>${name}</b>${detail ? `<span>${detail}</span>` : ''}</div>
     <span class="pill ${pill}">${esc(pillText)}</span></div>`;
@@ -1315,6 +1341,7 @@ function renderStatus(s) {
     : rowCtl('Android Private DNS', `<span class="c-a">${esc(pdns)} - Android may send DNS around the proxy</span>`,
         `<button class="btn-s r" id="pdns-off" onclick="privateDnsOff()">Turn off</button>`);
   y += vpnRow(s);
+  y += lancRow(s);
   y += row('Network', onoff(s.live_interface) ? (s.net_iface ? `connected (${esc(s.net_iface)})` : 'an interface is up') : 'no interface up (airplane mode?)',
     onoff(s.live_interface) ? 'ok' : 'skip', onoff(s.live_interface) ? 'up' : 'down');
   y += row('Busybox', esc(s.busybox || 'none'), s.busybox && s.busybox !== 'none' ? 'ok' : 'warn', s.busybox && s.busybox !== 'none' ? 'found' : 'missing');

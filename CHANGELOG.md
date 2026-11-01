@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.20-r2
+
+LAN Cloak joins the networking set.
+
+* **LAN Cloak row** in System: shows whether [LAN Cloak Arm64](https://github.com/nikakvo/lan-cloak-arm64) is installed and what it does right now (cloaked, off, error, disabled). LAN Cloak hides the phone on the Wi-Fi network and never touches DNS; this module only reads its status - DNS handling is unchanged
+* Help → *VPN & companion modules* and the README describe the five modules
+* **WebUI opens quickly every time** - after closing and quickly reopening it, the page could wait several seconds before showing anything (and then worked in a slower mode that froze the page during every refresh). The root manager sometimes drops the page's very first command; the page now asks again after a moment instead of waiting for the lost answer
+* **More blocklist add-ons** - device trackers for Apple, Amazon, Windows / Office, Huawei, OPPO / Realme and Vivo (useful for devices on your hotspot) and HaGeZi Badware hosters
+* **Overlap shown in the source list** - the description of an add-on now says when a bigger list already contains it: Fake & scam is part of HaGeZi Normal and higher and both Threat Intel lists, Pop-up ads and the device trackers are part of HaGeZi Pro and higher. Help → Blocklists has a recommended combination
+* Source descriptions in the blocklist sources list wrap onto the next line instead of being cut off
+* The update removes selected sources that no longer exist (an old "module-extra" entry stayed in the settings of some installs)
+* dnscrypt-proxy itself is unchanged (2.1.20)
+
+---
+
 ## 2.1.20-r1
 
 Hotel and airport Wi-Fi login pages now work without pausing protection, and a gap in the bootstrap exemption is closed.

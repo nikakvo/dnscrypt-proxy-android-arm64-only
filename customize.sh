@@ -696,6 +696,27 @@ ADD6HSEOF
   fi
 fi
 
+# Selected blocklist sources that no longer exist in the catalog (e.g.
+# "module-extra", removed in 2.1.18-r19) are dropped from the selection, so
+# the setting shows only what is really used.
+if [ -f "$CONF" ]; then
+  _bl_ids=$(sed -n '/^bl_catalog()/,/^EOF$/p' "$MODPATH/sh/blocklist.sh" | grep -E '^[a-z0-9-]+[|]' | cut -d'|' -f1)
+  _bl_cur=$(sed -n 's/^BLOCKLIST_SOURCES=//p' "$CONF" | tail -n 1)
+  _bl_new=""; _bl_drop=""
+  for _bl_i in $(echo "$_bl_cur" | sed 's/,/ /g'); do
+    case "$_bl_i" in
+      none) continue ;;
+      url-*) _bl_new="${_bl_new:+$_bl_new,}$_bl_i" ;;
+      *) if echo "$_bl_ids" | grep -qx "$_bl_i"; then _bl_new="${_bl_new:+$_bl_new,}$_bl_i"; else _bl_drop="$_bl_drop $_bl_i"; fi ;;
+    esac
+  done
+  if [ -n "$_bl_drop" ]; then
+    sed -i "s/^BLOCKLIST_SOURCES=.*/BLOCKLIST_SOURCES=${_bl_new:-none}/" "$CONF"
+    ui_print "* Removed blocklist source(s) that no longer exist:$_bl_drop"
+  fi
+  unset _bl_ids _bl_cur _bl_new _bl_drop _bl_i
+fi
+
 ui_print "* Disabling Android 9+ Private DNS mode."
 # Remember what it was, so uninstall can put it back instead of
 # guessing "opportunistic" for everybody.

@@ -204,10 +204,10 @@
     <tr><th>group</th><th>use</th></tr>
     <tr><td>OISD</td><td>Small, Big (recommended), NSFW Small, NSFW.</td></tr>
     <tr><td>HaGeZi</td><td>Light → Normal → Pro → Pro++ → Ultimate (stronger, more breakage), plus Threat Intelligence mini/medium.</td></tr>
-    <tr><td>Add-ons</td><td>Pop-up ads, fake &amp; scam, gambling, NSFW, Xiaomi / Samsung / TikTok trackers, URL shorteners. Meant to stack on one main list.</td></tr>
+    <tr><td>Add-ons</td><td>Pop-up ads, fake &amp; scam, gambling, NSFW, device trackers (Xiaomi, Samsung, TikTok, Apple, Amazon, Windows / Office, Huawei, OPPO / Realme, Vivo), badware hosters, URL shorteners. Meant to stack on one main list.</td></tr>
     <tr><td>Your own lists</td><td>Any <code>https://</code> URL. Plain domain lists, hosts files (<code>0.0.0.0 name</code>) and AdBlock lists (<code>||name^</code>) are understood.</td></tr>
   </table></div>
-  <div class="note">One main list plus add-ons is usually enough. Main lists overlap heavily - duplicates are removed, but each one still costs download time and memory.</div>
+  <div class="note">One main list plus add-ons is usually enough. Main lists overlap heavily - duplicates are removed, but each one still costs download time and memory. Several add-ons are already part of a bigger list (the source's description says which): Fake &amp; scam is inside HaGeZi Normal and higher and both Threat Intel lists; Pop-up ads and the device trackers are inside HaGeZi Pro and higher. OISD and HaGeZi are built differently and complement each other: OISD Big + HaGeZi Pro + Threat Intel medium is a strong combination without much breakage.</div>
   <h3>What Update does</h3>
   <ol>
     <li>Downloads every selected list and checks it (not an error page, not truncated).</li>
@@ -466,6 +466,8 @@
   <p>The kernel WireGuard module of the same set. Android sees no VPN there, so this module reads WG Shield's status: System → VPN shows <em>Through WG Shield</em> with the tunnel's name, and the IP mode's IPv6 note knows whether that tunnel carries IPv6. Nothing else changes - this proxy's queries simply go through the tunnel. WG Shield never sets DNS.</p>
   <h3>ipset-arm64</h3>
   <p>A DNS blocker cannot stop an app that connects to a hard-coded IP address - it never asks DNS. The companion module <strong>ipset-arm64</strong> blocks by IP address at the firewall instead. The two do not conflict and cover each other's blind spots.</p>
+  <h3>LAN Cloak Arm64</h3>
+  <p>The module of the same set that hides the phone on the Wi-Fi network (no device name in DHCP, no mDNS / SSDP / LLMNR announcements); System → LAN Cloak only shows its state, and the two never touch each other's rules.</p>
   <h3>Conflicting modules and apps</h3>
   <p>The installer looks for other DNS changers (AdAway, systemless hosts, RethinkDNS, NextDNS, Blokada, …) and offers to remove them. Two things fighting over DNS means neither works reliably.</p>
 </div>

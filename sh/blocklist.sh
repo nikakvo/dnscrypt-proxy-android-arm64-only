@@ -59,13 +59,20 @@ hagezi-proplus|HaGeZi|Pro++|https://raw.githubusercontent.com/hagezi/dns-blockli
 hagezi-ultimate|HaGeZi|Ultimate|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate-onlydomains.txt|50000|Aggressive, expect breakage
 hagezi-tif-mini|HaGeZi|Threat Intel mini|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/tif.mini-onlydomains.txt|10000|Malware, phishing, scams. Compact
 hagezi-tif-medium|HaGeZi|Threat Intel medium|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/tif.medium-onlydomains.txt|50000|Malware, phishing, scams. Large
-hagezi-popupads|Add-ons|Pop-up ads|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/popupads-onlydomains.txt|1000|Pop-up and pop-under ad networks
-hagezi-fake|Add-ons|Fake & scam|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/fake-onlydomains.txt|1000|Fake shops, scam and fraud sites
+hagezi-popupads|Add-ons|Pop-up ads|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/popupads-onlydomains.txt|1000|Pop-up and pop-under ad networks. Already inside HaGeZi Pro and higher
+hagezi-fake|Add-ons|Fake & scam|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/fake-onlydomains.txt|1000|Fake shops, scam and fraud sites. Already inside HaGeZi Normal and higher and both Threat Intel lists
 hagezi-gambling|Add-ons|Gambling|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/gambling-onlydomains.txt|1000|Gambling and betting
 hagezi-nsfw|Add-ons|NSFW (HaGeZi)|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/nsfw-onlydomains.txt|1000|Adult content
-hagezi-native-xiaomi|Add-ons|Xiaomi trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.xiaomi-onlydomains.txt|20|Xiaomi / MIUI / HyperOS telemetry
-hagezi-native-samsung|Add-ons|Samsung trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.samsung-onlydomains.txt|20|Samsung telemetry
-hagezi-native-tiktok|Add-ons|TikTok trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.tiktok-onlydomains.txt|20|TikTok telemetry
+hagezi-native-xiaomi|Add-ons|Xiaomi trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.xiaomi-onlydomains.txt|20|Xiaomi / MIUI / HyperOS telemetry. Already inside HaGeZi Pro and higher
+hagezi-native-samsung|Add-ons|Samsung trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.samsung-onlydomains.txt|20|Samsung telemetry. Already inside HaGeZi Pro and higher
+hagezi-native-tiktok|Add-ons|TikTok trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.tiktok-onlydomains.txt|20|TikTok telemetry. Already inside HaGeZi Pro and higher
+hagezi-native-apple|Add-ons|Apple trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.apple-onlydomains.txt|20|Apple telemetry, for iPhones, iPads and Macs on your hotspot. Mostly inside HaGeZi Pro
+hagezi-native-amazon|Add-ons|Amazon trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.amazon-onlydomains.txt|20|Amazon / Alexa / Fire telemetry. Mostly inside HaGeZi Pro
+hagezi-native-winoffice|Add-ons|Windows / Office trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.winoffice-onlydomains.txt|20|Windows and Office telemetry, for laptops on your hotspot. Mostly inside HaGeZi Pro
+hagezi-native-huawei|Add-ons|Huawei trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.huawei-onlydomains.txt|20|Huawei / Honor telemetry. Already inside HaGeZi Pro and higher
+hagezi-native-oppo|Add-ons|OPPO / Realme trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.oppo-realme-onlydomains.txt|20|OPPO, Realme and OnePlus (ColorOS) telemetry. Already inside HaGeZi Pro and higher
+hagezi-native-vivo|Add-ons|Vivo trackers|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/native.vivo-onlydomains.txt|20|Vivo telemetry. Already inside HaGeZi Pro and higher
+hagezi-hoster|Add-ons|Badware hosters|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/hoster-onlydomains.txt|200|Free hosting services abused for malware and phishing. Mostly inside HaGeZi Pro
 hagezi-urlshortener|Add-ons|URL shorteners|https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/urlshortener-onlydomains.txt|100|Link shorteners often used to hide malicious links
 EOF
 }

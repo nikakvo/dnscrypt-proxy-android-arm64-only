@@ -120,6 +120,7 @@ cmd_status() {
   echo "wgs_tunnel=$([ -n "$_wgs" ] && wgs_get tunnel)"
   echo "wgs_ipv6=$([ -n "$_wgs" ] && wgs_get ipv6)"
   unset _wgi _wgs
+  lanc_keys
   echo "owner_match=$([ -f "$OWNER_FLAG_FILE" ] && echo 0 || echo 1)"
   echo "rules_file=$RULES_OK"
 

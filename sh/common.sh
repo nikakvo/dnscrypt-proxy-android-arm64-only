@@ -1301,6 +1301,36 @@ wgs_get() {
   sed -n "s/^$1=//p" "$_wf" 2>/dev/null | head -n 1
   unset _wf
 }
+# LAN Cloak Arm64 (same set): read only, for the System tab. It hides the
+# phone on the Wi-Fi network (DHCP, mDNS / SSDP / LLMNR) and never touches
+# port 53 or this module's chains; nothing here depends on it.
+LANC_MODDIR="${DNSC_LANC_MODDIR:-/data/adb/modules/lan-cloak}"
+LANC_STATUS="${DNSC_LANC_STATUS:-/data/adb/lan-cloak/state/status}"
+lanc_keys() {
+  if [ ! -f "$LANC_MODDIR/module.prop" ]; then _lc=absent
+  elif [ -f "$LANC_MODDIR/disable" ] || [ -f "$LANC_MODDIR/remove" ]; then _lc=disabled
+  else _lc=enabled; fi
+  _ls=""; _lr=""; _ld=""; _la=""; _lw=""; _lu=""
+  if [ "$_lc" != absent ] && [ -f "$LANC_STATUS" ]; then
+    while IFS='=' read -r _lk _lv; do
+      case "$_lk" in
+        state) _ls=$_lv ;; reason) _lr=$_lv ;; dhcp) _ld=$_lv ;;
+        announce) _la=$_lv ;; wifi) _lw=$_lv ;; updated) _lu=$_lv ;;
+      esac
+    done 2>/dev/null < "$LANC_STATUS"
+  fi
+  echo "lancloak=$_lc"
+  echo "lancloak_state=$_ls"
+  echo "lancloak_reason=$_lr"
+  echo "lancloak_dhcp=$_ld"
+  echo "lancloak_announce=$_la"
+  echo "lancloak_wifi=$_lw"
+  case "$_lu" in
+    ''|*[!0-9]*) echo "lancloak_age=" ;;
+    *) echo "lancloak_age=$(( $(date +%s) - _lu ))" ;;
+  esac
+  unset _lc _ls _lr _ld _la _lw _lu _lk _lv
+}
 net_has_clat() {
   for _c in /sys/class/net/v4-*; do
     [ -e "$_c" ] && { unset _c; return 0; }
