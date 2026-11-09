@@ -264,6 +264,36 @@ cmd_probe() {
 # ── restart: stop the daemon, let the watchdog bring it back ────────────────
 # Refuses when the watchdog is not running: stopping the daemon then would
 # leave the redirect pointing at nothing, which is "no internet".
+# ── monitoring page login (sh/monitor.sh) ───────────────────────────────────
+cmd_monitor_login() {
+  mon_get "$CONFIG"
+  if ! mon_pass_ok "$MON_PASS"; then
+    echo "ok=0"; echo "error=no login set - use monitor-password-new"; return 1
+  fi
+  echo "ok=1"
+  echo "monitor_url=http://127.0.0.1:5555/"
+  echo "monitor_user=$MON_USER"
+  echo "monitor_password=$MON_PASS"
+}
+cmd_monitor_password_new() {
+  mon_get "$CONFIG"
+  _mu=${MON_USER:-$MON_USER_DEFAULT}
+  _mp=$(mon_gen)
+  if [ "${#_mp}" -lt 12 ] || ! mon_set "$CONFIG" "$_mu" "$_mp"; then
+    unset _mu _mp
+    echo "ok=0"; echo "error=could not write the new password"; return 1
+  fi
+  mirror_to_sd dnscrypt-proxy.toml
+  log_info "monitoring page: new password set, restarting dnscrypt-proxy"
+  unset _mu _mp
+  # the daemon reads the login only at start
+  _mr=$(cmd_restart)
+  printf '%s\n' "$_mr" | grep -v '^ok=' 
+  case "$_mr" in *ok=1*) : ;; *) unset _mr; echo "ok=0"; return 1 ;; esac
+  unset _mr
+  cmd_monitor_login
+}
+
 cmd_restart() {
   if [ -z "$(watchdog_pid)" ]; then
     echo "ok=0"
@@ -339,16 +369,25 @@ cmd_reapply_rules() {
 }
 
 # ── metrics: the daemon's own monitoring API, as JSON ───────────────────────
+# The page has a login (sh/monitor.sh): curl gets it with -u, wget in the URL.
 fetch_metrics_json() {
+  mon_get "$CONFIG"
+  _fu=""; [ -n "$MON_USER$MON_PASS" ] && _fu="$MON_USER:$MON_PASS@"
   if command -v curl >/dev/null 2>&1; then
-    curl -sf --max-time 4 --connect-timeout 2 "$METRICS_URL" 2>/dev/null && return 0
+    if [ -n "$_fu" ]; then
+      curl -sf --max-time 4 --connect-timeout 2 -u "$MON_USER:$MON_PASS" "$METRICS_URL" 2>/dev/null && { unset _fu; return 0; }
+    else
+      curl -sf --max-time 4 --connect-timeout 2 "$METRICS_URL" 2>/dev/null && { unset _fu; return 0; }
+    fi
   fi
+  _furl="http://$_fu${METRICS_URL#http://}"
   if [ -n "$BB" ]; then
-    "$BB" wget -q -T 4 -O - "$METRICS_URL" 2>/dev/null && return 0
+    "$BB" wget -q -T 4 -O - "$_furl" 2>/dev/null && { unset _fu _furl; return 0; }
   fi
   if command -v wget >/dev/null 2>&1; then
-    wget -q -T 4 -O - "$METRICS_URL" 2>/dev/null && return 0
+    wget -q -T 4 -O - "$_furl" 2>/dev/null && { unset _fu _furl; return 0; }
   fi
+  unset _fu _furl
   return 1
 }
 
@@ -626,6 +665,10 @@ cmd_block() { # <domain>
     mirror_to_sd custom-blocked-names.txt
   fi
   _append_rule "$BLOCKLIST" "$_d"
+  # A blocklist job running now read the custom list already: its new list
+  # would replace this one without the rule. The watchdog rebuilds once the
+  # job is done (the same marker a custom-list edit on the sdcard uses).
+  [ -e "$BL_LOCK" ] && touch "$BL_REBUILD_PENDING" 2>/dev/null
   log_info "blocked via WebUI: $_d"
   if _has_rule "$ALLOW_FILE" "$_d"; then echo "warning=$_d is also in the allow list, which wins - remove it there to block"; fi
   reload_or_restart
@@ -839,6 +882,8 @@ usage: ctl.sh <command>
   resolvers / resolvers-search T / resolvers-set A,B / resolvers-test A,B
   private-dns-off turn Android Private DNS off (it bypasses the redirect)
   net-refresh-v6  reconnect Wi-Fi / mobile data if Android missed IPv6
+  monitor-login   user and password of the monitoring page (127.0.0.1:5555)
+  monitor-password-new   a new random password for it (restarts dnscrypt-proxy)
   log [N]         last N log lines (default 200)
   log-clear       empty the log
 EOF
@@ -875,6 +920,8 @@ case "$cmd" in
   hotspot)       cmd_hotspot ;;
   net-refresh-v6) net_refresh_for_ipv6; echo "ok=1" ;;
   restart)       cmd_restart ;;
+  monitor-login) cmd_monitor_login ;;
+  monitor-password-new) cmd_monitor_password_new ;;
   reload)        cmd_reload ;;
   reapply-rules) cmd_reapply_rules ;;
   log)           cmd_log "$1" ;;

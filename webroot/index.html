@@ -412,7 +412,7 @@
     <a class="button" href="https://superadblocktest.com/" target="_blank">Ads Test</a>
     <a class="button" href="https://obfusgated.com/tools/ad-block-test" target="_blank">Ads Test 2</a>
     <a class="button" href="https://whatismyipaddress.com/" target="_blank">My IP</a>
-    <a class="button alt" href="http://127.0.0.1:5555/" target="_blank">Monitor ↗</a>
+    <a class="button alt" id="mon-link" href="http://127.0.0.1:5555/" target="_blank">Monitor ↗</a>
     <a class="button alt" href="help.html">Help</a>
   </div>
 </header>
@@ -615,6 +615,17 @@
     </div>
 
     <div class="section">
+      <div class="section-title"><span class="s-accent" style="background:var(--green)"></span>Monitoring page</div>
+      <div id="mon-login"><div class="empty">Loading…</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn-s" id="mon-show" onclick="monShow()">Show</button>
+        <button class="btn-s" onclick="monCopy()">Copy password</button>
+        <button class="btn-s" id="mon-new" onclick="monNew(this)">New password</button>
+      </div>
+      <div class="note"><b>Monitor ↗</b> (dnscrypt-proxy's own page at <b>http://127.0.0.1:5555</b>) logs in with it by itself; another browser asks for it. Without it any app on the phone could read the names you looked up there. <b>New password</b> restarts dnscrypt-proxy (a few seconds). See <a href="help.html#monitor" style="color:var(--blue)">Help → Monitoring page</a>.</div>
+    </div>
+
+    <div class="section">
       <div class="section-title"><span class="s-accent" style="background:var(--blue)"></span>Hotspot</div>
       <div id="sys-hs"><div class="empty">Loading…</div></div>
       <div class="note">Covers Wi-Fi hotspot, USB and Bluetooth tethering. Devices that use the phone as their DNS server are always covered; <b>Protect hotspot clients</b> also catches the ones with their own server (8.8.8.8 and the like). See <a href="help.html#hotspot" style="color:var(--blue)">Help → Hotspot</a>.</div>
@@ -764,7 +775,7 @@ document.addEventListener('pointerdown', e => {
   const b = e.target.closest && e.target.closest('button');
   if (b) { _pressed = b; _pressedAt = Date.now(); }
 }, true);
-const BG_CMD = /^(poll|status|log \d|update poll|sources$|rules-list|resolvers$)/;
+const BG_CMD = /^(poll|status|log \d|update poll|sources$|rules-list|resolvers$|monitor-login$)/;
 
 // ── One action at a time ────────────────────────────────────────────────
 // While a command started by a tap is running, every other action is
@@ -866,7 +877,7 @@ function showTab(name) {
   currentTab = name;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
-  if (name === 'sys') loadStatus();
+  if (name === 'sys') { loadStatus(); monLoad(); }
   if (name === 'log') loadLog(true);
   if (name === 'tools') { loadRules(); if (!RES.loaded) loadResolvers(); }
 }
@@ -1473,6 +1484,60 @@ async function pauseFor(min) {
   poll();
 }
 
+// ── Monitoring page login ────────────────────────────────────────────────
+let _mon = null, _monShown = false, _monArm = 0;
+// The manager's WebView shows no login dialog for the monitoring page
+// (only "Unauthorized"), so Monitor ↗ carries the login in its address.
+// The page itself reads its data from location.origin, which has no
+// login in it, and the browser sends the remembered login along.
+function monLink() {
+  const a = $('mon-link');
+  if (a) a.href = _mon && _mon.u && _mon.p
+    ? `http://${encodeURIComponent(_mon.u)}:${encodeURIComponent(_mon.p)}@127.0.0.1:5555/`
+    : 'http://127.0.0.1:5555/';
+}
+function monRender() {
+  monLink();
+  const el = $('mon-login');
+  if (!_mon) { el.innerHTML = '<div class="empty">No login set - tap New password</div>'; return; }
+  el.innerHTML = `<div class="row"><div class="rn"><b>User</b><span style="font-family:var(--mono)">${esc(_mon.u)}</span></div></div>` +
+    `<div class="row"><div class="rn"><b>Password</b><span style="font-family:var(--mono)">${_monShown ? esc(_mon.p) : '••••••••••••••••'}</span></div></div>`;
+  $('mon-show').textContent = _monShown ? 'Hide' : 'Show';
+}
+async function monLoad() {
+  try {
+    const r = parseKV(await ctl('monitor-login'));
+    _mon = r.ok === '1' ? { u: r.monitor_user || '', p: r.monitor_password || '' } : null;
+  } catch (e) { _mon = null; }
+  monRender();
+}
+function monShow() { if (!_mon) return; _monShown = !_monShown; monRender(); }
+async function monCopy() {
+  if (!_mon) { toast('No login set', 'err'); return; }
+  let ok = false;
+  try { await navigator.clipboard.writeText(_mon.p); ok = true; } catch (e) {
+    try {
+      const t = document.createElement('textarea'); t.value = _mon.p; document.body.appendChild(t);
+      t.select(); ok = document.execCommand('copy'); t.remove();
+    } catch (e2) { ok = false; }
+  }
+  toast(ok ? 'Password copied' : 'Copy failed - tap Show and copy it by hand', ok ? 'ok' : 'err');
+}
+async function monNew(b) {
+  if (Date.now() - _monArm > 4000) {
+    _monArm = Date.now(); b.textContent = 'Tap again - new password';
+    setTimeout(() => { if (Date.now() - _monArm >= 4000) b.textContent = 'New password'; }, 4100);
+    return;
+  }
+  _monArm = 0; b.textContent = 'New password';
+  try {
+    const r = parseKV(await ctl('monitor-password-new', 90000));
+    if (r.ok === '1') { _mon = { u: r.monitor_user, p: r.monitor_password }; _monShown = true; monRender(); toast('New password set', 'ok'); }
+    else toast(r.error || 'Could not set a new password', 'err');
+  } catch (e) { toast(e.message, 'err'); }
+  poll();
+}
+
 async function resumeNow() {
   try {
     const r = parseKV(await ctl('resume'));
@@ -1829,6 +1894,7 @@ function toggleFilter(btn) {
 //   daemon: [2026-09-22 23:56:45] [NOTICE] message
 const RX_MOD = /^(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d) \[(\w+)\] (.*)$/;
 const RX_DMN = /^\[(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d)\] \[(\w+)\] (.*)$/;
+const RX_BOOT = /^boot \+(\d+)s \[(\w+)\] (.*)$/;
 
 function normLevel(l) {
   l = (l || '').toUpperCase();
@@ -1842,6 +1908,8 @@ function parseLog(text) {
   return text.split('\n').filter(l => l.trim()).map(line => {
     let m = RX_MOD.exec(line);
     if (m) return { d: m[1], t: m[2], lvl: normLevel(m[3]), src: 'M', msg: m[4] };
+    m = RX_BOOT.exec(line);   // "boot +6s [INFO] ..." - written before the clock was set
+    if (m) return { d: 'boot', t: 'boot +' + m[1] + 's', lvl: normLevel(m[2]), src: 'M', msg: m[3] };
     m = RX_DMN.exec(line);
     if (m) return { d: m[1], t: m[2], lvl: normLevel(m[3]), src: 'D', msg: m[4] };
     // Older "Mon Sep 22 ...: message" lines, or anything else.
@@ -2170,6 +2238,7 @@ async function init() {
   }
   poll();
   loadSources();
+  monLoad();      // Monitor ↗ logs in by itself (monLink)
   setInterval(poll, 5000);
   setInterval(() => { if (currentTab === 'sys' && !document.hidden) loadStatus(); }, 15000);
   setInterval(() => { if (currentTab === 'log' && !document.hidden) loadLog(false); }, 5000);

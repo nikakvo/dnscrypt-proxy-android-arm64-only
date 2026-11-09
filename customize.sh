@@ -435,6 +435,24 @@ if [ -n "$BACKUP_NAME" ] && [ -f "$OLD_TOML" ]; then
 fi
 
 # -----------------------------------------------
+# Login of the monitoring page (127.0.0.1:5555): without one, any app on
+# the phone could read the queried names there. Kept from the previous
+# config (a login set by hand too); a new random password otherwise.
+# -----------------------------------------------
+if [ -f "$MODPATH/sh/monitor.sh" ]; then
+  . "$MODPATH/sh/monitor.sh"
+  if mon_ensure "$CONFIG_FILE" "$OLD_TOML"; then
+    if [ "$MON_NEW" = 1 ]; then
+      ui_print "* Monitoring page: new login created (WebUI -> System -> Monitor login)"
+    else
+      ui_print "* Monitoring page: kept your login"
+    fi
+  else
+    ui_print "! Monitoring page: could not set a login - check WebUI -> System"
+  fi
+fi
+
+# -----------------------------------------------
 # Mirror the small editable files out to the sdcard so they can still
 # be edited with a normal file manager. The big generated blocklist
 # stays on /data - copying 7.6 MB across FUSE on every install, for a
@@ -443,7 +461,12 @@ fi
 ui_print "* Mirroring editable files to $SD_DIR"
 for f in $SYNC_FILES; do
   _dp=$(data_path "$f")
-  [ -f "$_dp" ] && cp -f "$_dp" "$SD_DIR/$f" 2>/dev/null
+  [ -f "$_dp" ] || continue
+  if [ "$f" = dnscrypt-proxy.toml ] && command -v mon_sd_copy >/dev/null 2>&1; then
+    mon_sd_copy "$_dp" "$SD_DIR/$f" 2>/dev/null   # password masked
+  else
+    cp -f "$_dp" "$SD_DIR/$f" 2>/dev/null
+  fi
 done
 unset _dp
 # Make the /data copies unambiguously the newest, so the first sync pass
@@ -488,6 +511,7 @@ set_perm "$MODPATH/sh/rules.sh"         0 0 0755
 set_perm "$MODPATH/sh/blocklist.sh"     0 0 0755
 set_perm "$MODPATH/sh/tools.sh"         0 0 0755
 set_perm "$MODPATH/sh/resolvers.sh"     0 0 0755
+set_perm "$MODPATH/sh/monitor.sh"       0 0 0755
 chmod 0700 "$DATA_DIR" 2>/dev/null
 chown 0:0  "$DATA_DIR" 2>/dev/null
 

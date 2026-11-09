@@ -132,6 +132,8 @@ unset _UIP _n
 # ===============================================
 iptables  -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null
 ip6tables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null
+iptables  -D OUTPUT -p udp --dport 443 -m owner --uid-owner 0-4294967294 -j DROP 2>/dev/null
+ip6tables -D OUTPUT -p udp --dport 443 -m owner --uid-owner 0-4294967294 -j DROP 2>/dev/null
 
 # ===============================================
 # STEP 4: Restore ip6tables to default

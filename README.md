@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.20--r2-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.20--r3-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -42,7 +42,7 @@ encrypted (DoH / DNSCrypt) → Cloudflare · Quad9 · Mullvad
 ```
 
 - Android's Private DNS is switched off at install (it would bypass the module) and restored on uninstall; if it gets switched on again, **System** offers a one-tap **Turn off**
-- QUIC (UDP/443) is blocked by default so browsers cannot use their own built-in DoH
+- QUIC (UDP/443) is blocked by default so browsers cannot use their own built-in DoH (a VPN server on UDP port 443 needs it off)
 - Resolvers are pinned as signed stamps - the daemon starts with no download and no bootstrap DNS
 
 ---
@@ -149,7 +149,7 @@ Change them in **Tools → Resolvers**. Protocol, logging, filtering and DNSSEC 
 |---|---|
 | `/data/adb/dnscrypt-proxy/` | Everything the module keeps, in one folder (below) |
 | `/storage/emulated/0/dnscrypt-proxy/` | Editable copy - changes are picked up within a minute |
-| `http://127.0.0.1:5555` | dnscrypt-proxy's own monitoring page |
+| `http://127.0.0.1:5555` | dnscrypt-proxy's own monitoring page - with a login (user `dnscrypt`, random password from the installer); the WebUI's **Monitor ↗** opens it logged in, **System → Monitoring page** shows the password |
 
 ```
 /data/adb/dnscrypt-proxy/
@@ -185,6 +185,7 @@ su -c '/system/bin/sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status'
 | `ipmode-set ipv4\|compat\|dual` | IP mode |
 | `pause MIN` · `resume` | pause protection |
 | `private-dns-off` | switch Android Private DNS off |
+| `monitor-login` / `monitor-password-new` | login of the monitoring page / a new random password |
 | `hotspot` · `set HOTSPOT_DNS 1` · `set HOTSPOT_DOT 1` | hotspot clients: state and devices · the two switches |
 | `log N` | last N log lines |
 

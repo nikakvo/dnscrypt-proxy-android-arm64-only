@@ -156,6 +156,7 @@
   <p>Any port-53 packet that somehow escaped the redirect and is heading off the device is dropped. The same guard exists for IPv6.</p>
   <h3>QUIC block</h3>
   <p>Browsers like Chrome can do their own DNS-over-HTTPS over QUIC (UDP/443) and skip the phone's DNS entirely. Blocking UDP/443 makes them fall back to normal HTTPS over TCP, which uses the phone's DNS - and therefore this module. Switchable in Settings.</p>
+  <p>The block also stops a VPN whose server listens on UDP port 443 (some WireGuard / AmneziaWG servers use it to look like web traffic): kernel WireGuard's own packets pass the same firewall. With such a server, switch <strong>Block QUIC</strong> off. Servers on other ports (Proton uses 51820) are not affected.</p>
   <h3>Watchdog</h3>
   <p>A background script checks everything every 10 seconds:</p>
   <ul>
@@ -176,7 +177,7 @@
     <tr><td>DNS Test</td><td>dnsleaktest.com - which DNS servers the world sees you using.</td></tr>
     <tr><td>Ads Test 1 / 2</td><td>Ad-blocking test pages.</td></tr>
     <tr><td>My IP</td><td>Your public IP address (useful with a VPN).</td></tr>
-    <tr><td>Monitor ↗</td><td>dnscrypt-proxy's own dashboard at <code>127.0.0.1:5555</code>, in your browser.</td></tr>
+    <tr><td>Monitor ↗</td><td>dnscrypt-proxy's own dashboard at <code>127.0.0.1:5555</code>, logged in by itself - see <a href="#monitor" style="color:var(--blue)">Monitoring page</a>.</td></tr>
     <tr><td>Help</td><td>This page.</td></tr>
   </table></div>
   <h3>Banner</h3>
@@ -315,6 +316,10 @@
   <h3>System</h3>
   <p>Module version, SELinux, Android Private DNS (should be <span class="pill ok">off</span>), network, busybox and the blocklist size.</p>
   <p>Android's <strong>Private DNS</strong> uses its own encrypted channel (port 853) and would go around this module and its blocklists. The installer switches it off; if it is on again - Android settings, a restore, another app - a <strong>Turn off</strong> button appears in that row.</p>
+  <h3 id="monitor">Monitoring page</h3>
+  <p>dnscrypt-proxy has its own page at <code>http://127.0.0.1:5555</code> (header button <strong>Monitor ↗</strong>) with live statistics, the last queried names and the top domains. Every app on the phone can reach <code>127.0.0.1</code>, so the page has a login: user <code>dnscrypt</code> and a random password, made when the module is installed and kept across updates. <strong>Monitor ↗</strong> opens the page already logged in (the login is part of the address it opens). Opened any other way - typed into a browser - the page asks for the login; the manager's own viewer cannot ask and only shows <em>Unauthorized</em>, so use the button there.</p>
+  <p><strong>System → Monitoring page</strong> shows the login: <strong>Show</strong> reveals the password, <strong>Copy password</strong> copies it, <strong>New password</strong> (tap twice) makes a new one and restarts dnscrypt-proxy for a few seconds. The WebUI itself does not need the password: it reads the statistics as root.</p>
+  <p>The login is stored in <code>[monitoring_ui]</code> of <code>/data/adb/dnscrypt-proxy/dnscrypt-proxy.toml</code>. The copy on the sdcard shows <code>password = "set by the module - see the WebUI"</code> instead, because apps with file access can read the sdcard. To use your own password, write it there (or in the toml on /data); it is kept, also across updates.</p>
   <p>A red or amber dot on the <strong>System</strong> tab means something there needs attention.</p>
   <p><strong>One action at a time:</strong> while a button's command runs, the other buttons are dimmed and taps on them are ignored - including taps made while the screen was busy, which Android would otherwise deliver all at once afterwards. Tabs, log filters and Refresh always work.</p>
 </div>
@@ -355,7 +360,7 @@
 <div class="box">
   <p>Applied immediately, kept through updates.</p>
   <div class="tw"><table>
-    <tr><td>Block QUIC</td><td>On by default. See <a href="#how" style="color:var(--blue)">QUIC block</a>. Turn off if an app needs HTTP/3 or QUIC.</td></tr>
+    <tr><td>Block QUIC</td><td>On by default. See <a href="#how" style="color:var(--blue)">QUIC block</a>. Turn off if an app needs HTTP/3 or QUIC, or your VPN server uses UDP port 443.</td></tr>
     <tr><td>Auto-restart when hung</td><td>On by default. Off = a hung daemon is only reported.</td></tr>
     <tr><td>Per-interface IPv6 off</td><td>Off by default. IPv4 mode only. Also forces IPv6 off on every network interface except the carrier's VoLTE / MMS ones. The modem keeps turning it back on, so this mostly adds log noise. The firewall already blocks IPv6 without it.</td></tr>
     <tr><td>Log size</td><td>How many lines the log keeps.</td></tr>
@@ -405,7 +410,7 @@
       <code>logs/</code> - <code>dnscrypt-proxy.log</code> and <code>action.log</code> (blocklist updates);
       <code>state/</code> - runtime files, cleared at every boot;
       <code>backup/</code> - the config as it was before the last update.</td></tr>
-    <tr><td>/sdcard/dnscrypt-proxy/</td><td>Editable copy: <code>dnscrypt-proxy.toml</code>, <code>custom-blocked-names.txt</code>, <code>allowed-names.txt</code>, IP lists. Changes are copied in within a minute. A config edit restarts the daemon, a list edit reloads it.</td></tr>
+    <tr><td>/sdcard/dnscrypt-proxy/</td><td>Editable copy: <code>dnscrypt-proxy.toml</code>, <code>custom-blocked-names.txt</code>, <code>allowed-names.txt</code>, IP lists. Changes are copied in within a minute. A config edit is checked first and then restarts the daemon - a config with an error is not used (the current one stays, the Log says why); a list edit reloads it. The monitoring password is masked in this copy (see <a href="#monitor" style="color:var(--blue)">Monitoring page</a>).</td></tr>
   </table></div>
   <h3>Module settings</h3>
   <p>All of these can be changed in the WebUI. The file is plain <code>KEY=value</code> lines, and only known keys with plain values are accepted.</p>
@@ -441,6 +446,7 @@
     <tr><td>ipmode-set M</td><td><code>ipv4</code> · <code>compat</code> · <code>dual</code></td></tr>
     <tr><td>pause MIN · resume</td><td>Pause protection</td></tr>
     <tr><td>private-dns-off</td><td>Switch Android Private DNS off</td></tr>
+    <tr><td>monitor-login · monitor-password-new</td><td>Login of the monitoring page; a new random password</td></tr>
     <tr><td>hotspot</td><td>Tethered interfaces, hotspot rules, connected devices</td></tr>
     <tr><td>set HOTSPOT_DNS 1 · set HOTSPOT_DOT 1</td><td>The hotspot switches (<code>0</code> = off)</td></tr>
     <tr><td>log N</td><td>Last N log lines</td></tr>

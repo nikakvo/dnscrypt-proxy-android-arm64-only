@@ -202,6 +202,8 @@ start_daemon() {
   _i=0
   while [ "$_i" -lt 60 ]; do
     is_listening && break
+    # keep the health file fresh, or the WebUI calls the watchdog stalled
+    [ $((_i % 10)) -eq 9 ] && write_health
     if [ ! -d "/proc/$_pid" ]; then
       log_error "dnscrypt-proxy exited during startup - its own error is in the lines above"
       rm -f "$DAEMON_PIDFILE"
@@ -212,7 +214,11 @@ start_daemon() {
     _i=$((_i + 1))
   done
   if ! is_listening; then
-    log_warn "dnscrypt-proxy did not bind :$LISTEN_PORT within 60s"
+    # Stop it: the next tick starts a new one, and a process left behind
+    # would run next to it (the tick only checks the port, not the pid).
+    log_warn "dnscrypt-proxy did not bind :$LISTEN_PORT within 60s - stopping it"
+    stop_daemon
+    rm -f "$DAEMON_PIDFILE"
     unset _pid _i
     return 1
   fi
@@ -314,8 +320,12 @@ enforce_ipv6_disable() {
 
   # The actual killswitch.
   ipt_snap
-  if [ "$S6OK" = 1 ] && ! printf '%s\n' "$S6F" | grep -q '^-P OUTPUT DROP'; then
-    log_warn "ip6tables OUTPUT policy was not DROP, restoring the IPv6 killswitch"
+  # all three policies: an INPUT or FORWARD policy reset by someone else
+  # used to stay ACCEPT until the next IP mode change
+  if [ "$S6OK" = 1 ] && { ! printf '%s\n' "$S6F" | grep -q '^-P OUTPUT DROP' ||
+       ! printf '%s\n' "$S6F" | grep -q '^-P INPUT DROP' ||
+       ! printf '%s\n' "$S6F" | grep -q '^-P FORWARD DROP'; }; then
+    log_warn "an ip6tables policy was not DROP, restoring the IPv6 killswitch"
     ip6tables -P INPUT   DROP 2>/dev/null
     ip6tables -P OUTPUT  DROP 2>/dev/null
     ip6tables -P FORWARD DROP 2>/dev/null
@@ -343,12 +353,39 @@ seed_sdcard() {
     _dp=$(data_path "$_f")
     [ -f "$_dp" ] || continue
     [ -f "$SD_DIR/$_f" ] && continue
-    if cp -f "$_dp" "$SD_DIR/$_f" 2>/dev/null; then
-      touch -r "$SD_DIR/$_f" "$_dp" 2>/dev/null
+    if mirror_to_sd "$_f"; then
       log_info "restored $_f to the sdcard mirror"
     fi
   done
   unset _f _dp
+  return 0
+}
+
+# An edited toml from the sdcard is checked before it replaces the live one:
+# a typo there used to stop the daemon, and the failsafe then sent DNS out
+# unencrypted. A rejected file is not tried again until it changes. The
+# monitoring password: the mirror carries a placeholder, so the current
+# password goes back in unless a real one was typed (sh/monitor.sh).
+SD_REJECT="$STATE_DIR/sd_toml_rejected"
+sd_take_toml() {
+  _sm=$(mtime_of "$SD_DIR/dnscrypt-proxy.toml")
+  [ "$_sm" = "$(cat "$SD_REJECT" 2>/dev/null)" ] && { unset _sm; return 1; }
+  _st="$STATE_DIR/.sd-toml.$$"
+  cp -f "$SD_DIR/dnscrypt-proxy.toml" "$_st" 2>/dev/null || { unset _sm _st; return 1; }
+  command -v mon_ensure >/dev/null 2>&1 && mon_ensure "$_st" "$CONFIG"
+  if [ -x "$DNSCRYPT_BIN" ]; then
+    _se=$(cd "$DATA_DIR" && "$DNSCRYPT_BIN" -config "$_st" -check 2>&1)
+    if [ $? -ne 0 ]; then
+      rm -f "$_st"
+      echo "$_sm" > "$SD_REJECT"
+      log_error "dnscrypt-proxy.toml on the sdcard has an error - not used, the current config stays: $(printf '%s\n' "$_se" | grep -v '^[[:space:]]*$' | tail -n 1 | cut -c1-200)"
+      unset _sm _st _se
+      return 1
+    fi
+  fi
+  mv -f "$_st" "$CONFIG" 2>/dev/null || { rm -f "$_st"; unset _sm _st _se; return 1; }
+  rm -f "$SD_REJECT"
+  unset _sm _st _se
   return 0
 }
 
@@ -362,7 +399,11 @@ sync_from_sdcard() {
     _dp=$(data_path "$_f")
     if [ ! -f "$_dp" ] || \
        [ "$(mtime_of "$SD_DIR/$_f")" -gt "$(mtime_of "$_dp")" ]; then
-      cp -f "$SD_DIR/$_f" "$_dp" 2>/dev/null || continue
+      if [ "$_f" = dnscrypt-proxy.toml ]; then
+        sd_take_toml || continue
+      else
+        cp -f "$SD_DIR/$_f" "$_dp" 2>/dev/null || continue
+      fi
       log_info "synced $_f from the sdcard"
       case "$_f" in
         dnscrypt-proxy.toml)      _toml_changed=1 ;;

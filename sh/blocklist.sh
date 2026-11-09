@@ -150,7 +150,18 @@ bl_normalize() { # <allow_tld 0|1> [reject_file]
         t = $0
         gsub(/[a-z0-9_.*=?-]/, "", t)
         gsub(/[][]/, "", t)
-        if (t == "" && index($0, ".") + index($0, "*") > 0) print $0
+        # and a pattern must name something: at least two letters or
+        # digits ("*", "*." or "**" would block everything) and brackets
+        # that close (the daemon rejects "a[b")
+        u = $0; nal = gsub(/[a-z0-9]/, "", u)
+        ob = 0; bad = 0
+        for (i = 1; i <= length($0); i++) {
+          c = substr($0, i, 1)
+          if (c == "[") { if (ob) bad = 1; ob = 1 }
+          else if (c == "]") { if (!ob) bad = 1; ob = 0 }
+        }
+        if (ob) bad = 1
+        if (t == "" && index($0, ".") + index($0, "*") > 0 && nal >= 2 && !bad) print $0
         else if (rej != "") print o > rej
       }
     }'
@@ -314,9 +325,15 @@ bl_build() {
 }
 
 # ── Download ─────────────────────────────────────────────────────────────────
+# An https list never follows a redirect to plain http (curl): a hijacked
+# redirect could otherwise hand over a different list. The busybox wget
+# fallback cannot check certificates - curl is tried first.
 bl_fetch() { # <url> <out>
   if command -v curl >/dev/null 2>&1; then
-    curl -sfL --max-time 300 --connect-timeout 15 --retry 1 "$1" -o "$2" 2>/dev/null && return 0
+    case "$1" in
+      https://*) curl -sfL --proto =https --proto-redir =https --max-time 300 --connect-timeout 15 --retry 1 "$1" -o "$2" 2>/dev/null && return 0 ;;
+      *)         curl -sfL --max-time 300 --connect-timeout 15 --retry 1 "$1" -o "$2" 2>/dev/null && return 0 ;;
+    esac
   fi
   if [ -n "$BB" ]; then
     "$BB" wget -q -T 60 -O "$2" "$1" 2>/dev/null && return 0

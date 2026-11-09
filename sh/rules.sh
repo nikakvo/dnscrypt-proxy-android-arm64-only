@@ -56,7 +56,13 @@ P_DNAT_TCP="^-A OUTPUT -p tcp( -m tcp)? --dport 53 -j DNAT --to-destination $_RX
 P_GUARD_UDP='^-A OUTPUT ! -o lo -p udp( -m udp)? --dport 53 -j DROP$'
 P_GUARD_TCP='^-A OUTPUT ! -o lo -p tcp( -m tcp)? --dport 53 -j DROP$'
 P_R6_UDP='^-A OUTPUT -p udp( -m udp)? --dport 53 -j REDIRECT --to-ports 5354$'
-P_QUIC='^-A OUTPUT -p udp( -m udp)? --dport 443 -j DROP$'
+# QUIC block. P_QUIC_OWN is a form only the 2.1.20-r3 test builds put in
+# (an owner match meant to let kernel WireGuard through - measured on the
+# phone: kernel WireGuard packets match it too); it is replaced.
+P_QUIC_OWN='^-A OUTPUT -p udp( -m udp)? --dport 443 -m owner --uid-owner 0-4294967294 -j DROP$'
+P_QUIC_PLAIN='^-A OUTPUT -p udp( -m udp)? --dport 443 -j DROP$'
+P_QUIC=$P_QUIC_PLAIN
+QUIC_OWN='-m owner --uid-owner 0-4294967294'
 P_CAPJ_UDP='^-A OUTPUT -p udp( -m udp)? --dport 53 -j DNSC_CAP$'
 P_BOOT_NAT='^-A OUTPUT -d 9\.9\.9\.9(/32)? -p udp( -m udp)? --dport 53 -m owner --uid-owner 0 -m mark --mark 0x0/0x10000 -j RETURN$'
 unset _RX_REDIR
@@ -345,22 +351,33 @@ rules_dns_any_present() {
 # QUIC (UDP/443). r10 only ever blocked it over IPv4, so the moment the
 # IPv6 killswitch was lifted, Chrome could go right back to QUIC+DoH
 # over v6. Both families now.
+# Note: it also drops WireGuard's own packets to a server on port 443
+# (kernel WireGuard passes OUTPUT too) - such a tunnel needs Block QUIC off.
 # -----------------------------------------------------------------
+_quic_fam() { # <iptables|ip6tables> <snapshot>
+  if ! sn_has "$2" "$P_QUIC_PLAIN"; then
+    "$1" -I OUTPUT 1 -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale
+  fi
+  # a test build's owner form: the plain rule is in now, drop it
+  if sn_has "$2" "$P_QUIC_OWN"; then
+    "$1" -D OUTPUT -p udp --dport 443 $QUIC_OWN -j DROP 2>/dev/null; ipt_snap_stale
+  fi
+}
 rules_install_quic() {
   # Called every tick: checked on the snapshot, written only when missing
   ipt_snap
-  if ! sn_has "$S4F" "$P_QUIC"; then
-    iptables -I OUTPUT 1 -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale
-  fi
-  if ! sn_has "$S6F" "$P_QUIC"; then
-    ip6tables -I OUTPUT 1 -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale
-  fi
+  _quic_fam iptables "$S4F"
+  ipt_snap
+  _quic_fam ip6tables "$S6F"
 }
 
 rules_remove_quic() {
   ipt_snap
-  sn_has "$S4F" "$P_QUIC" && { iptables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale; }
-  sn_has "$S6F" "$P_QUIC" && { ip6tables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale; }
+  sn_has "$S4F" "$P_QUIC_OWN" && { iptables -D OUTPUT -p udp --dport 443 $QUIC_OWN -j DROP 2>/dev/null; ipt_snap_stale; }
+  sn_has "$S4F" "$P_QUIC_PLAIN" && { iptables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale; }
+  ipt_snap
+  sn_has "$S6F" "$P_QUIC_OWN" && { ip6tables -D OUTPUT -p udp --dport 443 $QUIC_OWN -j DROP 2>/dev/null; ipt_snap_stale; }
+  sn_has "$S6F" "$P_QUIC_PLAIN" && { ip6tables -D OUTPUT -p udp --dport 443 -j DROP 2>/dev/null; ipt_snap_stale; }
   return 0
 }
 
@@ -995,7 +1012,9 @@ cap_sync() {
   have_owner_match || return 0
   ipt_snap
   _cs_sig=$(_cap_sig)
-  _cs_now=$(date +%s)
+  # monotonic: the file is per boot, and an NTP jump right after connecting
+  # must not close the login window early or keep it open
+  _cs_now=$(mono_now)
   _cs_osig=""; _cs_ot=0; _cs_old=""; _cs_det=""; _cs_fs=""
   _cs_had=0
   if [ -f "$CAP_FILE" ]; then
@@ -1007,6 +1026,7 @@ cap_sync() {
     _cs_fs=$(sed -n 5p "$CAP_FILE" 2>/dev/null)
   fi
   case "$_cs_ot" in '' | *[!0-9]*) _cs_ot=0 ;; esac
+  [ "$_cs_ot" -gt "$_cs_now" ] && _cs_ot=0   # a wall-clock time from an older version
   _cs_ran=0
   if [ "$_cs_had" = 0 ] || [ "$_cs_sig" != "$_cs_osig" ] || [ -n "$_cs_old" ] || \
      [ $((_cs_now - _cs_ot)) -ge "$CAP_RECHECK" ] || [ "$(mono_now)" -lt "$CAP_FAST_UNTIL" ]; then
@@ -1029,6 +1049,7 @@ cap_sync() {
       [ "${_cs_x%%=*}" = "$_cs_n" ] && { _cs_t=${_cs_x#*=}; break; }
     done
     case "$_cs_t" in '' | *[!0-9]*) _cs_t=$_cs_now ;; esac
+    [ "$_cs_t" -gt "$_cs_now" ] && _cs_t=$_cs_now
     _cs_nfs="$_cs_nfs${_cs_nfs:+ }$_cs_n=$_cs_t"
     _cs_k=${_cs_e%%;*}; _cs_k=${_cs_k##*:}
     if [ "$_cs_k" = login ] || [ $((_cs_now - _cs_t)) -lt "$CAP_WINDOW" ]; then

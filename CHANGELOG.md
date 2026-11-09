@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.1.20-r3
+
+The monitoring page gets a login, and a set of robustness fixes.
+
+* **The monitoring page has a login.** dnscrypt-proxy's own page at `127.0.0.1:5555` (header button **Monitor ↗**) shows the last queried names and the top domains - and every app on the phone can reach `127.0.0.1`. The installer now gives it user `dnscrypt` and a random password, kept across updates (a login you set yourself is never replaced)
+  * **Monitor ↗ logs in by itself**; typed into another browser, the page asks for the login
+  * **System → Monitoring page** shows it: **Show**, **Copy password**, **New password** (tap twice; restarts dnscrypt-proxy for a few seconds). Command line: `monitor-login`, `monitor-password-new`
+  * the copy of the config on the sdcard shows `password = "set by the module - see the WebUI"` instead of the password (apps with file access can read the sdcard); editing that copy keeps the password, writing your own there sets it
+  * the WebUI itself reads the statistics as root and needs no password
+* **A config edited on the sdcard is checked before it is used.** A typo in `/sdcard/dnscrypt-proxy/dnscrypt-proxy.toml` used to stop dnscrypt-proxy, and the failsafe then sent DNS out unencrypted. Now the edited file is checked first; with an error it is not used, the current config stays and the Log shows the error once
+* **No second dnscrypt-proxy after a failed start** - a daemon that did not open its port within 60 seconds kept running while the next attempt started another one; it is stopped now
+* **Block during a blocklist update is kept** - a name blocked while an update ran could be missing from the new list until the next rebuild
+* **Blocklist rules that would block everything are refused** - a downloaded line like `*`, `*.` or `a[b` is dropped (a pattern needs at least two letters or digits and closed brackets)
+* **Blocklist downloads over https never follow a redirect to plain http**
+* **The IPv6 killswitch checks all three ip6tables policies** (INPUT, OUTPUT, FORWARD), not only OUTPUT
+* **The Wi-Fi login page window and the carrier IPv6 check use the time since boot**, so a clock change right after connecting cannot close or stretch them
+* **Log lines written before the clock is set** say `boot +Ns` instead of a 1970 date
+* **The manager no longer shows "Failsafe - DNS unprotected"** for a freshly installed module before its first start (the shipped `module.prop` carried that status)
+* Help: *Monitoring page* (section 9), the QUIC block and a VPN server on UDP port 443 (it needs Block QUIC off), the sdcard copy, the new commands
+* dnscrypt-proxy itself is unchanged (2.1.20)
+
+Tested on Poco F6 Pro, Xiaomi.eu ROM (HyperOS 3, Android 16), kernel [GKI_Kernel_SukiSU](https://github.com/nikakvo/GKI_Kernel_SukiSU), with WG Shield, ipset, VPN Hotspot and LAN Cloak: monitoring page refused without the login, Monitor ↗ opening it logged in, Show / Copy / New password, the masked sdcard copy, a broken sdcard config kept out and the fixed one taken with the password kept, blocking during a blocklist update, the QUIC rule and the boot-time log lines after a reboot.
+
+---
+
 ## 2.1.20-r2
 
 LAN Cloak joins the networking set.

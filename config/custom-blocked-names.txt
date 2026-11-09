@@ -127,7 +127,6 @@ static.klaviyo.com
 a.klaviyo.com
 customer.io
 track.customer.io
-track.customer.io/events
 prd.jwpltx.com
 fls-na.amazon.com
 ads.tiktok.com
@@ -163,3 +162,8 @@ betweenx.com
 segmento.ru
 adman.ru
 flocktory.com
+ads.huawei.com
+googlesyndication.com
+doubleclick.net
+2mdn.net
+adtrafficquality.google

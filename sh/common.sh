@@ -300,7 +300,12 @@ mirror_to_sd() { # <file name of the mirror, see data_path>
   _ms=$(data_path "$1")
   [ -f "$_ms" ] || { unset _ms; return 1; }
   mkdir -p "$SD_DIR" 2>/dev/null || { unset _ms; return 1; }
-  cp -f "$_ms" "$SD_DIR/$1" 2>/dev/null || { unset _ms; return 1; }
+  # the toml goes out with its monitoring password masked (sh/monitor.sh)
+  if [ "$1" = dnscrypt-proxy.toml ]; then
+    mon_sd_copy "$_ms" "$SD_DIR/$1" 2>/dev/null || { unset _ms; return 1; }
+  else
+    cp -f "$_ms" "$SD_DIR/$1" 2>/dev/null || { unset _ms; return 1; }
+  fi
   touch -r "$SD_DIR/$1" "$_ms" 2>/dev/null
   unset _ms
 }
@@ -375,7 +380,13 @@ layout_migrate() {
 # ── Logging ──────────────────────────────────────────────────────────────────
 # One format for every line the module writes, so the WebUI can filter by
 # level. The daemon's own lines ("[2026-..] [NOTICE] ...") share the file.
-_ts() { date '+%Y-%m-%d %H:%M:%S' 2>/dev/null; }
+# Before Android sets the clock (early boot) the date is 1970: those lines
+# say "boot +Ns" (seconds since boot) instead of a wrong date.
+_ts() {
+  _tsd=$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+  case "$_tsd" in 19[0-9][0-9]-* | 200[0-9]-* | 201[0-9]-* | 202[0-3]-*) _tsd="boot +$(mono_now)s" ;; esac
+  echo "$_tsd"; unset _tsd
+}
 log_info()  { echo "$(_ts) [INFO] $*"  >> "$LOG"; }
 log_warn()  { echo "$(_ts) [WARN] $*"  >> "$LOG"; }
 log_error() { echo "$(_ts) [ERROR] $*" >> "$LOG"; }
@@ -416,6 +427,15 @@ blocklist_domains() {
   fi
   unset _stamp _cnt
 }
+
+# ── Monitoring page login (sh/monitor.sh) ───────────────────────────────────
+if [ -f "$MODDIR/sh/monitor.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$MODDIR/sh/monitor.sh"
+else
+  mon_get() { MON_USER=""; MON_PASS=""; return 1; }
+  mon_sd_copy() { cp -f "$1" "$2"; }
+fi
 
 # ── Rules ────────────────────────────────────────────────────────────────────
 # If rules.sh is missing, fail open rather than calling undefined functions
@@ -1033,7 +1053,7 @@ _v6c_sync() {
   fi
 
   _vs_sig=$(_v6c_sig)
-  _vs_now=$(date +%s)
+  _vs_now=$(mono_now)   # per-boot file: monotonic, not the wall clock
   _vs_osig=""; _vs_ot=0; _vs_old=""
   if [ -f "$V6C_FILE" ]; then
     _vs_osig=$(sed -n 1p "$V6C_FILE" 2>/dev/null)
@@ -1041,6 +1061,7 @@ _v6c_sync() {
     _vs_old=$(sed -n 3p "$V6C_FILE" 2>/dev/null)
   fi
   case "$_vs_ot" in '' | *[!0-9]*) _vs_ot=0 ;; esac
+  [ "$_vs_ot" -gt "$_vs_now" ] && _vs_ot=0
   _vs_want=$_vs_old
   if [ "$_vs_force" = "force" ] || [ ! -f "$V6C_FILE" ] || [ "$_vs_sig" != "$_vs_osig" ] || \
      [ $((_vs_now - _vs_ot)) -ge "$V6C_RECHECK" ]; then
