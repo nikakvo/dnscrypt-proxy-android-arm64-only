@@ -14,7 +14,10 @@ RES_MD="$RESOLVERS_DIR/public-resolvers.md"
 
 # Well-known choices shown first. Any other entry of the 500+ in
 # public-resolvers.md can be found with the search.
-RES_CURATED="cloudflare cloudflare-security quad9-dnscrypt-ip4-nofilter-pri quad9-doh-ip4-port443-nofilter-pri quad9-doh-ip4-port443-filter-pri mullvad-base-doh mullvad-doh mullvad-adblock-doh adguard-dns-doh adguard-dns-unfiltered-doh nextdns controld-uncensored libredns dnscry.pt-frankfurt-ipv4 google cisco"
+# 2.1.20-r4: only resolvers whose stamp declares "no logs" are offered
+# (list, search, apply). One already in server_names stays visible so it
+# can be unticked.
+RES_CURATED="cloudflare cloudflare-security adguard-dns-unfiltered-doh adguard-dns-doh nextdns dns.digitale-gesellschaft.ch wikimedia controld-unfiltered controld-uncensored libredns dnscry.pt-frankfurt-ipv4"
 
 res_md() {
   if [ -f "$RES_MD" ]; then echo "$RES_MD"; else echo "$MODDIR/config/public-resolvers.md"; fi
@@ -31,6 +34,11 @@ res_desc() { # <name>
 }
 
 res_exists() { grep -qxF "## $1" "$(res_md)" 2>/dev/null; }
+
+# Does the operator declare "no logs" in the stamp? (props bit 1)
+res_nolog() { # <name>
+  [ "$(res_decode "$(res_stamp "$1")" | cut -d'|' -f3)" = 1 ]
+}
 
 # Decode a stamp: proto|dnssec|nolog|nofilter|address
 #   proto 1 = DNSCrypt, 2 = DoH, 3 = DoT, 5 = ODoH target ...
@@ -80,15 +88,17 @@ res_list() {
     [ -n "$_st" ] || continue
     case " $RES_CURATED " in *" $_n "*) _c=1 ;; *) _c=0 ;; esac
     case "$_cur" in *" $_n "*) _s=1 ;; *) _s=0 ;; esac
-    echo "res=$_n|$_c|$_s|$(res_decode "$_st")|$(res_desc "$_n" | tr '|' '/')"
+    _d=$(res_decode "$_st")
+    # logging resolvers only when already selected
+    [ "$_s" = 1 ] || [ "$(printf '%s' "$_d" | cut -d'|' -f3)" = 1 ] || continue
+    echo "res=$_n|$_c|$_s|$_d|$(res_desc "$_n" | tr '|' '/')"
   done
-  unset _cur _all _n _st _c _s
+  unset _cur _all _n _st _c _s _d
 }
 
-res_search() { # <term> -> up to 40 matching names (name or description)
+res_search() { # <term> -> matching names (name or description); the caller limits
   awk -v t="$(printf '%s' "$1" | tr 'A-Z' 'a-z')" '
-    /^## / { name = substr($0, 4); getline d; if (index(tolower(name " " d), t)) print name }' "$(res_md)" 2>/dev/null |
-    head -n 40
+    /^## / { name = substr($0, 4); getline d; if (index(tolower(name " " d), t)) print name }' "$(res_md)" 2>/dev/null
 }
 
 # Rewrite server_names and the [static] block (always the last section of

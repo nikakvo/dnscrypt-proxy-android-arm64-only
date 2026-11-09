@@ -378,9 +378,12 @@ rm -f "$DATA_DIR/gustum-blocked-names.txt" 2>/dev/null
 # Resolvers across an update.
 #
 # The new toml is installed fresh (new defaults, new comments). Then:
-#  - if the previous server_names was a module default (the r11-r15
-#    default was cloudflare, quad9, mullvad-base-doh), the new default is
-#    kept - nobody chose the old one;
+#  - if the previous server_names was a module default (r11-r15:
+#    cloudflare, quad9, mullvad-base-doh; r16-2.1.20-r3: cloudflare, quad9,
+#    mullvad-doh), the new default is kept - nobody chose the old one;
+#  - 2.1.20-r4: Mullvad's public DNS closed on 2026-11-02, so mullvad-*
+#    names are dropped from a list picked in the WebUI (nothing is left ->
+#    the new default). Other picks, Quad9 included, stay as chosen;
 #  - otherwise the resolvers picked in the WebUI are carried over, with
 #    their stamps taken from the NEW public-resolvers.md, so an updated
 #    stamp reaches them too. A name the new list no longer has keeps its
@@ -402,7 +405,23 @@ if [ -n "$BACKUP_NAME" ] && [ -f "$OLD_TOML" ]; then
   OLD_LIST=$(toml_names "$OLD_TOML" | tr '\n' ' ')
   NEW_LIST=$(toml_names "$CONFIG_FILE" | tr '\n' ' ')
   case "$OLD_LIST" in
-    "" | "$NEW_LIST" | "cloudflare quad9-dnscrypt-ip4-nofilter-pri mullvad-base-doh ")
+    "cloudflare quad9-dnscrypt-ip4-nofilter-pri mullvad-base-doh " | \
+    "cloudflare quad9-dnscrypt-ip4-nofilter-pri mullvad-doh ")
+      ui_print "* Resolvers: new default ($(echo $NEW_LIST | tr ' ' ','))"
+      OLD_LIST="" ;;
+  esac
+  _dead=""; _keep=""
+  for _n in $OLD_LIST; do
+    case "$_n" in mullvad-*) _dead="$_dead${_dead:+,}$_n" ;; *) _keep="$_keep$_n " ;; esac
+  done
+  if [ -n "$_dead" ]; then
+    ui_print "* Removed $_dead - Mullvad's public DNS closed on 2026-11-02"
+    OLD_LIST=$_keep
+    [ -n "$OLD_LIST" ] || ui_print "* Resolvers: new default ($(echo $NEW_LIST | tr ' ' ','))"
+  fi
+  unset _dead _keep _n
+  case "$OLD_LIST" in
+    "" | "$NEW_LIST")
       [ -n "$OLD_LIST" ] && [ "$OLD_LIST" != "$NEW_LIST" ] && \
         ui_print "* Resolvers: new default ($(echo $NEW_LIST | tr ' ' ','))"
       ;;

@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.20--r3-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.20--r4-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -38,7 +38,7 @@ iptables redirect → 127.0.0.1:5354
       ↓
 dnscrypt-proxy: allow list → blocklist → cache
       ↓
-encrypted (DoH / DNSCrypt) → Cloudflare · Quad9 · Mullvad
+encrypted (DoH / DNSCrypt) → Cloudflare · AdGuard · NextDNS
 ```
 
 - Android's Private DNS is switched off at install (it would bypass the module) and restored on uninstall; if it gets switched on again, **System** offers a one-tap **Turn off**
@@ -137,9 +137,11 @@ While a hotspot runs, the Dashboard shows how many devices are connected, with I
 
 ## Resolvers
 
-Default: **Cloudflare · Quad9 · Mullvad** - none of them filter, the blocklists do that.
+Default: **Cloudflare · AdGuard DNS (unfiltered) · NextDNS** - three companies, none of them filter (the blocklists do that) and all declare no query logs.
 
-Change them in **Tools → Resolvers**. Protocol, logging, filtering and DNSSEC are decoded from each resolver's signed stamp in the official [public-resolvers](https://github.com/DNSCrypt/dnscrypt-resolvers) list. A new selection is checked by dnscrypt-proxy before it is used, and rolled back automatically if the daemon does not come up with it.
+Change them in **Tools → Resolvers**. Protocol, logging, filtering and DNSSEC are decoded from each resolver's signed stamp in the official [public-resolvers](https://github.com/DNSCrypt/dnscrypt-resolvers) list. **Only resolvers that declare no logs are offered** - in the list, in the search and when applying. A new selection is checked by dnscrypt-proxy before it is used, and rolled back automatically if the daemon does not come up with it.
+
+**Bootstrap.** When dnscrypt-proxy has to look up a server's own name (a resolver without an address in its stamp, a list download), it sends that one name as plain DNS to Cloudflare `1.1.1.1` / `1.0.0.1`, then Google `8.8.8.8` - never your queries. These three are the only plain DNS root may send directly; apps never can.
 
 ---
 
@@ -198,7 +200,7 @@ su -c '/system/bin/sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status'
 On **dnsleaktest.com** → Extended test:
 
 - No entries from your ISP or carrier ✅
-- Cloudflare / Quad9 / Mullvad (or your chosen resolvers) ✅
+- Cloudflare / AdGuard / NextDNS (or your chosen resolvers) ✅
 - No IPv6 address in IPv4-only mode ✅ (VoLTE keeps working - its network is not one apps can use)
 
 ---

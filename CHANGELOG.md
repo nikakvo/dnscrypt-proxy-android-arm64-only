@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.1.20-r4
+
+No more Quad9 and Mullvad - and only resolvers without logs are offered.
+
+* **Quad9 is out.** Quad9 stops answering in some countries (France from 24 November 2026, after a court order) and dnscrypt-proxy itself dropped it from its defaults. The bootstrap resolvers are now **Cloudflare `1.1.1.1` / `1.0.0.1`, then Google `8.8.8.8`** - only used to look up a server's own name, never for your queries. They are also the only addresses root may send plain DNS to (the firewall exemption follows them); the old Quad9 / DNS.SB rules are removed by the update
+  * while WG Shield 2.7 or older is installed, Quad9 stays reachable for it (it looks up host-name servers there); with WG Shield 2.8 that goes away by itself
+* **New default resolvers: Cloudflare, AdGuard DNS (unfiltered), NextDNS** - three companies, none of them filter, all declare no logs. **Mullvad's public DNS closed on 2 November 2026**: an update replaces the old default (Cloudflare, Quad9, Mullvad), and removes Mullvad from a selection you made yourself (the installer says so). Your own choice of other resolvers stays
+* **Only resolvers that declare no logs are offered** in Tools → Resolvers - in the list, in the search and when applying. Google and Cisco are gone from the list; Digitale Gesellschaft (Swiss non-profit) and Wikimedia DNS are new in it. A logging resolver you picked before stays visible with the LOGS badge until you untick it
+* **A text field no longer hides under the keyboard** - tapping the resolver search (or a My Rules field) near the bottom of the page left it under the on-screen keyboard; the page now scrolls it into view
+* The resolver lists (`public-resolvers.md`, `relays.md`) are the current signed ones
+* Help: resolvers, bootstrap
+* dnscrypt-proxy itself is unchanged (2.1.20)
+
+Tested on Poco F6 Pro, Xiaomi.eu ROM (HyperOS 3, Android 16), kernel [GKI_Kernel_SukiSU](https://github.com/nikakvo/GKI_Kernel_SukiSU), with WG Shield, ipset, VPN Hotspot and LAN Cloak: the new firewall exemptions and the Quad9 rules gone, Quad9 kept for WG Shield 2.7 and removed with 2.8, a WG Shield tunnel with a host-name server, your own resolver selection kept, the no-log list and search, the search field above the keyboard, hotspot devices through DNSCrypt, DNS leak test.
+
+---
 ## 2.1.20-r3
 
 The monitoring page gets a login, and a set of robustness fixes.

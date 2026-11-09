@@ -135,7 +135,7 @@
   <ol>
     <li>Flash the zip, reboot.</li>
     <li>Open the WebUI. The green banner should say <strong>Protected</strong>.</li>
-    <li>Tap <strong>DNS Test</strong> → run the extended test. You should see Cloudflare, Quad9 or Mullvad - never your carrier or ISP.</li>
+    <li>Tap <strong>DNS Test</strong> → run the extended test. You should see Cloudflare, AdGuard or NextDNS - never your carrier or ISP.</li>
     <li>Dashboard → <strong>Update Blocklist</strong> → pick your lists under <strong>Sources</strong> → <strong>Update</strong>.</li>
   </ol>
   <div class="note">Android's own <strong>Private DNS</strong> is switched off at install, otherwise Android would send DNS around the module. Uninstalling puts back whatever you had before.</div>
@@ -256,7 +256,7 @@
 <!-- 7 -->
 <div class="sec-title" id="resolvers">7 · tools - resolvers</div>
 <div class="box">
-  <p>The servers that actually answer your encrypted queries. Default: <strong>Cloudflare, Quad9, Mullvad</strong> - none of them filter, since the blocklists do that job.</p>
+  <p>The servers that actually answer your encrypted queries. Default: <strong>Cloudflare, AdGuard DNS (unfiltered), NextDNS</strong> - three companies, none of them filter (the blocklists do that job) and all say they keep no query logs.</p>
   <h3>Badges</h3>
   <div class="tw"><table>
     <tr><td>DoH / DNSCrypt</td><td>Protocol. Both are encrypted and authenticated.</td></tr>
@@ -269,9 +269,11 @@
   <ul>
     <li><strong>Test latency</strong> measures one TCP handshake to each server - a rough measure of distance, not of DNS speed.</li>
     <li>Tick the ones you want (1–8) → <strong>Apply</strong>. The new configuration is checked by dnscrypt-proxy itself before it is used, and if the daemon does not come back with it, the previous resolvers are restored automatically.</li>
-    <li><strong>Add from the full list</strong> searches all 700+ public resolvers.</li>
+    <li><strong>Add from the full list</strong> searches the public list.</li>
+    <li>Only resolvers that declare <strong>no logs</strong> in their signed stamp are offered - in the list, in the search and when applying. A logging resolver picked before stays visible (with the <span class="pill bad">logs</span> badge) until you untick it.</li>
   </ul>
   <p>With several resolvers, dnscrypt-proxy spreads queries over them and prefers the fastest.</p>
+  <p><strong>Bootstrap.</strong> The chosen servers are pinned with their addresses, so normally nothing else is asked. Only when it has to look up a server's own name (a resolver without an address in its stamp, or a list download) does dnscrypt-proxy send that one name as plain DNS to Cloudflare <code>1.1.1.1</code> / <code>1.0.0.1</code>, then Google <code>8.8.8.8</code> - never your queries. These three addresses are the only plain DNS the firewall lets root send directly (WG Shield uses them too, to look up a server given by host name).</p>
 </div>
 
 <!-- 8 -->

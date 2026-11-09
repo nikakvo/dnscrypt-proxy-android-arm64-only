@@ -27,7 +27,7 @@
 ##
 ## Remove the leading # first to enable this; lines starting with # are ignored.
 
-server_names = ['cloudflare', 'quad9-dnscrypt-ip4-nofilter-pri', 'mullvad-doh']
+server_names = ['cloudflare', 'adguard-dns-unfiltered-doh', 'nextdns']
 
 
 ## List of local addresses and ports to listen to. Can be IPv4 and/or IPv6.
@@ -362,7 +362,7 @@ pqdnscrypt = true
 ## not be sent there. If you're using DNSCrypt or Anonymized DNS and your
 ## lists are up to date, these resolvers will not even be used.
 
-bootstrap_resolvers = ['9.9.9.9:53', '149.112.112.112:53', '45.11.45.11:53']
+bootstrap_resolvers = ['1.1.1.1:53', '1.0.0.1:53', '8.8.8.8:53']
 
 
 ## When internal DNS resolution is required, for example to retrieve
@@ -406,9 +406,9 @@ netprobe_timeout = 0
 ## but nothing will be sent at all.
 ## Multiple comma-separated addresses can be given, for example to support
 ## both IPv4-only and IPv6-only networks. Connectivity is detected as soon
-## as any of them works: '9.9.9.9:53,[2620:fe::fe]:53'
+## as any of them works: '8.8.8.8:53,[2001:4860:4860::8888]:53'
 
-netprobe_address = '9.9.9.9:53'
+netprobe_address = '1.1.1.1:53'
 
 
 ## Offline mode - Do not use any remote encrypted servers.
@@ -1124,8 +1124,8 @@ privacy_level = 1
 [static.'cloudflare']
 stamp = 'sdns://AgcAAAAAAAAABzEuMC4wLjEAEmRucy5jbG91ZGZsYXJlLmNvbQovZG5zLXF1ZXJ5'
 
-[static.'quad9-dnscrypt-ip4-nofilter-pri']
-stamp = 'sdns://AQcAAAAAAAAADTkuOS45LjEwOjg0NDMgZ8hHuMh1jNEgJFVDvnVnRt803x2EwAuMRwNo34Idhj4ZMi5kbnNjcnlwdC1jZXJ0LnF1YWQ5Lm5ldA'
+[static.'adguard-dns-unfiltered-doh']
+stamp = 'sdns://AgcAAAAAAAAADTk0LjE0MC4xNC4xNDAgmzT6w-Nufisf7khHpzdmItTOLIc3jC6i1GBHI90_9ikNOTQuMTQwLjE0LjE0MAovZG5zLXF1ZXJ5'
 
-[static.'mullvad-doh']
-stamp = 'sdns://AgcAAAAAAAAACzE5NC4yNDIuMi4yAA9kbnMubXVsbHZhZC5uZXQKL2Rucy1xdWVyeQ'
+[static.'nextdns']
+stamp = 'sdns://AgcAAAAAAAAACjQ1LjkwLjMwLjAgmzT6w-Nufisf7khHpzdmItTOLIc3jC6i1GBHI90_9ikWYW55Y2FzdC5kbnMubmV4dGRucy5pbwovZG5zLXF1ZXJ5'

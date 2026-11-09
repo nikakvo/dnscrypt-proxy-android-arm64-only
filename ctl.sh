@@ -787,12 +787,19 @@ cmd_resolvers() {
 cmd_resolvers_search() { # <term>
   _t=$(printf '%s' "$1" | tr -dc 'A-Za-z0-9._ -')
   [ "${#_t}" -ge 2 ] || { echo "ok=0"; echo "error=type at least 2 characters"; unset _t; return 1; }
+  # only resolvers that declare "no logs" in their stamp, up to 40
+  _k=0
   res_search "$_t" | while IFS= read -r _n; do
+    [ "$_k" -lt 40 ] || break
     _st=$(res_stamp "$_n")
-    [ -n "$_st" ] && echo "res=$_n|0|0|$(res_decode "$_st")|$(res_desc "$_n" | tr '|' '/')"
+    [ -n "$_st" ] || continue
+    _d=$(res_decode "$_st")
+    [ "$(printf '%s' "$_d" | cut -d'|' -f3)" = 1 ] || continue
+    echo "res=$_n|0|0|$_d|$(res_desc "$_n" | tr '|' '/')"
+    _k=$((_k + 1))
   done
   echo "ok=1"
-  unset _t
+  unset _t _k _st _d _n
 }
 
 _res_validate() { # <csv> -> sets RES_NAMES
@@ -800,6 +807,10 @@ _res_validate() { # <csv> -> sets RES_NAMES
   for _n in $(printf '%s' "$1" | tr ',' ' '); do
     case "$_n" in *[!A-Za-z0-9._-]*) echo "ok=0"; echo "error=bad name: $_n"; return 1 ;; esac
     res_exists "$_n" || { echo "ok=0"; echo "error=unknown resolver: $_n"; return 1; }
+    # a logging resolver only if it is already in use (it can be kept or removed)
+    if ! res_nolog "$_n"; then
+      res_current | grep -qxF "$_n" || { echo "ok=0"; echo "error=$_n keeps query logs (its own stamp says so) - not offered"; return 1; }
+    fi
     case " $RES_NAMES " in *" $_n "*) : ;; *) RES_NAMES="$RES_NAMES $_n" ;; esac
   done
   unset _n

@@ -64,9 +64,31 @@ P_QUIC_PLAIN='^-A OUTPUT -p udp( -m udp)? --dport 443 -j DROP$'
 P_QUIC=$P_QUIC_PLAIN
 QUIC_OWN='-m owner --uid-owner 0-4294967294'
 P_CAPJ_UDP='^-A OUTPUT -p udp( -m udp)? --dport 53 -j DNSC_CAP$'
-P_BOOT_NAT='^-A OUTPUT -d 9\.9\.9\.9(/32)? -p udp( -m udp)? --dport 53 -m owner --uid-owner 0 -m mark --mark 0x0/0x10000 -j RETURN$'
+P_BOOT_NAT='^-A OUTPUT -d 1\.1\.1\.1(/32)? -p udp( -m udp)? --dport 53 -m owner --uid-owner 0 -m mark --mark 0x0/0x10000 -j RETURN$'
 unset _RX_REDIR
-BOOTSTRAP_IPS="9.9.9.9 149.112.112.112 45.11.45.11"
+# 2.1.20-r4: Cloudflare first, then Google (the toml's bootstrap_resolvers,
+# same order). Quad9 is gone from the whole set: it stops serving some
+# countries (France from 2026-11-24) and upstream dropped it from its
+# defaults. WG Shield's host-name lookup uses exactly these addresses.
+BOOTSTRAP_IPS="1.1.1.1 1.0.0.1 8.8.8.8"
+# Quad9 + DNS.SB, used up to 2.1.20-r3: their rules are removed.
+OLD_BOOTSTRAP_IPS="9.9.9.9 149.112.112.112 45.11.45.11"
+P_BOOT_OLD='-d (9\.9\.9\.9|149\.112\.112\.112|45\.11\.45\.11)(/32)? .*--dport 53 -m owner --uid-owner 0'
+P_BOOT_Q9='^-A OUTPUT -d 9\.9\.9\.9(/32)? -p udp( -m udp)? --dport 53 -m owner --uid-owner 0 -m mark --mark 0x0/0x10000 -j RETURN$'
+P_BOOT_DNSSB='-d 45\.11\.45\.11(/32)? .*--dport 53 -m owner --uid-owner 0'
+# WG Shield up to 2.7 (versionCode 13) looks up host-name endpoints at
+# Quad9. While such a version is installed and enabled, those two keep
+# their exemption - otherwise its lookup would go into this proxy, whose
+# upstream is inside the tunnel that cannot start yet. WG Shield 2.8 uses
+# BOOTSTRAP_IPS; the two go away by themselves once it is installed.
+WGS_OLD_IPS="9.9.9.9 149.112.112.112"
+boot_wgs_old() {
+  [ "$(wgs_installed)" = enabled ] || return 1
+  _bv=$(sed -n 's/^versionCode=//p' "$WGS_MODDIR/module.prop" 2>/dev/null | head -n 1)
+  case "$_bv" in ''|*[!0-9]*) unset _bv; return 1 ;; esac
+  [ "$_bv" -lt 14 ]; _br=$?; unset _bv; return $_br
+}
+boot_ips() { if boot_wgs_old; then echo "$BOOTSTRAP_IPS $WGS_OLD_IPS"; else echo "$BOOTSTRAP_IPS"; fi; }
 # 2.1.20-r1: the bootstrap exemption is only for sockets NOT bound to a
 # network (fwmark bit 0x10000 clear). Measured on the phone: every app's DNS
 # query is sent by netd's DnsResolver, which runs as root - so to xt_owner
@@ -186,6 +208,35 @@ rules_flush_all() {
 }
 
 # -----------------------------------------------------------------
+# Remove the exemptions of the bootstrap addresses used up to 2.1.20-r3
+# (both forms: with and without the mark). Only calls iptables when the
+# snapshot still shows one of them.
+# -----------------------------------------------------------------
+_boot_old_del() { # <wanted ips>
+  ipt_snap
+  sn_has "$S4N
+$S4F" "$P_BOOT_OLD" || return 0
+  for _ip in $OLD_BOOTSTRAP_IPS; do
+    case " $1 " in *" $_ip "*)
+      # still wanted (old WG Shield): only the unmarked 2.1.20 form goes
+      iptables -t nat -D OUTPUT -p udp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
+      iptables -t nat -D OUTPUT -p tcp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
+      iptables -D OUTPUT ! -o lo -p udp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+      iptables -D OUTPUT ! -o lo -p tcp -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+      continue ;;
+    esac
+    for _pr in tcp udp; do
+      iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j RETURN 2>/dev/null
+      iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
+      iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j ACCEPT 2>/dev/null
+      iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
+    done
+  done
+  unset _ip _pr
+  ipt_snap_stale
+}
+
+# -----------------------------------------------------------------
 # Install the DNS redirect + leak guard.
 # Inserted in reverse order so the final chain order is:
 #   nat OUTPUT:    [bootstrap RETURNs] [udp DNAT] [tcp DNAT] ...
@@ -193,6 +244,8 @@ rules_flush_all() {
 # -----------------------------------------------------------------
 rules_install_dns() {
   ipt_snap_stale
+  _BI=$(boot_ips)
+  _boot_old_del "$_BI"
   # The exemptions (RETURN in nat, ACCEPT in filter) only work ABOVE the
   # rule they exempt from. On a fresh install that falls out of the insert
   # order, but a repair is different: when netd or a VPN takes out only
@@ -209,7 +262,7 @@ rules_install_dns() {
     iptables -t nat -I OUTPUT 1 -p udp --dport 53 -j DNAT --to-destination "$DNS_REDIR" 2>/dev/null; _nat_new=1; }
 
   if have_owner_match; then
-    for _ip in $BOOTSTRAP_IPS; do
+    for _ip in $_BI; do
       for _pr in tcp udp; do
         # 2.1.20 and older: the same rule without the mark check
         iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j RETURN 2>/dev/null
@@ -237,7 +290,7 @@ rules_install_dns() {
       iptables -I OUTPUT 1 ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null; _flt_new=1; }
     iptables -C OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null || {
       iptables -I OUTPUT 1 ! -o lo -p udp --dport 53 -j DROP 2>/dev/null; _flt_new=1; }
-    for _ip in $BOOTSTRAP_IPS; do
+    for _ip in $_BI; do
       for _pr in tcp udp; do
         iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -j ACCEPT 2>/dev/null
         if [ "$_flt_new" -eq 1 ]; then
@@ -250,7 +303,7 @@ rules_install_dns() {
     _cap_jumps iptables filter "$_flt_new"
     unset _ip _pr _flt_new
   fi
-  unset _nat_new
+  unset _nat_new _BI
 
   # IPv6 DNS never goes through this proxy. If the IPv6 killswitch is off
   # or has been lifted, port-53 over IPv6 would be a wide open side door.
@@ -286,7 +339,7 @@ rules_remove_dns() {
   iptables -D OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null
   ip6tables -D OUTPUT ! -o lo -p udp --dport 53 -j DROP 2>/dev/null
   ip6tables -D OUTPUT ! -o lo -p tcp --dport 53 -j DROP 2>/dev/null
-  for _ip in $BOOTSTRAP_IPS; do
+  for _ip in $BOOTSTRAP_IPS $OLD_BOOTSTRAP_IPS; do
     for _pr in tcp udp; do
       iptables -t nat -D OUTPUT -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j RETURN 2>/dev/null
       iptables -D OUTPUT ! -o lo -p "$_pr" -d "$_ip" --dport 53 -m owner --uid-owner 0 -m mark --mark "$BOOT_MARK" -j ACCEPT 2>/dev/null
@@ -323,6 +376,16 @@ rules_dns_present() {
     sn_has "$S4F" "$P_CAPJ_UDP" || return 1
     sn_has "$S6F" "$P_CAPJ_UDP" || return 1
     sn_has "$S4N" "$P_BOOT_NAT" || return 1
+    # 2.1.20-r4: old (Quad9 / DNS.SB) exemptions: only Quad9, and only
+    # while an old WG Shield needs it (boot_wgs_old)
+    if boot_wgs_old; then
+      sn_has "$S4N" "$P_BOOT_Q9" || return 1
+      sn_has "$S4N
+$S4F" "$P_BOOT_DNSSB" && return 1
+    else
+      sn_has "$S4N
+$S4F" "$P_BOOT_OLD" && return 1
+    fi
   fi
   sn_has "$S6F" "$P_GUARD_UDP" || return 1
   if ip6_redirect_wanted && have_ip6_nat; then

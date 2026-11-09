@@ -13,7 +13,8 @@ while [ "$(getprop sys.boot_completed)" != "1" ] || \
 done
 
 DNS_REDIR="127.0.0.1:5354"
-BOOTSTRAP_IPS="9.9.9.9 149.112.112.112 45.11.45.11"
+# current (2.1.20-r4) and older (Quad9 + DNS.SB) bootstrap addresses
+BOOTSTRAP_IPS="1.1.1.1 1.0.0.1 8.8.8.8 9.9.9.9 149.112.112.112 45.11.45.11"
 
 # ===============================================
 # STEP 1: Kill dnscrypt-proxy

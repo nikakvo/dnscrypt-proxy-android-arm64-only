@@ -2246,6 +2246,24 @@ async function init() {
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshNow(); });
 init();
+
+// Keep a text field visible when the on-screen keyboard opens: the WebView
+// gets shorter, but the tab's scroll position stays, so a field near the
+// bottom (Resolvers search, My Rules) ended up hidden under the keyboard.
+(function () {
+  let t = 0;
+  function keep() {
+    const el = document.activeElement;
+    if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
+    const r = el.getBoundingClientRect(), h = window.visualViewport ? visualViewport.height : window.innerHeight;
+    if (r.top >= 8 && r.bottom <= h - 8) return;
+    try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) { el.scrollIntoView(false); }
+  }
+  function later(ms) { clearTimeout(t); t = setTimeout(keep, ms); }
+  window.addEventListener('resize', () => later(120));
+  if (window.visualViewport) visualViewport.addEventListener('resize', () => later(120));
+  document.addEventListener('focusin', e => { if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) later(400); });
+})();
 </script>
 </body>
 </html>
