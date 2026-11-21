@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.20-r5
+
+Outside links open in your browser, and the WebUI loads nothing from the internet.
+
+* **Outside links open in your browser instead of inside the WebUI, where a site could reach the root manager's bridge (it runs commands as root)**: DNS Test, Ads Test, Ads Test 2, My IP and the links at the bottom of Help. They open in the app set to open that address (usually your browser); Back returns to the WebUI, still open
+* **Monitor ↗ opens the monitoring page in your browser**, no longer inside the WebUI (the page shows the names any app looked up - text from outside, shown next to the root bridge). The login is no longer put into the address (it would end up in the browser's history): Monitor ↗ copies the password, the browser asks for the login - type `dnscrypt`, paste the password, and the browser can save it. If the page shows only *Unauthorized* (the login dialog closes when you switch apps), reload it
+* **The WebUI and Help load nothing from the internet** - the Google web font is gone (it sent a request to Google on every open); the text uses the phone's own monospace font
+* **Help reads better on the phone** - table rows are stacked (the name on top, its text under it at full width, no more sideways scrolling), every example command sits in a box with its own **COPY** button (only that one command is copied, never its comment), and an arrow at the bottom right jumps back to the top
+* Help: header buttons, Monitoring page, command line
+* dnscrypt-proxy itself and the module's scripts are unchanged
+
+Tested on Poco F6 Pro, Xiaomi.eu ROM (HyperOS 3, Android 16), kernel [GKI_Kernel_SukiSU](https://github.com/nikakvo/GKI_Kernel_SukiSU): every link opens outside the WebUI and Back returns to it, the monitoring login through Chrome (first time and saved), no request to Google when the WebUI opens.
+
+---
 ## 2.1.20-r4
 
 No more Quad9 and Mullvad - and only resolvers without logs are offered.

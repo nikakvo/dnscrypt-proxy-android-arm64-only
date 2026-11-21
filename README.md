@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/ARM64-only-green?style=flat-square" />
-  <img src="https://img.shields.io/badge/v2.1.20--r4-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/v2.1.20--r5-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/SukiSU%20%2F%20KernelSU%20%2F%20Magisk-compatible-brightgreen?style=flat-square" />
   <img src="https://img.shields.io/badge/WebUI-built%20in-00ff88?style=flat-square" />
 </p>
@@ -151,7 +151,7 @@ Change them in **Tools → Resolvers**. Protocol, logging, filtering and DNSSEC 
 |---|---|
 | `/data/adb/dnscrypt-proxy/` | Everything the module keeps, in one folder (below) |
 | `/storage/emulated/0/dnscrypt-proxy/` | Editable copy - changes are picked up within a minute |
-| `http://127.0.0.1:5555` | dnscrypt-proxy's own monitoring page - with a login (user `dnscrypt`, random password from the installer); the WebUI's **Monitor ↗** opens it logged in, **System → Monitoring page** shows the password |
+| `http://127.0.0.1:5555` | dnscrypt-proxy's own monitoring page - with a login (user `dnscrypt`, random password from the installer); the WebUI's **Monitor ↗** copies the password and opens the page in your browser, **System → Monitoring page** shows the user and the password |
 
 ```
 /data/adb/dnscrypt-proxy/

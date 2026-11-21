@@ -4,11 +4,6 @@
   <title>DNSCrypt Monitor</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <!-- Loaded without blocking: an @import inside <style> held back every
-       script after it until the font request finished or failed. With
-       DNS down - exactly when this page is needed - that was a blank
-       page until the request timed out. -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" media="print" onload="this.media='all'">
   <style>
 
     :root {
@@ -408,11 +403,11 @@
     <div id="clock">--:--:--</div>
   </div>
   <div class="btn-grid">
-    <a class="button" href="https://www.dnsleaktest.com/" target="_blank">DNS Test</a>
-    <a class="button" href="https://superadblocktest.com/" target="_blank">Ads Test</a>
-    <a class="button" href="https://obfusgated.com/tools/ad-block-test" target="_blank">Ads Test 2</a>
-    <a class="button" href="https://whatismyipaddress.com/" target="_blank">My IP</a>
-    <a class="button alt" id="mon-link" href="http://127.0.0.1:5555/" target="_blank">Monitor ↗</a>
+    <a class="button" href="#" data-ext="https://www.dnsleaktest.com/">DNS Test</a>
+    <a class="button" href="#" data-ext="https://superadblocktest.com/">Ads Test</a>
+    <a class="button" href="#" data-ext="https://obfusgated.com/tools/ad-block-test">Ads Test 2</a>
+    <a class="button" href="#" data-ext="https://whatismyipaddress.com/">My IP</a>
+    <a class="button alt" id="mon-link" href="#" data-ext="http://127.0.0.1:5555/">Monitor ↗</a>
     <a class="button alt" href="help.html">Help</a>
   </div>
 </header>
@@ -622,7 +617,7 @@
         <button class="btn-s" onclick="monCopy()">Copy password</button>
         <button class="btn-s" id="mon-new" onclick="monNew(this)">New password</button>
       </div>
-      <div class="note"><b>Monitor ↗</b> (dnscrypt-proxy's own page at <b>http://127.0.0.1:5555</b>) logs in with it by itself; another browser asks for it. Without it any app on the phone could read the names you looked up there. <b>New password</b> restarts dnscrypt-proxy (a few seconds). See <a href="help.html#monitor" style="color:var(--blue)">Help → Monitoring page</a>.</div>
+      <div class="note"><b>Monitor ↗</b> copies the password and opens dnscrypt-proxy's own page (<b>http://127.0.0.1:5555</b>) in your browser: type the user, paste the password (the browser can save them). Without it any app on the phone could read the names you looked up there. <b>New password</b> restarts dnscrypt-proxy (a few seconds). See <a href="help.html#monitor" style="color:var(--blue)">Help → Monitoring page</a>.</div>
     </div>
 
     <div class="section">
@@ -764,6 +759,49 @@ async function sh(cmd, timeoutMs) {
   const res = EXEC_MODE === 'callback' ? await callbackExec(wrapped, timeoutMs) : legacyExec(wrapped);
   return b64ToText((res.stdout || '').trim());
 }
+
+// ── Outside sites open in the phone's browser ───────────────────────────
+// The root manager would load a link in this WebView, where the site's
+// scripts could reach ksu.exec. am start hands it to the default browser.
+// Allowed: https addresses, and exactly one local page - dnscrypt-proxy's
+// monitoring page (it shows names that any app made the phone look up).
+const MON_URL = 'http://127.0.0.1:5555/';
+async function openExt(url) {
+  if (url !== MON_URL && !/^https:\/\/[a-z0-9.-]+\/[a-z0-9._\/-]*$/i.test(url)) { toast('Not opened: not an https address', 'err'); return false; }
+  const cmd = `am start -a android.intent.action.VIEW -d '${url}' 2>&1`;
+  const fail = m => { toast('Could not open the browser: ' + m, 'err', 4000); return false; };
+  let r;
+  try {
+    if (!hasBridge()) return fail('no root bridge');
+    if (EXEC_MODE === 'legacy') r = legacyExec(cmd);
+    else {
+      try { r = await callbackExec(cmd, 15000); }
+      catch (e) {
+        if (/timeout/.test(String(e && e.message))) return true;
+        if (EXEC_MODE === 'callback') throw e;
+        r = legacyExec(cmd);
+      }
+    }
+  } catch (e) { return fail(String((e && e.message) || e)); }
+  const out = (r.stdout || '') + (r.stderr || '');
+  const err = out.split('\n').find(l => /^Error/.test(l));
+  if (r.errno !== 0 || err) return fail(err || 'am start ended with ' + r.errno);
+  return true;
+}
+document.addEventListener('click', async e => {
+  const a = e.target.closest && e.target.closest('a[data-ext]');
+  if (!a) return;
+  e.preventDefault();
+  const url = a.getAttribute('data-ext');
+  // Monitor: the password goes to the clipboard first. Chrome drops its login
+  // dialog as soon as the user leaves it to fetch the password elsewhere.
+  const copy = url === MON_URL && _mon && _mon.p ? monCopyText(_mon.p) : null;
+  if (await openExt(url) && url === MON_URL) {
+    const copied = copy ? await copy : false;
+    toast(copied ? `Password copied - user ${_mon.u}`
+      : (_mon && _mon.u ? `User ${_mon.u} - password in System tab` : 'Login: see System tab'), 'ok', 6000);
+  }
+});
 
 // ── Press feedback ──────────────────────────────────────────────────────
 // Whatever the user taps, they see it: the button flashes on touch (CSS),
@@ -1486,18 +1524,11 @@ async function pauseFor(min) {
 
 // ── Monitoring page login ────────────────────────────────────────────────
 let _mon = null, _monShown = false, _monArm = 0;
-// The manager's WebView shows no login dialog for the monitoring page
-// (only "Unauthorized"), so Monitor ↗ carries the login in its address.
-// The page itself reads its data from location.origin, which has no
-// login in it, and the browser sends the remembered login along.
-function monLink() {
-  const a = $('mon-link');
-  if (a) a.href = _mon && _mon.u && _mon.p
-    ? `http://${encodeURIComponent(_mon.u)}:${encodeURIComponent(_mon.p)}@127.0.0.1:5555/`
-    : 'http://127.0.0.1:5555/';
-}
+// Monitor ↗ opens the page in the phone's browser (see openExt), without the
+// login in the address (it would end up in the browser's history). The
+// browser asks for it; System -> Monitoring page shows the user and copies
+// the password.
 function monRender() {
-  monLink();
   const el = $('mon-login');
   if (!_mon) { el.innerHTML = '<div class="empty">No login set - tap New password</div>'; return; }
   el.innerHTML = `<div class="row"><div class="rn"><b>User</b><span style="font-family:var(--mono)">${esc(_mon.u)}</span></div></div>` +
@@ -1512,15 +1543,19 @@ async function monLoad() {
   monRender();
 }
 function monShow() { if (!_mon) return; _monShown = !_monShown; monRender(); }
+// Starts inside the tap (the clipboard needs a user action); resolves to true
+// when the text is on the clipboard.
+async function monCopyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {
+    try {
+      const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t);
+      t.select(); const ok = document.execCommand('copy'); t.remove(); return ok;
+    } catch (e2) { return false; }
+  }
+}
 async function monCopy() {
   if (!_mon) { toast('No login set', 'err'); return; }
-  let ok = false;
-  try { await navigator.clipboard.writeText(_mon.p); ok = true; } catch (e) {
-    try {
-      const t = document.createElement('textarea'); t.value = _mon.p; document.body.appendChild(t);
-      t.select(); ok = document.execCommand('copy'); t.remove();
-    } catch (e2) { ok = false; }
-  }
+  const ok = await monCopyText(_mon.p);
   toast(ok ? 'Password copied' : 'Copy failed - tap Show and copy it by hand', ok ? 'ok' : 'err');
 }
 async function monNew(b) {
@@ -2238,7 +2273,7 @@ async function init() {
   }
   poll();
   loadSources();
-  monLoad();      // Monitor ↗ logs in by itself (monLink)
+  monLoad();      // user name for the Monitor ↗ hint and System → Monitoring page
   setInterval(poll, 5000);
   setInterval(() => { if (currentTab === 'sys' && !document.hidden) loadStatus(); }, 15000);
   setInterval(() => { if (currentTab === 'log' && !document.hidden) loadLog(false); }, 5000);

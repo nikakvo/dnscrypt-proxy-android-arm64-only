@@ -4,11 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>DNSCrypt Proxy - Help</title>
-  <!-- Loaded without blocking: an @import inside <style> held back every
-       script after it until the font request finished or failed. With
-       DNS down - exactly when this page is needed - that was a blank
-       page until the request timed out. -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" media="print" onload="this.media='all'">
   <style>
     :root {
       --bg: #000; --bg2: #040a06; --surface: #030d06; --surface2: #061209;
@@ -56,7 +51,7 @@
     .box ul, .box ol { margin: 6px 0 10px 18px; }
     .box li { margin-bottom: 5px; }
     strong { color: var(--hi); font-weight: 600; }
-    code { font-family: var(--mono); font-size: 12px; color: var(--amber); background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 0 5px; word-break: break-all; }
+    code { font-family: var(--mono); font-size: 12px; color: var(--amber); background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 0 5px; overflow-wrap: anywhere; }
     pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 12px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--text); margin: 8px 0; white-space: pre; }
     pre .cm { color: var(--dim); }
 
@@ -82,6 +77,42 @@
     .flow b { color: var(--green); font-weight: normal; }
     .footer { text-align: center; padding: 28px 16px 8px; font-size: 10px; font-family: var(--mono); color: var(--dim); }
     .footer a { color: var(--green); text-decoration: none; }
+  
+    /* Commands: mac-style box; COPY copies one command, never its comment */
+    .code-block { --cb: var(--green); background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 10px 0; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+    .code-label { font-family: var(--mono); font-size: 9.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .code-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .code-dots { display: flex; gap: 4px; }
+    .code-dot { width: 7px; height: 7px; border-radius: 50%; display: block; }
+    .code-dot:nth-child(1) { background: #ff5f57; }
+    .code-dot:nth-child(2) { background: #febc2e; }
+    .code-dot:nth-child(3) { background: #28c840; }
+    .copy-btn { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; background: transparent; border: 1px solid var(--border2); color: var(--cb); border-radius: 4px; padding: 3px 8px; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .05em; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+    .copy-btn:active { background: var(--surface2); }
+    .copy-btn.copied { color: #28c840; border-color: rgba(40,200,64,.45); }
+    .copy-btn.failed { color: var(--red); border-color: var(--red); }
+    .code-block pre { margin: 0; border: 0; border-radius: 0; background: transparent; padding: 0; white-space: pre-wrap; overflow-wrap: break-word; overflow-x: visible; }
+    .code-body { padding: 10px 12px; }
+    .cmd-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    .cmd-row:last-child { border-bottom: 0; }
+    .cmd-main { flex: 1; min-width: 0; }
+    .code-block pre .sub { color: var(--cb); }
+    .cmd-note { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 2px; }
+    /* Back to top */
+    .to-top { position: fixed; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface2); color: var(--green); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 40; opacity: 0; pointer-events: none; transition: opacity .2s; -webkit-tap-highlight-color: transparent; }
+    .to-top.show { opacity: 1; pointer-events: auto; }
+    /* Tables on a phone: each row stacked, the name on top and its text under it */
+    @media (max-width: 640px) {
+      .tw { overflow-x: visible; }
+      .tw table, .tw tbody, .tw tr, .tw td { display: block; width: 100%; }
+      .tw tr.th-row { display: none; }
+      .tw tr { padding: 9px 0; border-bottom: 1px solid var(--border); }
+      .tw tr:last-child { border-bottom: none; }
+      .tw td { border-bottom: none; padding: 0; }
+      .tw td:first-child { white-space: normal; overflow-wrap: anywhere; padding: 0 0 3px; }
+      .tw table.multi td[data-label]::before { content: attr(data-label) ': '; color: var(--dim); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+    }
   </style>
 </head>
 <body>
@@ -122,7 +153,7 @@
   <p>Every DNS lookup on the phone - from every app, the browser, the system - is sent through <strong>dnscrypt-proxy</strong>, encrypted, and answered by a resolver you choose. Your mobile carrier or Wi-Fi owner can no longer read or change your DNS.</p>
   <p>On the way, lookups for ads, trackers and malware are blocked using public blocklists (OISD, HaGeZi) plus your own rules.</p>
   <div class="tw"><table>
-    <tr><th>requirement</th><th></th></tr>
+    <tr class="th-row"><th>requirement</th><th></th></tr>
     <tr><td>CPU</td><td>arm64 only</td></tr>
     <tr><td>Root</td><td>SukiSU Ultra or KernelSU (WebUI built in). Magisk works too - open the WebUI with MMRL or KSU WebUI Standalone.</td></tr>
     <tr><td>Android</td><td>9 or newer</td></tr>
@@ -173,11 +204,12 @@
 <div class="sec-title" id="dash">4 · dashboard</div>
 <div class="box">
   <h3>Header buttons</h3>
+  <p>The test pages and <strong>Monitor ↗</strong> open in the app set to open that address (usually your browser; Android asks if none is set), not inside the WebUI: a site shown inside the WebUI could reach the root manager's bridge. Back returns to the WebUI. The WebUI itself loads nothing from the internet.</p>
   <div class="tw"><table>
     <tr><td>DNS Test</td><td>dnsleaktest.com - which DNS servers the world sees you using.</td></tr>
     <tr><td>Ads Test 1 / 2</td><td>Ad-blocking test pages.</td></tr>
     <tr><td>My IP</td><td>Your public IP address (useful with a VPN).</td></tr>
-    <tr><td>Monitor ↗</td><td>dnscrypt-proxy's own dashboard at <code>127.0.0.1:5555</code>, logged in by itself - see <a href="#monitor" style="color:var(--blue)">Monitoring page</a>.</td></tr>
+    <tr><td>Monitor ↗</td><td>dnscrypt-proxy's own dashboard at <code>127.0.0.1:5555</code>, in your browser; copies the password for its login first - see <a href="#monitor" style="color:var(--blue)">Monitoring page</a>.</td></tr>
     <tr><td>Help</td><td>This page.</td></tr>
   </table></div>
   <h3>Banner</h3>
@@ -202,7 +234,7 @@
   <h3>Sources</h3>
   <p>Open <strong>Sources</strong> next to the Update button and tick what you want. Several lists can be combined.</p>
   <div class="tw"><table>
-    <tr><th>group</th><th>use</th></tr>
+    <tr class="th-row"><th>group</th><th>use</th></tr>
     <tr><td>OISD</td><td>Small, Big (recommended), NSFW Small, NSFW.</td></tr>
     <tr><td>HaGeZi</td><td>Light → Normal → Pro → Pro++ → Ultimate (stronger, more breakage), plus Threat Intelligence mini/medium.</td></tr>
     <tr><td>Add-ons</td><td>Pop-up ads, fake &amp; scam, gambling, NSFW, device trackers (Xiaomi, Samsung, TikTok, Apple, Amazon, Windows / Office, Huawei, OPPO / Realme, Vivo), badware hosters, URL shorteners. Meant to stack on one main list.</td></tr>
@@ -241,7 +273,7 @@
   <p>If you unblock a name that a downloaded list also contains, it stays blocked - you are told which list; use Allow for those.</p>
   <h3>Rule syntax (for editing the files by hand)</h3>
   <div class="tw"><table>
-    <tr><th>rule</th><th>matches</th></tr>
+    <tr class="th-row"><th>rule</th><th>matches</th></tr>
     <tr><td>example.com</td><td>example.com and every subdomain</td></tr>
     <tr><td>*.example.com</td><td>the same as above</td></tr>
     <tr><td>=example.com</td><td>example.com only</td></tr>
@@ -319,7 +351,7 @@
   <p>Module version, SELinux, Android Private DNS (should be <span class="pill ok">off</span>), network, busybox and the blocklist size.</p>
   <p>Android's <strong>Private DNS</strong> uses its own encrypted channel (port 853) and would go around this module and its blocklists. The installer switches it off; if it is on again - Android settings, a restore, another app - a <strong>Turn off</strong> button appears in that row.</p>
   <h3 id="monitor">Monitoring page</h3>
-  <p>dnscrypt-proxy has its own page at <code>http://127.0.0.1:5555</code> (header button <strong>Monitor ↗</strong>) with live statistics, the last queried names and the top domains. Every app on the phone can reach <code>127.0.0.1</code>, so the page has a login: user <code>dnscrypt</code> and a random password, made when the module is installed and kept across updates. <strong>Monitor ↗</strong> opens the page already logged in (the login is part of the address it opens). Opened any other way - typed into a browser - the page asks for the login; the manager's own viewer cannot ask and only shows <em>Unauthorized</em>, so use the button there.</p>
+  <p>dnscrypt-proxy has its own page at <code>http://127.0.0.1:5555</code> (header button <strong>Monitor ↗</strong>) with live statistics, the last queried names and the top domains. Every app on the phone can reach <code>127.0.0.1</code>, so the page has a login: user <code>dnscrypt</code> and a random password, made when the module is installed and kept across updates. <strong>Monitor ↗</strong> first copies the password to the clipboard, then opens the page in your browser, which asks for the login: type the user (shown in <strong>System → Monitoring page</strong>, normally <code>dnscrypt</code>) and paste the password. Most browsers offer to save it, so it is asked only once. If the page shows only <em>Unauthorized</em> (the login dialog was closed, for example by switching apps), reload it and the dialog comes back. The login is not put into the address, so it does not end up in the browser's history.</p>
   <p><strong>System → Monitoring page</strong> shows the login: <strong>Show</strong> reveals the password, <strong>Copy password</strong> copies it, <strong>New password</strong> (tap twice) makes a new one and restarts dnscrypt-proxy for a few seconds. The WebUI itself does not need the password: it reads the statistics as root.</p>
   <p>The login is stored in <code>[monitoring_ui]</code> of <code>/data/adb/dnscrypt-proxy/dnscrypt-proxy.toml</code>. The copy on the sdcard shows <code>password = "set by the module - see the WebUI"</code> instead, because apps with file access can read the sdcard. To use your own password, write it there (or in the toml on /data); it is kept, also across updates.</p>
   <p>A red or amber dot on the <strong>System</strong> tab means something there needs attention.</p>
@@ -329,11 +361,11 @@
 <!-- 10 -->
 <div class="sec-title" id="ipmode">10 · system - ip mode</div>
 <div class="box">
-  <div class="tw"><table>
-    <tr><th>mode</th><th>ipv6</th><th>ipv6 dns</th><th>aaaa answers</th></tr>
-    <tr><td>IPv4 only</td><td>blocked (carrier VoLTE / MMS excepted)</td><td>-</td><td>blocked</td></tr>
-    <tr><td>IPv6 compatible</td><td>on</td><td>through the proxy</td><td>blocked</td></tr>
-    <tr><td>Dual stack</td><td>on</td><td>through the proxy</td><td>answered</td></tr>
+  <div class="tw"><table class="multi">
+    <tr class="th-row"><th>mode</th><th>ipv6</th><th>ipv6 dns</th><th>aaaa answers</th></tr>
+    <tr><td>IPv4 only</td><td data-label="ipv6">blocked (carrier VoLTE / MMS excepted)</td><td data-label="ipv6 dns">-</td><td data-label="aaaa answers">blocked</td></tr>
+    <tr><td>IPv6 compatible</td><td data-label="ipv6">on</td><td data-label="ipv6 dns">through the proxy</td><td data-label="aaaa answers">blocked</td></tr>
+    <tr><td>Dual stack</td><td data-label="ipv6">on</td><td data-label="ipv6 dns">through the proxy</td><td data-label="aaaa answers">answered</td></tr>
   </table></div>
   <ul>
     <li><strong>IPv4 only</strong> (default) - IPv6 blocked by the firewall. Strongest leak protection.</li>
@@ -348,7 +380,7 @@
     <li>IPv6 Neighbor Discovery, which those networks need to get their address. It never leaves the local link and carries no app data.</li>
   </ul>
   <p>The <strong>Carrier IPv6 (VoLTE)</strong> row in the Firewall section shows which interface is open. Check from Termux:</p>
-  <pre>su -c '/system/bin/sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh status' | /system/bin/grep carrier</pre>
+  <div class="code-block"><div class="code-header"><span class="code-label">Carrier IPv6 (VoLTE) check</span><div class="code-header-right"><div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div><button class="copy-btn" type="button" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>COPY</button></div></div><div class="code-body"><pre>su -c '/<wbr>system/<wbr>bin/<wbr>sh /<wbr>data/<wbr>adb/<wbr>modules/<wbr>dnscrypt-proxy-android/<wbr>ctl.sh <span class="sub">status</span>' | /<wbr>system/<wbr>bin/<wbr>grep carrier</pre></div></div>
   <p><strong>"VoLTE service not available" after a reboot.</strong> Some ROMs (seen on HyperOS) show this notification at every boot, because they check VoLTE before the IMS network has registered. It appears in every IP mode, also with this module's firewall fully open, and the VoLTE icon shows up a moment later. It is a false alarm: if the icon is there, VoLTE works - dismiss the notification.</p>
   <p>A few carriers run IMS over the normal internet connection instead of a network of its own. The module does not open that one (it would let every app use IPv6), so VoLTE needs <strong>IPv6 compatible</strong> there.</p>
   <h3>Kernel IPv6 NAT</h3>
@@ -404,7 +436,7 @@
 <div class="sec-title" id="files">14 · files &amp; configuration</div>
 <div class="box">
   <div class="tw"><table>
-    <tr><th>path</th><th>what</th></tr>
+    <tr class="th-row"><th>path</th><th>what</th></tr>
     <tr><td>/data/adb/dnscrypt-proxy/</td><td>Everything the module keeps, in one folder:
       <code>dnscrypt-proxy.toml</code> (the config) and <code>settings.conf</code> (module settings, below) at the top;
       <code>lists/</code> - your custom, allow and IP lists, the built <code>blocked-names.txt</code> and the download cache <code>sources/</code>;
@@ -433,8 +465,8 @@
 <!-- 15 -->
 <div class="sec-title" id="cli">15 · command line</div>
 <div class="box">
-  <p>Everything the WebUI does goes through one script, which also works from a root shell (Termux):</p>
-  <pre>su -c '/system/bin/sh /data/adb/modules/dnscrypt-proxy-android/ctl.sh <span class="cm">&lt;command&gt;</span>'</pre>
+  <p>Everything the WebUI does goes through one script, which also works from a root shell (Termux). For example the full state; any command from the table goes in place of <code>status</code>:</p>
+  <div class="code-block"><div class="code-header"><span class="code-label">Full state</span><div class="code-header-right"><div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div><button class="copy-btn" type="button" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>COPY</button></div></div><div class="code-body"><pre>su -c '/<wbr>system/<wbr>bin/<wbr>sh /<wbr>data/<wbr>adb/<wbr>modules/<wbr>dnscrypt-proxy-android/<wbr>ctl.sh <span class="sub">status</span>'</pre></div></div>
   <div class="tw"><table>
     <tr><td>status</td><td>Full state</td></tr>
     <tr><td>probe</td><td>Run the health checks now</td></tr>
@@ -461,13 +493,13 @@
 <div class="box">
   <h3>With a VPN (e.g. WireGuard)</h3>
   <p>Works alongside. Remove the <code>DNS =</code> line from the WireGuard app's config (WG Shield ignores it by itself), so the tunnel does not try to set its own DNS server - dnscrypt-proxy stays in charge, and its encrypted queries travel inside the tunnel.</p>
-  <div class="tw"><table>
-    <tr><th></th><th>this module</th><th>vpn</th><th>both</th></tr>
-    <tr><td>DNS lookups hidden from carrier</td><td>yes</td><td>yes</td><td>yes</td></tr>
-    <tr><td>Sites you visit hidden from carrier</td><td>no ¹</td><td>yes</td><td>yes</td></tr>
-    <tr><td>Your IP hidden from sites</td><td>no</td><td>yes</td><td>yes</td></tr>
-    <tr><td>Ad &amp; tracker blocking</td><td>yes</td><td>-</td><td>yes</td></tr>
-    <tr><td>Works when the VPN drops</td><td>yes</td><td>-</td><td>yes</td></tr>
+  <div class="tw"><table class="multi">
+    <tr class="th-row"><th></th><th>this module</th><th>vpn</th><th>both</th></tr>
+    <tr><td>DNS lookups hidden from carrier</td><td data-label="this module">yes</td><td data-label="vpn">yes</td><td data-label="both">yes</td></tr>
+    <tr><td>Sites you visit hidden from carrier</td><td data-label="this module">no ¹</td><td data-label="vpn">yes</td><td data-label="both">yes</td></tr>
+    <tr><td>Your IP hidden from sites</td><td data-label="this module">no</td><td data-label="vpn">yes</td><td data-label="both">yes</td></tr>
+    <tr><td>Ad &amp; tracker blocking</td><td data-label="this module">yes</td><td data-label="vpn">-</td><td data-label="both">yes</td></tr>
+    <tr><td>Works when the VPN drops</td><td data-label="this module">yes</td><td data-label="vpn">-</td><td data-label="both">yes</td></tr>
   </table></div>
   <p style="font-size:12px;color:var(--dim)">¹ Encrypted DNS hides the lookup, but the carrier still sees which IP addresses you connect to and, for most sites, the site name in the TLS handshake.</p>
   <h3>WG Shield Arm64</h3>
@@ -509,11 +541,54 @@
 </div>
 
 <div class="footer">
-  dnscrypt-proxy android · by <a href="https://github.com/nikakvo" target="_blank">Tears Burn</a><br>
-  built on <a href="https://github.com/DNSCrypt/dnscrypt-proxy" target="_blank">dnscrypt-proxy</a> · lists by <a href="https://oisd.nl" target="_blank">OISD</a> &amp; <a href="https://github.com/hagezi/dns-blocklists" target="_blank">HaGeZi</a>
+  dnscrypt-proxy android · by <a href="#" data-ext="https://github.com/nikakvo/">Tears Burn</a><br>
+  built on <a href="#" data-ext="https://github.com/DNSCrypt/dnscrypt-proxy/">dnscrypt-proxy</a> · lists by <a href="#" data-ext="https://oisd.nl/">OISD</a> &amp; <a href="#" data-ext="https://github.com/hagezi/dns-blocklists/">HaGeZi</a>
 </div>
 
+<button class="to-top" id="toTop" type="button" onclick="toTop()" aria-label="Back to top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
 <script>
+  // Outside sites open in the phone's browser. The root manager would load a
+  // link in this WebView, where the site's scripts could reach ksu.exec.
+  var _extSeq = 0, _extToastT = null;
+  function extToast(msg) {
+    var t = document.getElementById('ext-toast');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'ext-toast';
+      t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:88%;z-index:99;' +
+        'background:#1a0808;border:1px solid #ff4455;color:#ffd6da;font:12px/1.4 var(--mono,monospace);' +
+        'padding:8px 12px;border-radius:3px;text-align:center';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg; t.style.display = 'block';
+    clearTimeout(_extToastT); _extToastT = setTimeout(function () { t.style.display = 'none'; }, 3200);
+  }
+  function openExt(url) {
+    if (!/^https:\/\/[a-z0-9.-]+\/[a-z0-9._\/-]*$/i.test(url)) { extToast('Not opened: not an https address'); return; }
+    if (typeof ksu === 'undefined' || !ksu || typeof ksu.exec !== 'function') { extToast('Could not open the browser: no root bridge'); return; }
+    var cmd = "am start -a android.intent.action.VIEW -d '" + url + "' 2>&1";
+    var check = function (errno, out) {
+      var err = String(out || '').split('\n').filter(function (l) { return /^Error/.test(l); })[0];
+      if (errno !== 0 || err) extToast('Could not open the browser: ' + (err || 'am start ended with ' + errno));
+    };
+    var name = '__ext_cb_' + (++_extSeq) + '_' + Date.now();
+    window[name] = function (errno, stdout, stderr) {
+      try { delete window[name]; } catch (e) { window[name] = undefined; }
+      check(typeof errno === 'number' ? errno : 0, String(stdout || '') + String(stderr || ''));
+    };
+    try { ksu.exec(cmd, '{}', name); }
+    catch (e) {
+      try { delete window[name]; } catch (_) {}
+      try { var r = ksu.exec(cmd); check(0, typeof r === 'string' ? r : (r && r.stdout) || ''); }
+      catch (e2) { extToast('Could not open the browser: ' + String((e2 && e2.message) || e2)); }
+    }
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[data-ext]');
+    if (!a) return;
+    e.preventDefault();
+    openExt(a.getAttribute('data-ext'));
+  });
+
   function goBack() {
     // history.back() is right when the user arrived from index.html. Some
     // managers open a webroot file directly with no history to go back to,
@@ -527,6 +602,47 @@
       window.location.href = 'index.html';
     }
   }
+
+  // ── Copy a command (comments are not copied) ──
+  var ICON_COPY = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>COPY';
+  function codeText(pre) {
+    var c = pre.cloneNode(true);
+    c.querySelectorAll('.cm').forEach(function (n) { n.remove(); });
+    return c.textContent.replace(/\s+$/, '').replace(/^\s+/, '');
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.top = '-1000px';
+    document.body.appendChild(ta); ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function copyCode(btn) {
+    var box = btn.closest('.cmd-row') || btn.closest('.code-block');
+    var text = codeText(box.querySelector('pre'));
+    function done(ok) {
+      btn.classList.add(ok ? 'copied' : 'failed');
+      btn.textContent = ok ? 'COPIED' : 'FAILED';
+      setTimeout(function () { btn.classList.remove('copied', 'failed'); btn.innerHTML = ICON_COPY; }, 1600);
+    }
+    // The WebView of some root managers has no navigator.clipboard, or rejects it.
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallbackCopy(text)); });
+    } else {
+      done(fallbackCopy(text));
+    }
+  }
+  // ── Back to top ──
+  function toTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  (function () {
+    var b = document.getElementById('toTop');
+    function upd() { b.classList.toggle('show', (window.scrollY || document.documentElement.scrollTop) > 400); }
+    window.addEventListener('scroll', upd, { passive: true });
+    upd();
+  })();
 </script>
 </body>
 </html>
