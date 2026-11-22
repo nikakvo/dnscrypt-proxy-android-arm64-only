@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.21
+
+**dnscrypt-proxy updated to the official [2.1.21](https://github.com/DNSCrypt/dnscrypt-proxy/releases/tag/2.1.21) release:**
+
+* Forwarded replies that answer a different question than the one asked are now rejected (before, dnscrypt-proxy fell back to the normal resolvers). This matters only if you add your own `forwarding_rules`
+* Cloaking creates PTR records for every IPv6 address of a cloaked name, and Anonymized DNS routes with a wildcard pick IPv6 relays correctly. Both are off in this module unless you turn them on in `dnscrypt-proxy.toml`
+* dnscrypt-proxy's own default bootstrap and network-probe address moved from Quad9 to Google `8.8.8.8`. The module already uses Cloudflare `1.1.1.1` / `1.0.0.1` and Google `8.8.8.8` since 2.1.20-r4, so nothing changes for you
+* `dnscrypt-proxy.toml` is unchanged: 2.1.21 adds no new settings, and its only example change (the bootstrap and probe addresses) was already in the module. Your settings and lists carry over as they are
+* The resolver list (`public-resolvers.md`) is the current signed one
+* The module's scripts and WebUI are unchanged
+
+---
+
 ## 2.1.20-r6
 
 One phone Back leaves Help.
